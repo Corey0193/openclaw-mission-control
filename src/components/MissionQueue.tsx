@@ -16,7 +16,13 @@ import {
 import TaskCard from "./TaskCard";
 import KanbanColumn from "./KanbanColumn";
 
-type TaskStatus = "inbox" | "assigned" | "in_progress" | "review" | "done" | "archived";
+type TaskStatus =
+	| "inbox"
+	| "assigned"
+	| "in_progress"
+	| "review"
+	| "done"
+	| "archived";
 
 interface Task {
 	_id: Id<"tasks">;
@@ -45,7 +51,10 @@ function formatRelativeTime(timestamp: number | null): string {
 	if (hours < 24) return `${hours}h ago`;
 	if (days < 7) return `${days}d ago`;
 
-	return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+	return new Date(timestamp).toLocaleDateString(undefined, {
+		month: "short",
+		day: "numeric",
+	});
 }
 
 const columns = [
@@ -56,16 +65,27 @@ const columns = [
 	{ id: "done", label: "DONE", color: "var(--accent-green)" },
 ];
 
-const archivedColumn = { id: "archived", label: "ARCHIVED", color: "var(--text-subtle)" };
+const archivedColumn = {
+	id: "archived",
+	label: "ARCHIVED",
+	color: "var(--text-subtle)",
+};
 
 interface MissionQueueProps {
 	selectedTaskId: Id<"tasks"> | null;
 	onSelectTask: (id: Id<"tasks">) => void;
 }
 
-const MissionQueue: React.FC<MissionQueueProps> = ({ selectedTaskId, onSelectTask }) => {
-	const tasks = useQuery(api.queries.listTasks, { tenantId: DEFAULT_TENANT_ID });
-	const agents = useQuery(api.queries.listAgents, { tenantId: DEFAULT_TENANT_ID });
+const MissionQueue: React.FC<MissionQueueProps> = ({
+	selectedTaskId,
+	onSelectTask,
+}) => {
+	const tasks = useQuery(api.queries.listTasks, {
+		tenantId: DEFAULT_TENANT_ID,
+	});
+	const agents = useQuery(api.queries.listAgents, {
+		tenantId: DEFAULT_TENANT_ID,
+	});
 	const archiveTask = useMutation(api.tasks.archiveTask);
 	const updateStatus = useMutation(api.tasks.updateStatus);
 	const linkRun = useMutation(api.tasks.linkRun);
@@ -73,14 +93,14 @@ const MissionQueue: React.FC<MissionQueueProps> = ({ selectedTaskId, onSelectTas
 	const convex = useConvex();
 	const [activeTask, setActiveTask] = useState<Task | null>(null);
 
-	const currentUserAgent = agents?.find(a => a.name === "Manish");
+	const currentUserAgent = agents?.find((a) => a.name === "Manish");
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
 			activationConstraint: {
 				distance: 8, // 8px movement required to start drag
 			},
-		})
+		}),
 	);
 
 	if (tasks === undefined || agents === undefined) {
@@ -118,33 +138,35 @@ const MissionQueue: React.FC<MissionQueueProps> = ({ selectedTaskId, onSelectTas
 		const task = tasks.find((t) => t._id === taskId);
 
 		if (task && task.status !== newStatus) {
-				await updateStatus({
-					taskId,
-					status: newStatus,
-					agentId: currentUserAgent._id,
-					tenantId: DEFAULT_TENANT_ID,
-				});
+			await updateStatus({
+				taskId,
+				status: newStatus,
+				agentId: currentUserAgent._id,
+				tenantId: DEFAULT_TENANT_ID,
+			});
 		}
 	};
 
 	const handleArchive = (taskId: Id<"tasks">) => {
 		if (currentUserAgent) {
-				archiveTask({
-					taskId,
-					agentId: currentUserAgent._id,
-					tenantId: DEFAULT_TENANT_ID,
-				});
+			archiveTask({
+				taskId,
+				agentId: currentUserAgent._id,
+				tenantId: DEFAULT_TENANT_ID,
+			});
 		}
 	};
 
 	const buildAgentPreamble = (task: Task) => {
-		const assignee = task.assigneeIds.length > 0
-			? agents.find(a => a._id === task.assigneeIds[0])
-			: null;
+		const assignee =
+			task.assigneeIds.length > 0
+				? agents.find((a) => a._id === task.assigneeIds[0])
+				: null;
 		if (!assignee) return "";
 
 		const parts: string[] = [];
-		if (assignee.systemPrompt) parts.push(`System Prompt:\n${assignee.systemPrompt}`);
+		if (assignee.systemPrompt)
+			parts.push(`System Prompt:\n${assignee.systemPrompt}`);
 		if (assignee.character) parts.push(`Character:\n${assignee.character}`);
 		if (assignee.lore) parts.push(`Lore:\n${assignee.lore}`);
 
@@ -154,17 +176,22 @@ const MissionQueue: React.FC<MissionQueueProps> = ({ selectedTaskId, onSelectTas
 	const buildPrompt = async (task: Task) => {
 		let prompt = buildAgentPreamble(task);
 
-		prompt += task.description && task.description !== task.title
-			? `${task.title}\n\n${task.description}`
-			: task.title;
+		prompt +=
+			task.description && task.description !== task.title
+				? `${task.title}\n\n${task.description}`
+				: task.title;
 
-			const messages = await convex.query(api.queries.listMessages, {
-				taskId: task._id,
-				tenantId: DEFAULT_TENANT_ID,
-			});
+		const messages = await convex.query(api.queries.listMessages, {
+			taskId: task._id,
+			tenantId: DEFAULT_TENANT_ID,
+		});
 		if (messages && messages.length > 0) {
-			const sorted = [...messages].sort((a, b) => a._creationTime - b._creationTime);
-			const thread = sorted.map(m => `[${m.agentName}]: ${m.content}`).join("\n\n");
+			const sorted = [...messages].sort(
+				(a, b) => a._creationTime - b._creationTime,
+			);
+			const thread = sorted
+				.map((m) => `[${m.agentName}]: ${m.content}`)
+				.join("\n\n");
 			prompt += `\n\n---\nConversation:\n${thread}\n---\nContinue working on this task based on the conversation above.`;
 		}
 
@@ -177,7 +204,7 @@ const MissionQueue: React.FC<MissionQueueProps> = ({ selectedTaskId, onSelectTas
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
-					"Authorization": `Bearer ${import.meta.env.VITE_OPENCLAW_HOOK_TOKEN || ""}`,
+					Authorization: `Bearer ${import.meta.env.VITE_OPENCLAW_HOOK_TOKEN || ""}`,
 				},
 				body: JSON.stringify({
 					message,
@@ -190,11 +217,11 @@ const MissionQueue: React.FC<MissionQueueProps> = ({ selectedTaskId, onSelectTas
 			if (res.ok) {
 				const data = await res.json();
 				if (data.runId) {
-						await linkRun({
-							taskId,
-							openclawRunId: data.runId,
-							tenantId: DEFAULT_TENANT_ID,
-						});
+					await linkRun({
+						taskId,
+						openclawRunId: data.runId,
+						tenantId: DEFAULT_TENANT_ID,
+					});
 				}
 			}
 		} catch (err) {
@@ -205,12 +232,12 @@ const MissionQueue: React.FC<MissionQueueProps> = ({ selectedTaskId, onSelectTas
 	const handlePlay = async (taskId: Id<"tasks">) => {
 		if (!currentUserAgent) return;
 
-			await updateStatus({
-				taskId,
-				status: "in_progress",
-				agentId: currentUserAgent._id,
-				tenantId: DEFAULT_TENANT_ID,
-			});
+		await updateStatus({
+			taskId,
+			status: "in_progress",
+			agentId: currentUserAgent._id,
+			tenantId: DEFAULT_TENANT_ID,
+		});
 
 		const task = tasks.find((t) => t._id === taskId);
 		if (!task) return;
@@ -222,9 +249,9 @@ const MissionQueue: React.FC<MissionQueueProps> = ({ selectedTaskId, onSelectTas
 	const displayColumns = showArchived ? [...columns, archivedColumn] : columns;
 	const archivedCount = tasks.filter((t) => t.status === "archived").length;
 
-		return (
-			<main className="[grid-area:main] bg-secondary flex min-h-0 flex-col overflow-hidden">
-				<div className="shrink-0 flex items-center justify-between px-6 py-5 bg-white border-b border-border">
+	return (
+		<main className="[grid-area:main] bg-secondary flex min-h-0 flex-col overflow-hidden">
+			<div className="shrink-0 flex items-center justify-between px-6 py-5 bg-white border-b border-border">
 				<div className="text-[11px] font-bold tracking-widest text-muted-foreground flex items-center gap-2">
 					<span className="w-1.5 h-1.5 bg-[var(--accent-orange)] rounded-full" />{" "}
 					MISSION QUEUE
@@ -235,7 +262,12 @@ const MissionQueue: React.FC<MissionQueueProps> = ({ selectedTaskId, onSelectTas
 						{tasks.filter((t) => t.status === "inbox").length}
 					</div>
 					<div className="text-[11px] font-semibold px-3 py-1 rounded bg-[#f0f0f0] text-[#999]">
-						{tasks.filter((t) => t.status !== "done" && t.status !== "archived").length} active
+						{
+							tasks.filter(
+								(t) => t.status !== "done" && t.status !== "archived",
+							).length
+						}{" "}
+						active
 					</div>
 					<button
 						onClick={() => setShowArchived(!showArchived)}
@@ -248,7 +280,9 @@ const MissionQueue: React.FC<MissionQueueProps> = ({ selectedTaskId, onSelectTas
 						<IconArchive size={14} />
 						{showArchived ? "Hide Archived" : "Show Archived"}
 						{archivedCount > 0 && (
-							<span className={`px-1.5 rounded-full text-[10px] ${showArchived ? "bg-white/20" : "bg-[#d0d0d0]"}`}>
+							<span
+								className={`px-1.5 rounded-full text-[10px] ${showArchived ? "bg-white/20" : "bg-[#d0d0d0]"}`}
+							>
 								{archivedCount}
 							</span>
 						)}
@@ -261,7 +295,9 @@ const MissionQueue: React.FC<MissionQueueProps> = ({ selectedTaskId, onSelectTas
 				onDragStart={handleDragStart}
 				onDragEnd={handleDragEnd}
 			>
-					<div className={`flex-1 min-h-0 grid gap-px bg-border overflow-x-auto overflow-y-hidden ${showArchived ? "grid-cols-6" : "grid-cols-5"}`}>
+				<div
+					className={`flex-1 min-h-0 grid gap-px bg-border overflow-x-auto overflow-y-hidden ${showArchived ? "grid-cols-6" : "grid-cols-5"}`}
+				>
 					{displayColumns.map((col) => (
 						<KanbanColumn
 							key={col.id}

@@ -8,7 +8,10 @@ type AddAgentModalProps = {
 	onCreated: () => void;
 };
 
-const AddAgentModal: React.FC<AddAgentModalProps> = ({ onClose, onCreated }) => {
+const AddAgentModal: React.FC<AddAgentModalProps> = ({
+	onClose,
+	onCreated,
+}) => {
 	const createAgent = useMutation(api.agents.createAgent);
 
 	const [name, setName] = useState("");
@@ -28,23 +31,34 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({ onClose, onCreated }) => 
 			setSubmitting(true);
 
 			try {
-					await createAgent({
-						name: name.trim(),
-						role: role.trim() || "Agent",
+				await createAgent({
+					name: name.trim(),
+					role: role.trim() || "Agent",
 					level,
 					avatar: avatar.trim() || "🤖",
 					status,
-						systemPrompt: systemPrompt.trim() || undefined,
-						character: character.trim() || undefined,
-						lore: lore.trim() || undefined,
-						tenantId: DEFAULT_TENANT_ID,
-					});
+					systemPrompt: systemPrompt.trim() || undefined,
+					character: character.trim() || undefined,
+					lore: lore.trim() || undefined,
+					tenantId: DEFAULT_TENANT_ID,
+				});
 				onCreated();
 			} catch {
 				setSubmitting(false);
 			}
 		},
-		[name, role, level, avatar, status, systemPrompt, character, lore, createAgent, onCreated],
+		[
+			name,
+			role,
+			level,
+			avatar,
+			status,
+			systemPrompt,
+			character,
+			lore,
+			createAgent,
+			onCreated,
+		],
 	);
 
 	return (
@@ -126,7 +140,9 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({ onClose, onCreated }) => 
 							</label>
 							<select
 								value={level}
-								onChange={(e) => setLevel(e.target.value as "LEAD" | "INT" | "SPC")}
+								onChange={(e) =>
+									setLevel(e.target.value as "LEAD" | "INT" | "SPC")
+								}
 								className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
 							>
 								<option value="LEAD">LEAD</option>
@@ -140,7 +156,9 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({ onClose, onCreated }) => 
 							</label>
 							<select
 								value={status}
-								onChange={(e) => setStatus(e.target.value as "idle" | "active" | "blocked")}
+								onChange={(e) =>
+									setStatus(e.target.value as "idle" | "active" | "blocked")
+								}
 								className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
 							>
 								<option value="active">Active</option>

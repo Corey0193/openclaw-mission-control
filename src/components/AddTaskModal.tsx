@@ -29,14 +29,22 @@ type AddTaskModalProps = {
 	initialAssigneeId?: string;
 };
 
-const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initialAssigneeId }) => {
-	const agents = useQuery(api.queries.listAgents, { tenantId: DEFAULT_TENANT_ID });
+const AddTaskModal: React.FC<AddTaskModalProps> = ({
+	onClose,
+	onCreated,
+	initialAssigneeId,
+}) => {
+	const agents = useQuery(api.queries.listAgents, {
+		tenantId: DEFAULT_TENANT_ID,
+	});
 	const createTask = useMutation(api.tasks.createTask);
 	const updateAssignees = useMutation(api.tasks.updateAssignees);
 
 	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
-	const [status, setStatus] = useState(initialAssigneeId ? "assigned" : "inbox");
+	const [status, setStatus] = useState(
+		initialAssigneeId ? "assigned" : "inbox",
+	);
 	const [tagInput, setTagInput] = useState("");
 	const [tags, setTags] = useState<string[]>([]);
 	const [assigneeId, setAssigneeId] = useState(initialAssigneeId ?? "");
@@ -68,24 +76,24 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initial
 			setSubmitting(true);
 
 			try {
-					const taskId = await createTask({
-						title: title.trim(),
-						description: description.trim() || title.trim(),
-						status,
-						tags,
-						borderColor: borderColor || undefined,
-						tenantId: DEFAULT_TENANT_ID,
-					});
+				const taskId = await createTask({
+					title: title.trim(),
+					description: description.trim() || title.trim(),
+					status,
+					tags,
+					borderColor: borderColor || undefined,
+					tenantId: DEFAULT_TENANT_ID,
+				});
 
 				if (assigneeId && agents) {
 					const agent = agents.find((a) => a._id === assigneeId);
 					if (agent) {
-							await updateAssignees({
-								taskId,
-								assigneeIds: [assigneeId as Id<"agents">],
-								agentId: agent._id,
-								tenantId: DEFAULT_TENANT_ID,
-							});
+						await updateAssignees({
+							taskId,
+							assigneeIds: [assigneeId as Id<"agents">],
+							agentId: agent._id,
+							tenantId: DEFAULT_TENANT_ID,
+						});
 					}
 				}
 

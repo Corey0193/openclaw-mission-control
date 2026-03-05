@@ -3,12 +3,226 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import fs from "fs";
+import os from "os";
+
+interface Todo {
+	blockId: string;
+	checked: boolean;
+	priority: "P1" | "P2" | "P3";
+	description: string;
+	due?: string;
+	delegatedTo?: string;
+	delegatedAt?: string;
+	status?: string;
+	section: "active" | "waiting" | "upcoming" | "someday" | "completed";
+}
+
+const TASKS_PATH = path.join(
+	os.homedir(),
+	"Documents/Second Brain/90-System/tasks.md",
+);
+
+function parseTodos(content: string): Todo[] {
+	const lines = content.split("\n");
+	let section: Todo["section"] = "active";
+	const todos: Todo[] = [];
+
+	for (const line of lines) {
+		if (/^## Active/i.test(line)) {
+			section = "active";
+			continue;
+		}
+		if (/^## Waiting/i.test(line)) {
+			section = "waiting";
+			continue;
+		}
+		if (/^## Upcoming/i.test(line)) {
+			section = "upcoming";
+			continue;
+		}
+		if (/^## Someday/i.test(line)) {
+			section = "someday";
+			continue;
+		}
+		if (/^## Completed/i.test(line)) {
+			section = "completed";
+			continue;
+		}
+
+		const todoMatch = line.match(/^- \[([ x])\]/);
+		if (!todoMatch) continue;
+
+		const blockIdMatch = line.match(/\^(task-\S+)/);
+		if (!blockIdMatch) continue;
+
+		const blockId = blockIdMatch[1];
+		const checked = todoMatch[1] === "x";
+
+		const lineContent = line.replace(/^- \[[ x]\]\s*/, "");
+		const fields = lineContent.split(/\s*\|\s*/);
+
+		const priorityMatch = fields[0].match(/\b(P[123])\b/);
+		const priority = (priorityMatch?.[1] ?? "P3") as "P1" | "P2" | "P3";
+
+		let description: string;
+		if (fields.length > 1 && fields[1] && !/^\^task-/.test(fields[1].trim())) {
+			description = fields[1].trim();
+		} else {
+			description = fields[0].replace(/\b(P[123])\b\s*/, "").trim();
+		}
+		description = description.replace(/\s*\^task-\S+/, "").trim();
+
+		const dueMatch = line.match(/\bdue:(\S+)/);
+		const delegatedMatch = line.match(/@(\w+)\s+delegated:(\S+)/);
+		const statusMatch = line.match(/\bstatus:(\w+)/);
+
+		todos.push({
+			blockId,
+			checked,
+			priority,
+			description,
+			...(dueMatch?.[1] && { due: dueMatch[1] }),
+			...(delegatedMatch?.[1] && { delegatedTo: delegatedMatch[1] }),
+			...(delegatedMatch?.[2] && { delegatedAt: delegatedMatch[2] }),
+			...(statusMatch?.[1] && { status: statusMatch[1] }),
+			section,
+		});
+	}
+
+	return todos;
+}
+
+function einsteinTodosPlugin() {
+	return {
+		name: "einstein-todos",
+		configureServer(server: import("vite").ViteDevServer) {
+			server.middlewares.use(
+				(
+					req: import("http").IncomingMessage,
+					res: import("http").ServerResponse,
+					next: () => void,
+				) => {
+					const url = (req.url ?? "/").split("?")[0];
+					const method = req.method ?? "GET";
+
+					// GET /api/todos
+					if (method === "GET" && url === "/api/todos") {
+						try {
+							const content = fs.readFileSync(TASKS_PATH, "utf-8");
+							const todos = parseTodos(content);
+							res.setHeader("Content-Type", "application/json");
+							res.end(JSON.stringify({ todos }));
+						} catch (err: unknown) {
+							if (
+								(err as NodeJS.ErrnoException).code === "ENOENT"
+							) {
+								res.setHeader("Content-Type", "application/json");
+								res.end(
+									JSON.stringify({
+										todos: [],
+										error: "tasks.md not found",
+									}),
+								);
+							} else {
+								res.statusCode = 500;
+								res.end("Internal server error");
+							}
+						}
+						return;
+					}
+
+					// POST /api/todos/:blockId/complete
+					const completeMatch = url.match(
+						/^\/api\/todos\/([^/]+)\/complete$/,
+					);
+					if (method === "POST" && completeMatch) {
+						const blockId = completeMatch[1];
+						try {
+							const content = fs.readFileSync(
+								TASKS_PATH,
+								"utf-8",
+							);
+							const lines = content.split("\n");
+							const idx = lines.findIndex((l) =>
+								l.includes(`^${blockId}`),
+							);
+							if (idx === -1) {
+								res.statusCode = 404;
+								res.end("Block ID not found");
+								return;
+							}
+							let line = lines[idx];
+							line = line.replace("- [ ]", "- [x]");
+							if (!line.includes("completed:")) {
+								const today = new Date()
+									.toISOString()
+									.slice(0, 10);
+								line = line.replace(
+									/([ \t]*\^task-\S+)$/,
+									` | completed:${today}$1`,
+								);
+							}
+							lines[idx] = line;
+							fs.writeFileSync(
+								TASKS_PATH,
+								lines.join("\n"),
+								"utf-8",
+							);
+							res.setHeader("Content-Type", "application/json");
+							res.end(JSON.stringify({ ok: true }));
+						} catch {
+							res.statusCode = 500;
+							res.end("Write error");
+						}
+						return;
+					}
+
+					// DELETE /api/todos/:blockId
+					const deleteMatch = url.match(/^\/api\/todos\/([^/]+)$/);
+					if (method === "DELETE" && deleteMatch) {
+						const blockId = deleteMatch[1];
+						try {
+							const content = fs.readFileSync(
+								TASKS_PATH,
+								"utf-8",
+							);
+							const lines = content.split("\n");
+							const idx = lines.findIndex((l) =>
+								l.includes(`^${blockId}`),
+							);
+							if (idx === -1) {
+								res.statusCode = 404;
+								res.end("Block ID not found");
+								return;
+							}
+							lines.splice(idx, 1);
+							fs.writeFileSync(
+								TASKS_PATH,
+								lines.join("\n"),
+								"utf-8",
+							);
+							res.setHeader("Content-Type", "application/json");
+							res.end(JSON.stringify({ ok: true }));
+						} catch {
+							res.statusCode = 500;
+							res.end("Write error");
+						}
+						return;
+					}
+
+					next();
+				},
+			);
+		},
+	};
+}
 
 // https://vite.dev/config/
 export default defineConfig({
 	plugins: [
 		react(),
 		tailwindcss(),
+		einsteinTodosPlugin(),
 		{
 			name: "local-file-server",
 			configureServer(server) {

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import SignOutButton from "./Signout";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -9,16 +10,32 @@ type HeaderProps = {
 	onOpenLiveFeed?: () => void;
 };
 
+const NAV_ITEMS = [
+	{ to: "/", label: "Dashboard" },
+	{ to: "/org", label: "Org Chart" },
+	{ to: "/todos", label: "To-Dos" },
+	{ to: "/polymarket", label: "Polymarket" },
+];
+
 const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 	const [time, setTime] = useState(new Date());
-	
+	const location = useLocation();
+
 	// Fetch data for dynamic counts
-	const agents = useQuery(api.queries.listAgents, { tenantId: DEFAULT_TENANT_ID });
-	const tasks = useQuery(api.queries.listTasks, { tenantId: DEFAULT_TENANT_ID });
+	const agents = useQuery(api.queries.listAgents, {
+		tenantId: DEFAULT_TENANT_ID,
+	});
+	const tasks = useQuery(api.queries.listTasks, {
+		tenantId: DEFAULT_TENANT_ID,
+	});
 
 	// Calculate counts
-	const activeAgentsCount = agents ? agents.filter(a => a.status === "active").length : 0;
-	const tasksInQueueCount = tasks ? tasks.filter(t => t.status !== "done").length : 0;
+	const activeAgentsCount = agents
+		? agents.filter((a) => a.status === "active").length
+		: 0;
+	const tasksInQueueCount = tasks
+		? tasks.filter((t) => t.status !== "done").length
+		: 0;
 
 	useEffect(() => {
 		const timer = setInterval(() => setTime(new Date()), 1000);
@@ -48,24 +65,44 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 		<header className="[grid-area:header] flex items-center justify-between px-3 md:px-6 bg-white border-b border-border z-10">
 			<div className="flex items-center gap-2 md:gap-4 min-w-0">
 				<div className="flex md:hidden items-center gap-2">
-					<button
-						type="button"
-						className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-muted hover:bg-accent transition-colors"
-						onClick={onOpenAgents}
-						aria-label="Open agents sidebar"
-					>
-						<span aria-hidden="true">☰</span>
-					</button>
+					{onOpenAgents && (
+						<button
+							type="button"
+							className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-muted hover:bg-accent transition-colors"
+							onClick={onOpenAgents}
+							aria-label="Open agents sidebar"
+						>
+							<span aria-hidden="true">&#9776;</span>
+						</button>
+					)}
 				</div>
 				<div className="flex items-center gap-2 min-w-0">
-					<span className="text-2xl text-[var(--accent-orange)]">◇</span>
+					<span className="text-2xl text-[var(--accent-orange)]">&#9671;</span>
 					<h1 className="text-base md:text-lg font-semibold tracking-wider text-foreground truncate">
 						MISSION CONTROL
 					</h1>
 				</div>
-				<div className="hidden sm:block text-xs text-muted-foreground bg-muted px-3 py-1 rounded-full font-medium">
-					SiteName
-				</div>
+				<nav className="hidden sm:flex items-center gap-1 ml-2">
+					{NAV_ITEMS.map((item) => {
+						const isActive = location.pathname === item.to;
+						return (
+							<Link
+								key={item.to}
+								to={item.to}
+								className={`
+									text-[11px] font-semibold tracking-wide px-3 py-1 rounded-full transition-colors
+									${
+										isActive
+											? "bg-[var(--accent-orange)] text-white"
+											: "text-muted-foreground hover:text-foreground hover:bg-muted"
+									}
+								`}
+							>
+								{item.label}
+							</Link>
+						);
+					})}
+				</nav>
 			</div>
 
 			<div className="hidden md:flex items-center gap-10">
@@ -89,14 +126,16 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 			</div>
 
 			<div className="flex items-center gap-2 md:gap-6">
-				<button
-					type="button"
-					className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-lg bg-muted hover:bg-accent transition-colors"
-					onClick={onOpenLiveFeed}
-					aria-label="Open live feed sidebar"
-				>
-					<span aria-hidden="true">☰</span>
-				</button>
+				{onOpenLiveFeed && (
+					<button
+						type="button"
+						className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-lg bg-muted hover:bg-accent transition-colors"
+						onClick={onOpenLiveFeed}
+						aria-label="Open live feed sidebar"
+					>
+						<span aria-hidden="true">&#9776;</span>
+					</button>
+				)}
 				<div className="text-right">
 					<div className="text-xl font-semibold text-foreground tabular-nums">
 						{formatTime(time)}

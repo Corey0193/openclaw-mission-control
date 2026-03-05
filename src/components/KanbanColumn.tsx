@@ -43,9 +43,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
 				</span>
 			</div>
 			<div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain p-3">
-				<div className="flex flex-col gap-3">
-					{children}
-				</div>
+				<div className="flex flex-col gap-3">{children}</div>
 			</div>
 		</div>
 	);

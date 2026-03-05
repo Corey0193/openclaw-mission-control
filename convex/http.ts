@@ -21,4 +21,18 @@ http.route({
 	}),
 });
 
+// Polymarket position sync endpoint
+http.route({
+	path: "/polymarket/sync",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		await ctx.runMutation(api.polymarket.syncPositions, body);
+		return new Response(JSON.stringify({ ok: true }), {
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		});
+	}),
+});
+
 export default http;

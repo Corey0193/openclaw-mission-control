@@ -9,8 +9,13 @@ type AgentDetailTrayProps = {
 	onClose: () => void;
 };
 
-const AgentDetailTray: React.FC<AgentDetailTrayProps> = ({ agentId, onClose }) => {
-	const agents = useQuery(api.queries.listAgents, { tenantId: DEFAULT_TENANT_ID });
+const AgentDetailTray: React.FC<AgentDetailTrayProps> = ({
+	agentId,
+	onClose,
+}) => {
+	const agents = useQuery(api.queries.listAgents, {
+		tenantId: DEFAULT_TENANT_ID,
+	});
 	const updateAgent = useMutation(api.agents.updateAgent);
 
 	const agent = agents?.find((a) => a._id === agentId) ?? null;
@@ -20,7 +25,9 @@ const AgentDetailTray: React.FC<AgentDetailTrayProps> = ({ agentId, onClose }) =
 	const [editRole, setEditRole] = useState("");
 	const [editLevel, setEditLevel] = useState<"LEAD" | "INT" | "SPC">("SPC");
 	const [editAvatar, setEditAvatar] = useState("");
-	const [editStatus, setEditStatus] = useState<"idle" | "active" | "blocked">("active");
+	const [editStatus, setEditStatus] = useState<"idle" | "active" | "blocked">(
+		"active",
+	);
 	const [editSystemPrompt, setEditSystemPrompt] = useState("");
 	const [editCharacter, setEditCharacter] = useState("");
 	const [editLore, setEditLore] = useState("");
@@ -44,23 +51,34 @@ const AgentDetailTray: React.FC<AgentDetailTrayProps> = ({ agentId, onClose }) =
 		if (!agentId) return;
 		setSaving(true);
 		try {
-				await updateAgent({
-					id: agentId,
+			await updateAgent({
+				id: agentId,
 				name: editName,
 				role: editRole,
 				level: editLevel,
 				avatar: editAvatar,
 				status: editStatus,
-					systemPrompt: editSystemPrompt,
-					character: editCharacter,
-					lore: editLore,
-					tenantId: DEFAULT_TENANT_ID,
-				});
+				systemPrompt: editSystemPrompt,
+				character: editCharacter,
+				lore: editLore,
+				tenantId: DEFAULT_TENANT_ID,
+			});
 			setIsEditing(false);
 		} finally {
 			setSaving(false);
 		}
-	}, [agentId, editName, editRole, editLevel, editAvatar, editStatus, editSystemPrompt, editCharacter, editLore, updateAgent]);
+	}, [
+		agentId,
+		editName,
+		editRole,
+		editLevel,
+		editAvatar,
+		editStatus,
+		editSystemPrompt,
+		editCharacter,
+		editLore,
+		updateAgent,
+	]);
 
 	const handleCancel = useCallback(() => {
 		if (agent) {
@@ -123,7 +141,9 @@ const AgentDetailTray: React.FC<AgentDetailTrayProps> = ({ agentId, onClose }) =
 										className="w-full text-lg font-bold text-foreground border border-border rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)]"
 									/>
 								) : (
-									<div className="text-lg font-bold text-foreground">{agent.name}</div>
+									<div className="text-lg font-bold text-foreground">
+										{agent.name}
+									</div>
 								)}
 								{isEditing ? (
 									<input
@@ -133,7 +153,9 @@ const AgentDetailTray: React.FC<AgentDetailTrayProps> = ({ agentId, onClose }) =
 										className="w-full text-xs text-muted-foreground border border-border rounded-lg px-2 py-1 mt-1 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)]"
 									/>
 								) : (
-									<div className="text-xs text-muted-foreground">{agent.role}</div>
+									<div className="text-xs text-muted-foreground">
+										{agent.role}
+									</div>
 								)}
 							</div>
 						</div>
@@ -143,10 +165,17 @@ const AgentDetailTray: React.FC<AgentDetailTrayProps> = ({ agentId, onClose }) =
 							{isEditing ? (
 								<select
 									value={editLevel}
-									onChange={(e) => setEditLevel(e.target.value as "LEAD" | "INT" | "SPC")}
+									onChange={(e) =>
+										setEditLevel(e.target.value as "LEAD" | "INT" | "SPC")
+									}
 									className="text-[10px] font-bold px-2 py-1 rounded text-white border-none focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)]"
 									style={{
-										backgroundColor: editLevel === "LEAD" ? "var(--status-lead)" : editLevel === "INT" ? "var(--status-int)" : "var(--status-spc)",
+										backgroundColor:
+											editLevel === "LEAD"
+												? "var(--status-lead)"
+												: editLevel === "INT"
+													? "var(--status-int)"
+													: "var(--status-spc)",
 									}}
 								>
 									<option value="LEAD">LEAD</option>
@@ -170,7 +199,11 @@ const AgentDetailTray: React.FC<AgentDetailTrayProps> = ({ agentId, onClose }) =
 							{isEditing ? (
 								<select
 									value={editStatus}
-									onChange={(e) => setEditStatus(e.target.value as "idle" | "active" | "blocked")}
+									onChange={(e) =>
+										setEditStatus(
+											e.target.value as "idle" | "active" | "blocked",
+										)
+									}
 									className="text-[10px] font-bold px-2 py-1 rounded border border-border bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)]"
 								>
 									<option value="active">Active</option>
@@ -215,7 +248,11 @@ const AgentDetailTray: React.FC<AgentDetailTrayProps> = ({ agentId, onClose }) =
 								/>
 							) : (
 								<p className="text-sm text-foreground leading-relaxed bg-muted/50 rounded-lg px-3 py-2">
-									{agent.systemPrompt || <span className="text-muted-foreground italic">Not set</span>}
+									{agent.systemPrompt || (
+										<span className="text-muted-foreground italic">
+											Not set
+										</span>
+									)}
 								</p>
 							)}
 						</div>
@@ -234,7 +271,11 @@ const AgentDetailTray: React.FC<AgentDetailTrayProps> = ({ agentId, onClose }) =
 								/>
 							) : (
 								<p className="text-sm text-foreground leading-relaxed bg-muted/50 rounded-lg px-3 py-2">
-									{agent.character || <span className="text-muted-foreground italic">Not set</span>}
+									{agent.character || (
+										<span className="text-muted-foreground italic">
+											Not set
+										</span>
+									)}
 								</p>
 							)}
 						</div>
@@ -253,7 +294,11 @@ const AgentDetailTray: React.FC<AgentDetailTrayProps> = ({ agentId, onClose }) =
 								/>
 							) : (
 								<p className="text-sm text-foreground leading-relaxed bg-muted/50 rounded-lg px-3 py-2">
-									{agent.lore || <span className="text-muted-foreground italic">Not set</span>}
+									{agent.lore || (
+										<span className="text-muted-foreground italic">
+											Not set
+										</span>
+									)}
 								</p>
 							)}
 						</div>

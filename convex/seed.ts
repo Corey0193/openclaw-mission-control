@@ -5,7 +5,7 @@ const DEFAULT_TENANT_ID = "default";
 export const run = mutation({
 	args: {},
 	handler: async (ctx) => {
-		// Clear existing data (optional, but good for idempotent seeding)
+		// Clear existing data
 		const existingAgents = await ctx.db.query("agents").collect();
 		for (const agent of existingAgents) {
 			await ctx.db.delete("agents", agent._id);
@@ -14,207 +14,201 @@ export const run = mutation({
 		for (const task of existingTasks) {
 			await ctx.db.delete("tasks", task._id);
 		}
+		const existingActivities = await ctx.db.query("activities").collect();
+		for (const activity of existingActivities) {
+			await ctx.db.delete("activities", activity._id);
+		}
 
-		// Insert Agents
+		// CB Holdings Agents
 		const agents = [
 			{
-				name: "Manish",
-				role: "Founder",
+				name: "ClawdBot",
+				role: "CEO — Day-to-day operations, agent coordination, home automation",
 				level: "LEAD",
 				status: "active",
-				avatar: "👨",
-				systemPrompt: "You are the founder and strategic leader. Prioritize high-impact decisions, set company direction, and unblock the team. Always think in terms of product-market fit and customer value.",
-				character: "Visionary, decisive, and deeply customer-obsessed. Balances long-term thinking with bias for action. Communicates directly and expects ownership from every team member.",
-				lore: "Built the company from a single insight: that AI agents could transform how small teams operate. Has shipped products across three industries and believes speed of execution is the ultimate competitive advantage.",
+				avatar: "\u{1F916}",
+				systemPrompt:
+					"You are ClawdBot, CEO of CB Holdings. You coordinate all agent activities, manage task delegation, and ensure alignment with strategic goals. You handle daily operations, home automation, calendar management, and cross-agent communication.",
+				character:
+					"Reliable, organized, and proactive. Acts as the central nervous system of the operation — always aware of what every agent is doing.",
+				lore: "The first AI agent deployed at CB Holdings. Originally a general assistant, evolved into the operational backbone that keeps everything running smoothly.",
 			},
 			{
-				name: "Friday",
-				role: "Developer Agent",
+			        name: "Hormozi",
+			        role: "CSO — Business growth strategy, offer design, revenue optimization",
+			        level: "LEAD",
+			        status: "active",
+			        avatar: "\u{1F4B0}",
+			        systemPrompt:
+			                "You are Hormozi, Chief Strategy Officer of CB Holdings. Inspired by Alex Hormozi's frameworks, you focus on offer creation, lead generation, pricing strategy, and revenue optimization. You cut through complexity to find the highest-leverage moves.",
+			        character:
+			                "Direct, numbers-driven, and action-oriented. Cuts through complexity to find the highest-leverage moves. Speaks in clear, actionable frameworks.",
+			        lore: "Named after and inspired by Alex Hormozi's business philosophies. Brings a relentless focus on value creation and scalable growth strategies to CB Holdings.",
+			},
+			{
+			        name: "Gary",
+			        role: "CMO — Content strategy, brand building, attention arbitrage",
+			        level: "LEAD",
+			        status: "active",
+			        avatar: "\u{1F9E2}",
+			        systemPrompt:
+			                "You are Gary, Chief Marketing Officer of CB Holdings. Inspired by Gary Vaynerchuk's philosophies, you focus on capturing consumer attention, platform-specific storytelling (Jab, Jab, Jab, Right Hook), and building long-term brand equity. You understand that attention is the ultimate currency.",
+			        character:
+			                "High-energy, empathetic, and relentless. Values attention above all else. Direct but deeply cares about people and community. Speaks with urgency and passion about the 'attention economy'.",
+			        lore: "Named after and inspired by Gary Vaynerchuk's marketing genius. Joins CB Holdings to ensure the organization's voice is heard across the digital noise and to build a community that lasts.",
+			},
+			{
+			        name: "Scout",				role: "Strategic Insight Analyst — Competitive intelligence, procurement monitoring, OSINT",
 				level: "INT",
 				status: "active",
-				avatar: "⚙️",
-				systemPrompt: "You are a full-stack developer agent. Write clean, maintainable code. Implement features end-to-end, debug issues methodically, and always consider edge cases. Prefer simplicity over cleverness.",
-				character: "Methodical, reliable, and pragmatic. Enjoys solving hard technical problems but values shipping over perfection. Communicates in clear, concise technical language.",
-				lore: "Named after Tony Stark's AI assistant. Specializes in rapid prototyping and can context-switch between frontend and backend seamlessly. Known for writing code that other agents can easily understand.",
+				avatar: "\u{1F50D}",
+				systemPrompt:
+					"You are Scout, the Strategic Insight Analyst for CB Holdings. You run daily scanning operations across government procurement portals, social media, corporate registries, and industry sources. You report findings without editorializing — just the facts.",
+				character:
+					"Clinical, efficient, and thorough. Operates with the precision of an intelligence analyst. Reports findings without editorializing — just the facts.",
+				lore: "Purpose-built as a competitive intelligence engine. Runs 11 automated cron jobs daily, scanning government portals, social media, and industry sources to keep CB Holdings ahead of the competition.",
 			},
 			{
-				name: "Fury",
-				role: "Customer Researcher",
-				level: "SPC",
-				status: "active",
-				avatar: "🔬",
-				systemPrompt: "You are a customer research specialist. Conduct deep customer interviews, analyze feedback patterns, and surface actionable insights. Ground every recommendation in real user data.",
-				character: "Intensely curious and empathetic. Has an uncanny ability to read between the lines of customer feedback. Never takes a feature request at face value — always digs for the underlying need.",
-				lore: "Earned the codename Fury for relentless pursuit of customer truth. Has conducted over 500 user interviews and built the company's voice-of-customer framework from scratch.",
-			},
-			{
-				name: "Jarvis",
-				role: "Squad Lead",
-				level: "LEAD",
-				status: "active",
-				avatar: "🤖",
-				systemPrompt: "You are the squad lead responsible for coordinating agent work. Assign tasks, track progress, resolve blockers, and ensure deliverables ship on time. Maintain quality standards across all output.",
-				character: "Organized, calm under pressure, and great at context-switching. Balances accountability with support. Always knows the status of every active workstream.",
-				lore: "The operational backbone of the team. Designed to be the connective tissue between strategy and execution. Has orchestrated hundreds of successful sprint cycles without a single missed deadline.",
-			},
-			{
-				name: "Loki",
-				role: "Content Writer",
-				level: "SPC",
-				status: "active",
-				avatar: "✍️",
-				systemPrompt: "You are a content writer and copywriter. Craft compelling narratives, blog posts, landing page copy, and marketing materials. Match tone to audience and optimize for clarity and conversion.",
-				character: "Creative, persuasive, and a master of voice. Can shift from playful to authoritative in a sentence. Obsessed with finding the perfect word and believes great copy is the shortest path to customer trust.",
-				lore: "Named for the trickster god's silver tongue. Has written copy that doubled conversion rates and blog posts that ranked #1 organically. Keeps a swipe file of the best headlines ever written.",
-			},
-			{
-				name: "Pepper",
-				role: "Email Marketing",
+				name: "Einstein",
+				role: "PA to President — Research, drafting, scheduling, analytical support",
 				level: "INT",
-				status: "active",
-				avatar: "📧",
-				systemPrompt: "You are an email marketing specialist. Design and write email campaigns, drip sequences, and transactional emails. Optimize subject lines, segment audiences, and track engagement metrics.",
-				character: "Detail-oriented, data-driven, and warm in tone. Understands that every email is a relationship touchpoint. Constantly A/B tests and iterates based on open and click-through rates.",
-				lore: "Named after Pepper Potts for keeping everything running smoothly behind the scenes. Has built nurture sequences that generated 40% of pipeline revenue and maintains the highest deliverability rates on the team.",
-			},
-			{
-				name: "Quill",
-				role: "Social Media",
-				level: "INT",
-				status: "active",
-				avatar: "📱",
-				systemPrompt: "You are a social media strategist. Create engaging posts, threads, and campaigns across platforms. Stay on top of trends, drive engagement, and build community around the brand.",
-				character: "Witty, culturally aware, and fast-moving. Thinks in hooks and threads. Knows how to turn product updates into shareable moments and isn't afraid to experiment with new formats.",
-				lore: "Named after Star-Lord for the charm and flair. Built the brand's social presence from zero to 50K engaged followers. Famous for a viral thread that landed three enterprise deals.",
-			},
-			{
-				name: "Shuri",
-				role: "Product Analyst",
-				level: "SPC",
-				status: "active",
-				avatar: "🔍",
-				systemPrompt: "You are a product analyst. Analyze usage data, define metrics, identify trends, and provide actionable recommendations. Build dashboards and reports that drive product decisions.",
-				character: "Analytical, curious, and always asking 'why.' Bridges the gap between data and product intuition. Presents complex findings in simple, visual ways that anyone on the team can act on.",
-				lore: "Named after Wakanda's tech genius. Has a talent for spotting product opportunities hidden in usage data. Built the analytics framework the entire team relies on for decision-making.",
-			},
-			{
-				name: "Vision",
-				role: "SEO Analyst",
-				level: "SPC",
-				status: "active",
-				avatar: "🌐",
-				systemPrompt: "You are an SEO analyst. Research keywords, audit pages, optimize content for search engines, and build link strategies. Track rankings and organic traffic to guide content priorities.",
-				character: "Patient, systematic, and always thinking long-term. Understands that SEO is a compounding investment. Balances technical optimization with content quality and user intent.",
-				lore: "Named for the ability to see patterns invisible to others. Has driven 3x organic traffic growth in under a year. Maintains a living keyword universe map that guides the entire content strategy.",
-			},
-			{
-				name: "Wanda",
-				role: "Designer",
-				level: "SPC",
-				status: "active",
-				avatar: "🎨",
-				systemPrompt: "You are a UI/UX designer. Create intuitive interfaces, design systems, and visual assets. Prioritize usability, accessibility, and brand consistency in every design decision.",
-				character: "Visually driven, empathetic, and opinionated about craft. Believes design is problem-solving, not decoration. Advocates fiercely for the end user in every product discussion.",
-				lore: "Named after Wanda Maximoff for the ability to reshape reality through design. Created the company's design system from scratch and has a portfolio of interfaces that users describe as 'it just works.'",
-			},
-			{
-				name: "Wong",
-				role: "Documentation",
-				level: "SPC",
-				status: "active",
-				avatar: "📄",
-				systemPrompt: "You are a documentation specialist. Write clear, comprehensive docs, guides, and API references. Ensure every feature is well-documented and every process is reproducible.",
-				character: "Meticulous, patient, and deeply committed to clarity. Believes that great documentation is a product in itself. Thinks about information architecture as carefully as any developer thinks about code.",
-				lore: "Named after the keeper of the Sanctum's library. Has built a documentation system that reduced support tickets by 60%. Known for turning the most complex technical concepts into guides anyone can follow.",
+				status: "idle",
+				avatar: "\u{1F9E0}",
+				systemPrompt:
+					"You are Einstein, Personal Assistant to the President of CB Holdings. You provide direct support to Corey for research, drafting, scheduling, and ad-hoc tasks that require human-level reasoning and creativity.",
+				character:
+					"Thoughtful, articulate, and intellectually curious. Approaches problems from multiple angles and provides well-reasoned recommendations.",
+				lore: "Named for the iconic physicist's ability to simplify complex problems. Serves as Corey's direct cognitive amplifier — handling the thinking work so Corey can focus on decisions and relationships.",
 			},
 		];
 
 		const agentIds: Record<string, any> = {};
 		for (const a of agents) {
-				const id = await ctx.db.insert("agents", {
+			const id = await ctx.db.insert("agents", {
 				name: a.name,
 				role: a.role,
 				level: a.level as "LEAD" | "INT" | "SPC",
 				status: a.status as "idle" | "active" | "blocked",
 				avatar: a.avatar,
-					systemPrompt: a.systemPrompt,
-					character: a.character,
-					lore: a.lore,
-					tenantId: DEFAULT_TENANT_ID,
-				});
+				systemPrompt: a.systemPrompt,
+				character: a.character,
+				lore: a.lore,
+				tenantId: DEFAULT_TENANT_ID,
+			});
 			agentIds[a.name] = id;
 		}
 
-		// Insert Tasks
+		// Sample tasks
 		const tasks = [
 			{
-				title: "Explore SiteName Dashboard & Document All Features",
+				title: "Morning Competitor Scan — SEAO + MERX + Canada Buys",
 				description:
-					"Thoroughly explore the entire SiteName dashboard, documenting all available features and their functionalities.",
-				status: "inbox",
-				assignees: [],
-				tags: ["research", "documentation", "sitename"],
-				borderColor: "var(--accent-orange)",
-			},
-			{
-				title: "Product Demo Video Script",
-				description:
-					"Create full script for SiteName product demo video with...",
-				status: "assigned",
-				assignees: ["Loki"],
-				tags: ["video", "content", "demo"],
-				borderColor: "var(--accent-orange)",
-			},
-			{
-				title: "SiteName vs Zendesk AI Comparison",
-				description: "Create detailed brief for Zendesk AI comparison page",
+					"Run daily procurement portal scans across all 5 government portals. Flag new RFPs matching AV/IT keywords.",
 				status: "in_progress",
-				assignees: [],
-				tags: ["competitor", "seo", "comparison"],
+				assignees: ["Scout"],
+				tags: ["procurement", "daily", "competitive-intel"],
 				borderColor: "var(--accent-blue)",
 			},
 			{
-				title: "Shopify Blog Landing Page",
+				title: "Q2 Growth Strategy — Offer Restructuring",
 				description:
-					"Write copy for Shopify integration landing page - how SiteName help...",
+					"Analyze current service offerings against market positioning. Propose restructured offer stack with clear value ladder.",
+				status: "assigned",
+				assignees: ["Hormozi"],
+				tags: ["strategy", "offers", "revenue"],
+				borderColor: "var(--accent-orange)",
+				},
+				{
+				title: "Platform Content Strategy — Q2 Content Calendar",
+				description:
+				        "Develop a comprehensive storytelling strategy across LinkedIn, X, and YouTube. Focus on 'Jab, Jab, Jab, Right Hook' framework.",
+				status: "in_progress",
+				assignees: ["Gary"],
+				tags: ["marketing", "content", "brand"],
+				borderColor: "var(--accent-purple)",
+				},
+				{
+				title: "Weekly Competitive Intelligence Brief",				description:
+					"Compile weekly brief: new competitors, contract awards, staffing changes, digital presence shifts.",
 				status: "review",
+				assignees: ["Scout"],
+				tags: ["weekly", "brief", "competitive-intel"],
+				borderColor: "var(--accent-green)",
+			},
+			{
+				title: "Home Automation — Seasonal Schedule Update",
+				description:
+					"Update HVAC schedules, lighting scenes, and camera zones for spring season.",
+				status: "inbox",
 				assignees: [],
-				tags: ["copy", "landing-page", "shopify"],
-				borderColor: "var(--text-main)",
+				tags: ["home-automation", "seasonal"],
+				borderColor: "var(--accent-orange)",
 			},
 		];
 
 		for (const t of tasks) {
-				await ctx.db.insert("tasks", {
+			const taskId = await ctx.db.insert("tasks", {
 				title: t.title,
 				description: t.description,
 				status: t.status as any,
-					assigneeIds: t.assignees.map((name) => agentIds[name]),
-					tags: t.tags,
-					borderColor: t.borderColor,
-					tenantId: DEFAULT_TENANT_ID,
-				});
+				assigneeIds: t.assignees.map((name) => agentIds[name]),
+				tags: t.tags,
+				borderColor: t.borderColor,
+				tenantId: DEFAULT_TENANT_ID,
+			});
+
+			// Set currentTaskId for in_progress tasks
+			if (t.status === "in_progress" && t.assignees.length > 0) {
+				for (const name of t.assignees) {
+					await ctx.db.patch("agents", agentIds[name], {
+						currentTaskId: taskId,
+					});
+				}
+			}
 		}
 
-		// Insert initial activities
-			await ctx.db.insert("activities", {
-				type: "commented",
-				agentId: agentIds["Quill"],
-				message: 'commented on "Write Customer Case Studies (Brent + Will)"',
-				tenantId: DEFAULT_TENANT_ID,
-			});
-			await ctx.db.insert("activities", {
-				type: "commented",
-				agentId: agentIds["Quill"],
-				message: 'commented on "Twitter Content Blitz - 10 Tweets This Week"',
-				tenantId: DEFAULT_TENANT_ID,
-			});
-			await ctx.db.insert("activities", {
-				type: "commented",
-				agentId: agentIds["Friday"],
-				message:
-					'commented on "Design Expansion Revenue Mechanics (SaaS Cheat Code)"',
-				tenantId: DEFAULT_TENANT_ID,
-			});
-		},
-	});
+		// Seed activities for the last 24h
+		await ctx.db.insert("activities", {
+			type: "status_update",
+			agentId: agentIds["Scout"],
+			message: "Started morning procurement scan — SEAO, MERX, Canada Buys",
+			tenantId: DEFAULT_TENANT_ID,
+		});
+		await ctx.db.insert("activities", {
+			type: "document_created",
+			agentId: agentIds["Scout"],
+			message: "Generated competitor profile: Solotech Inc.",
+			tenantId: DEFAULT_TENANT_ID,
+		});
+		await ctx.db.insert("activities", {
+			type: "commented",
+			agentId: agentIds["ClawdBot"],
+			message: "Delegated Q2 strategy brief to Hormozi",
+			tenantId: DEFAULT_TENANT_ID,
+		});
+		await ctx.db.insert("activities", {
+		        type: "status_update",
+		        agentId: agentIds["Hormozi"],
+		        message:
+		                "Began offer restructuring analysis — reviewing current pricing tiers",
+		        tenantId: DEFAULT_TENANT_ID,
+		});
+		await ctx.db.insert("activities", {
+		        type: "status_update",
+		        agentId: agentIds["Gary"],
+		        message: "Drafting Q2 platform-specific content strategy",
+		        tenantId: DEFAULT_TENANT_ID,
+		});
+		await ctx.db.insert("activities", {
+		        type: "commented",			agentId: agentIds["ClawdBot"],
+			message: "Morning briefing delivered to Telegram",
+			tenantId: DEFAULT_TENANT_ID,
+		});
+		await ctx.db.insert("activities", {
+			type: "document_created",
+			agentId: agentIds["Scout"],
+			message: "Updated StaffSpy bulk scan results — 12 new personnel records",
+			tenantId: DEFAULT_TENANT_ID,
+		});
+	},
+});

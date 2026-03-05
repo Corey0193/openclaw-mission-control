@@ -15,6 +15,7 @@ import type * as fix_loki from "../fix_loki.js";
 import type * as http from "../http.js";
 import type * as messages from "../messages.js";
 import type * as openclaw from "../openclaw.js";
+import type * as polymarket from "../polymarket.js";
 import type * as queries from "../queries.js";
 import type * as seed from "../seed.js";
 import type * as tasks from "../tasks.js";
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   messages: typeof messages;
   openclaw: typeof openclaw;
+  polymarket: typeof polymarket;
   queries: typeof queries;
   seed: typeof seed;
   tasks: typeof tasks;

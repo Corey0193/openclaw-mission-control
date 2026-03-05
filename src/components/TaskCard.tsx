@@ -40,21 +40,16 @@ const TaskCard: React.FC<TaskCardProps> = ({
 	onPlay,
 	isOverlay = false,
 }) => {
-	const {
-		attributes,
-		listeners,
-		setNodeRef,
-		transform,
-		isDragging,
-	} = useDraggable({
-		id: task._id,
-		data: { task },
-	});
+	const { attributes, listeners, setNodeRef, transform, isDragging } =
+		useDraggable({
+			id: task._id,
+			data: { task },
+		});
 
 	const style = transform
 		? {
 				transform: CSS.Translate.toString(transform),
-		  }
+			}
 		: undefined;
 
 	return (
@@ -67,7 +62,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
 						? undefined
 						: `4px solid ${task.borderColor || "transparent"}`,
 			}}
-				className={`min-w-0 bg-white rounded-lg p-3 sm:p-4 shadow-sm flex flex-col gap-3 border transition-all cursor-pointer select-none ${
+			className={`min-w-0 bg-white rounded-lg p-3 sm:p-4 shadow-sm flex flex-col gap-3 border transition-all cursor-pointer select-none ${
 				isDragging ? "dragging-card" : "hover:-translate-y-0.5 hover:shadow-md"
 			} ${
 				isSelected
@@ -83,18 +78,20 @@ const TaskCard: React.FC<TaskCardProps> = ({
 			<div className="flex justify-between text-muted-foreground text-sm">
 				<span className="text-base">↑</span>
 				<div className="flex items-center gap-2">
-					{(columnId === "inbox" || columnId === "assigned") && currentUserAgentId && onPlay && (
-						<button
-							onClick={(e) => {
-								e.stopPropagation();
-								onPlay(task._id);
-							}}
-							className="p-1 hover:bg-muted rounded transition-colors text-muted-foreground hover:text-[var(--accent-blue)]"
-							title="Start task"
-						>
-							<IconPlayerPlay size={14} />
-						</button>
-					)}
+					{(columnId === "inbox" || columnId === "assigned") &&
+						currentUserAgentId &&
+						onPlay && (
+							<button
+								onClick={(e) => {
+									e.stopPropagation();
+									onPlay(task._id);
+								}}
+								className="p-1 hover:bg-muted rounded transition-colors text-muted-foreground hover:text-[var(--accent-blue)]"
+								title="Start task"
+							>
+								<IconPlayerPlay size={14} />
+							</button>
+						)}
 					{columnId === "in_progress" && (
 						<span className="p-1 text-[var(--accent-blue)]" title="Running">
 							<IconLoader2 size={14} className="animate-spin" />
@@ -115,12 +112,12 @@ const TaskCard: React.FC<TaskCardProps> = ({
 					<span className="tracking-widest">...</span>
 				</div>
 			</div>
-				<h3 className="text-sm font-semibold text-foreground leading-tight break-words">
-					{task.title}
-				</h3>
-				<p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 break-words">
-					{task.description}
-				</p>
+			<h3 className="text-sm font-semibold text-foreground leading-tight break-words">
+				{task.title}
+			</h3>
+			<p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 break-words">
+				{task.description}
+			</p>
 			<div className="flex justify-between items-center mt-1">
 				{task.assigneeIds && task.assigneeIds.length > 0 && (
 					<div className="flex items-center gap-1.5">

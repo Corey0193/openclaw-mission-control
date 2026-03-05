@@ -18,7 +18,9 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 	onAddAgent,
 	onSelectAgent,
 }) => {
-	const agents = useQuery(api.queries.listAgents, { tenantId: DEFAULT_TENANT_ID });
+	const agents = useQuery(api.queries.listAgents, {
+		tenantId: DEFAULT_TENANT_ID,
+	});
 	const updateStatus = useMutation(api.agents.updateStatus);
 	const deleteAgent = useMutation(api.agents.deleteAgent);
 
@@ -103,14 +105,22 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 							onClick={(e) => {
 								e.stopPropagation();
 								if (confirm(`Delete ${agent.name}?`)) {
-										deleteAgent({ id: agent._id, tenantId: DEFAULT_TENANT_ID });
+									deleteAgent({ id: agent._id, tenantId: DEFAULT_TENANT_ID });
 								}
 							}}
 							className="absolute left-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity inline-flex h-[22px] w-[22px] items-center justify-center rounded hover:bg-[var(--accent-red)]/10 text-[var(--accent-red)] z-10"
 							aria-label={`Delete ${agent.name}`}
 							title={`Delete ${agent.name}`}
 						>
-							<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/></svg>
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 16 16"
+								fill="currentColor"
+							>
+								<path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z" />
+								<path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z" />
+							</svg>
 						</button>
 						<div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center text-xl border border-border group-hover:bg-white transition-colors">
 							{agent.avatar}
@@ -139,11 +149,11 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 								type="button"
 								onClick={(e) => {
 									e.stopPropagation();
-										updateStatus({
-											id: agent._id,
-											status: agent.status === "active" ? "idle" : "active",
-											tenantId: DEFAULT_TENANT_ID,
-										});
+									updateStatus({
+										id: agent._id,
+										status: agent.status === "active" ? "idle" : "active",
+										tenantId: DEFAULT_TENANT_ID,
+									});
 								}}
 								className={`text-[9px] font-bold flex items-center gap-1 tracking-wider uppercase cursor-pointer hover:opacity-70 transition-opacity ${
 									agent.status === "active"
@@ -179,7 +189,11 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 											: "bg-[var(--accent-blue)] hover:opacity-90"
 									}`}
 									aria-label={`Add task for ${agent.name}`}
-									title={agent.status !== "active" ? `${agent.name} is idle` : `Add task for ${agent.name}`}
+									title={
+										agent.status !== "active"
+											? `${agent.name} is idle`
+											: `Add task for ${agent.name}`
+									}
 								>
 									+
 								</button>
