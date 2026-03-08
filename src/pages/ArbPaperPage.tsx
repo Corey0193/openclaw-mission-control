@@ -209,7 +209,7 @@ function useScatterData(trades: PaperTrade[]) {
 // --- Pipeline run types and hook ---
 
 interface PipelineRun {
-	scanDate: string;
+	runId: string;
 	dossier: Record<string, unknown> | null;
 	verdict: Record<string, unknown> | null;
 	decision: Record<string, unknown> | null;
@@ -329,7 +329,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center gap-2 flex-wrap">
 						<span className="text-xs font-mono text-muted-foreground tabular-nums">
-							{run.scanDate}
+							{run.runId}
 						</span>
 						{sport && (
 							<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
@@ -589,7 +589,7 @@ export default function ArbPaperPage() {
 					) : (
 						<div className="space-y-2">
 							{pipelineRuns.map((run) => (
-								<PipelineRunCard key={run.scanDate} run={run} />
+								<PipelineRunCard key={run.runId} run={run} />
 							))}
 						</div>
 					)}

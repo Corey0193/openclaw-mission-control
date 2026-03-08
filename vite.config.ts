@@ -28,7 +28,7 @@ const ARB_PIPELINE_DIR = path.join(
 );
 
 interface PipelineRun {
-	scanDate: string;
+	runId: string;
 	dossier: Record<string, unknown> | null;
 	verdict: Record<string, unknown> | null;
 	decision: Record<string, unknown> | null;
@@ -45,22 +45,35 @@ function readJsonSafe(filePath: string): Record<string, unknown> | null {
 
 function getPipelineRuns(): PipelineRun[] {
 	if (!fs.existsSync(ARB_PIPELINE_DIR)) return [];
-	const files = fs.readdirSync(ARB_PIPELINE_DIR);
-	const dateSet = new Set<string>();
-	for (const f of files) {
-		const m = f.match(/^scan-(\d{4}-\d{2}-\d{2})\.(dossier|verdict|decision)\.json$/);
-		if (m) dateSet.add(m[1]);
+
+	const dirs = [ARB_PIPELINE_DIR];
+	const archiveDir = path.join(ARB_PIPELINE_DIR, "archive");
+	if (fs.existsSync(archiveDir)) dirs.push(archiveDir);
+
+	const idSet = new Set<string>();
+	const fileMap = new Map<string, string>();
+
+	for (const dir of dirs) {
+		const files = fs.readdirSync(dir);
+		for (const f of files) {
+			const m = f.match(/^(scan-\d{4}-\d{2}-\d{2}(?:-\d{4})?)\.(dossier|verdict|decision)\.json$/);
+			if (m) {
+				idSet.add(m[1]);
+				fileMap.set(`${m[1]}.${m[2]}`, path.join(dir, f));
+			}
+		}
 	}
+
 	const runs: PipelineRun[] = [];
-	for (const d of [...dateSet].sort().reverse()) {
-		const dossier = readJsonSafe(path.join(ARB_PIPELINE_DIR, `scan-${d}.dossier.json`));
-		const verdict = readJsonSafe(path.join(ARB_PIPELINE_DIR, `scan-${d}.verdict.json`));
-		const decision = readJsonSafe(path.join(ARB_PIPELINE_DIR, `scan-${d}.decision.json`));
+	for (const id of [...idSet].sort().reverse()) {
+		const dossier = readJsonSafe(fileMap.get(`${id}.dossier`) ?? "");
+		const verdict = readJsonSafe(fileMap.get(`${id}.verdict`) ?? "");
+		const decision = readJsonSafe(fileMap.get(`${id}.decision`) ?? "");
 		let status: PipelineRun["status"] = "no_files";
 		if (dossier && verdict && decision) status = "completed";
 		else if (dossier && verdict) status = "completed";
-		else if (dossier) status = dossier ? "dossier_only" : "no_files";
-		runs.push({ scanDate: d, dossier, verdict, decision, status });
+		else if (dossier) status = "dossier_only";
+		runs.push({ runId: id, dossier, verdict, decision, status });
 	}
 	return runs;
 }
