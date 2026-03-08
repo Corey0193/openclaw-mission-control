@@ -22,6 +22,78 @@ const TASKS_PATH = path.join(
 	"Documents/Second Brain/90-System/tasks.md",
 );
 
+const ARB_PIPELINE_DIR = path.join(
+	os.homedir(),
+	".openclaw/workspace-hustle/arb-pipeline",
+);
+
+interface PipelineRun {
+	scanDate: string;
+	dossier: Record<string, unknown> | null;
+	verdict: Record<string, unknown> | null;
+	decision: Record<string, unknown> | null;
+	status: "completed" | "dossier_only" | "verdict_pending" | "no_files";
+}
+
+function readJsonSafe(filePath: string): Record<string, unknown> | null {
+	try {
+		return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+	} catch {
+		return null;
+	}
+}
+
+function getPipelineRuns(): PipelineRun[] {
+	if (!fs.existsSync(ARB_PIPELINE_DIR)) return [];
+	const files = fs.readdirSync(ARB_PIPELINE_DIR);
+	const dateSet = new Set<string>();
+	for (const f of files) {
+		const m = f.match(/^scan-(\d{4}-\d{2}-\d{2})\.(dossier|verdict|decision)\.json$/);
+		if (m) dateSet.add(m[1]);
+	}
+	const runs: PipelineRun[] = [];
+	for (const d of [...dateSet].sort().reverse()) {
+		const dossier = readJsonSafe(path.join(ARB_PIPELINE_DIR, `scan-${d}.dossier.json`));
+		const verdict = readJsonSafe(path.join(ARB_PIPELINE_DIR, `scan-${d}.verdict.json`));
+		const decision = readJsonSafe(path.join(ARB_PIPELINE_DIR, `scan-${d}.decision.json`));
+		let status: PipelineRun["status"] = "no_files";
+		if (dossier && verdict && decision) status = "completed";
+		else if (dossier && verdict) status = "completed";
+		else if (dossier) status = dossier ? "dossier_only" : "no_files";
+		runs.push({ scanDate: d, dossier, verdict, decision, status });
+	}
+	return runs;
+}
+
+function arbPipelinePlugin() {
+	return {
+		name: "arb-pipeline",
+		configureServer(server: import("vite").ViteDevServer) {
+			server.middlewares.use(
+				(
+					req: import("http").IncomingMessage,
+					res: import("http").ServerResponse,
+					next: () => void,
+				) => {
+					const url = (req.url ?? "/").split("?")[0];
+					if (req.method === "GET" && url === "/api/pipeline-runs") {
+						try {
+							const runs = getPipelineRuns();
+							res.setHeader("Content-Type", "application/json");
+							res.end(JSON.stringify({ runs }));
+						} catch {
+							res.statusCode = 500;
+							res.end("Internal server error");
+						}
+						return;
+					}
+					next();
+				},
+			);
+		},
+	};
+}
+
 function parseTodos(content: string): Todo[] {
 	const lines = content.split("\n");
 	let section: Todo["section"] = "active";
@@ -223,6 +295,7 @@ export default defineConfig({
 		react(),
 		tailwindcss(),
 		einsteinTodosPlugin(),
+		arbPipelinePlugin(),
 		{
 			name: "local-file-server",
 			configureServer(server) {
