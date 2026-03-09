@@ -277,10 +277,30 @@ function decisionBadge(decision: string | undefined) {
 	);
 }
 
+function DirectionBadge({ direction }: { direction: string }) {
+	if (!direction) return null;
+	const isBuyNo = direction === "BUY_NO";
+	const isBuyYes = direction === "BUY_YES";
+	if (!isBuyNo && !isBuyYes) {
+		return (
+			<span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-gray-100 text-gray-700" title={direction}>
+				{direction.replace(/_/g, " ")}
+			</span>
+		);
+	}
+	const label = isBuyNo ? "Bet AGAINST" : "Bet FOR";
+	const colors = isBuyNo ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700";
+	return (
+		<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${colors}`} title={direction.replace(/_/g, " ")}>
+			{label} {isBuyNo ? "\u2193" : "\u2191"}
+		</span>
+	);
+}
+
 function EdgeBar({ edge }: { edge: number }) {
-	const absEdge = Math.min(Math.abs(edge), 10);
-	const width = `${Math.max(absEdge * 10, 4)}%`;
-	const color = Math.abs(edge) >= 3 ? "bg-emerald-500" : Math.abs(edge) >= 1 ? "bg-amber-400" : "bg-gray-300";
+	const absEdge = Math.min(Math.abs(edge), 50);
+	const width = `${Math.max(absEdge * 2, 4)}%`;
+	const color = Math.abs(edge) >= 15 ? "bg-emerald-500" : Math.abs(edge) >= 5 ? "bg-amber-400" : "bg-gray-300";
 	return (
 		<div className="flex items-center gap-2">
 			<div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -293,30 +313,186 @@ function EdgeBar({ edge }: { edge: number }) {
 	);
 }
 
+function OpportunitySummary({
+	dossier,
+	verdict,
+	decision,
+	metaculusItems,
+	edgePct,
+	direction,
+	eventName,
+}: {
+	dossier: Record<string, unknown> | null;
+	verdict: Record<string, unknown> | null;
+	decision: Record<string, unknown> | null;
+	metaculusItems: Array<{ title: string; mcProb: number; pmPrice: number; edgePct: number; direction: string; matchNotes: string; matchQuality: string; status: string; polymarketUrl: string; polymarketSlug: string }>;
+	edgePct: number;
+	direction: string;
+	eventName: string;
+}) {
+	const bestItem = metaculusItems.length > 0
+		? metaculusItems.reduce((a, b) => Math.abs(b.edgePct) > Math.abs(a.edgePct) ? b : a)
+		: undefined;
+	if (!bestItem || bestItem.mcProb === 0) return null;
+
+	const mcProb = bestItem.mcProb;
+	const pmPrice = bestItem.pmPrice;
+	const isBuyNo = bestItem.direction === "BUY_NO";
+	const buyPrice = isBuyNo ? (1 - pmPrice) : pmPrice;
+	const returnPer1 = buyPrice > 0 ? (1 / buyPrice) : 0;
+	const likelihood = mcProb < 0.3 ? "unlikely" : mcProb > 0.7 ? "likely" : "uncertain";
+	const hustleDecision = (decision?.hustle_decision ?? "") as string;
+	const hustleReasoning = (decision?.reasoning ?? "") as string;
+	const thorpMaxRisk = (verdict?.max_risk_suggestion_usd ?? null) as number | null;
+	const pmUrl = bestItem.polymarketSlug ? `https://polymarket.com/market/${bestItem.polymarketSlug}` : "";
+	const truncatedTitle = bestItem.title.length > 60 ? bestItem.title.slice(0, 60) + "..." : bestItem.title;
+
+	return (
+		<div className="bg-gradient-to-r from-violet-50 to-blue-50 border border-violet-200 rounded-lg px-4 py-3 space-y-2">
+			<div className="text-[10px] font-bold tracking-wide text-violet-600 uppercase mb-1">Opportunity Summary</div>
+			<div className="text-sm text-gray-800 leading-relaxed">
+				<span className="font-medium">The disagreement:</span>{" "}
+				Metaculus forecasters say {pmUrl ? (
+					<a href={pmUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-700 underline decoration-blue-300 hover:decoration-blue-500 hover:text-blue-900 transition-colors" title={bestItem.title}>{truncatedTitle}</a>
+				) : (
+					<span className="font-semibold">{truncatedTitle}</span>
+				)}{" "}
+				is {likelihood} ({(mcProb * 100).toFixed(0)}%), but Polymarket prices it at{" "}
+				<span className="font-semibold">{(pmPrice * 100).toFixed(1)}%</span>.
+			</div>
+			<div className="text-sm text-gray-800 leading-relaxed flex items-center gap-1.5 flex-wrap">
+				<span className="font-medium">The trade:</span>
+				<DirectionBadge direction={bestItem.direction} />
+				<span>shares at <span className="font-semibold tabular-nums">${buyPrice.toFixed(2)}</span></span>
+				{returnPer1 > 0 && (
+					<span>— potential <span className="font-semibold text-emerald-700 tabular-nums">${returnPer1.toFixed(2)}</span> return per $1 bet</span>
+				)}
+				{thorpMaxRisk !== null && (
+					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
+						max risk: ${thorpMaxRisk}
+					</span>
+				)}
+			</div>
+			{hustleDecision && (
+				<div className="text-sm text-gray-800 leading-relaxed flex items-center gap-1.5 flex-wrap">
+					<span className="font-medium">Final decision:</span>
+					{decisionBadge(hustleDecision)}
+					{hustleReasoning && (
+						<span className="text-gray-500 text-xs">
+							— {hustleReasoning.length > 120 ? hustleReasoning.slice(0, 120) + "..." : hustleReasoning}
+						</span>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
 function PipelineRunCard({ run }: { run: PipelineRun }) {
 	const [expanded, setExpanded] = useState(false);
 	const dossier = run.dossier as Record<string, unknown> | null;
 	const verdict = run.verdict as Record<string, unknown> | null;
 	const decision = run.decision as Record<string, unknown> | null;
 
+	// Detect format — metaculus dossiers come in three shapes:
+	// v1 (1819-style): opportunities[] with nested metaculus_question/polymarket_market/edge + summary
+	// v2 (1835-style): matches[] with flat fields (metaculus_title, edge_percent, direction)
+	// v3 (2034-style): best_opportunity + all_pairs_scanned[] with flat fields
+	const isMetaculus = !!(dossier?.opportunities) || !!(dossier?.matches) || !!(dossier?.all_pairs_scanned) || (dossier?.version === "2.1-metaculus") || (dossier?.signal_source === "Metaculus");
+	const rawOpportunities = (dossier?.opportunities ?? dossier?.matches ?? dossier?.all_pairs_scanned ?? []) as Array<Record<string, unknown>>;
+	const metaculusSummary = dossier?.summary as Record<string, unknown> | undefined;
+	const bestOpportunity = dossier?.best_opportunity as Record<string, unknown> | undefined;
+
+	// Fallback slug from best_opportunity (v3 items in all_pairs_scanned lack their own slug)
+	const bestOppSlug = (bestOpportunity?.polymarket_market_slug ?? bestOpportunity?.polymarket_slug ?? "") as string;
+
+	// Normalize metaculus items into a common shape for display
+	const metaculusItems = isMetaculus ? rawOpportunities.map((item) => {
+		// v1 nested format
+		const mcQ = item.metaculus_question as Record<string, unknown> | undefined;
+		const pmM = item.polymarket_market as Record<string, unknown> | undefined;
+		const edgeObj = typeof item.edge === "object" && item.edge !== null ? item.edge as Record<string, unknown> : undefined;
+		// v2/v3 flat format fields used as fallbacks
+		// edge_pct and edge_percent are already percentage values; raw edge is a decimal
+		const edgePctVal = edgeObj?.edge_pct ?? item.edge_percent;
+		const rawEdge = edgePctVal != null
+			? (edgePctVal as number)
+			: typeof item.edge === "number" ? (item.edge as number) * 100 : 0;
+		return {
+			title: (mcQ?.title ?? item.metaculus_title ?? item.title ?? pmM?.question ?? item.polymarket_title ?? item.polymarket_market_question ?? "—") as string,
+			matchNotes: (item.match_notes ?? item.notes ?? item.confidence_reason ?? "") as string,
+			mcProb: (edgeObj?.metaculus_prob ?? mcQ?.community_prediction ?? item.metaculus_probability ?? item.metaculus_probability_yes ?? 0) as number,
+			pmPrice: (edgeObj?.polymarket_price ?? pmM?.outcome_prices?.[0] ?? item.polymarket_price ?? item.polymarket_probability_yes ?? 0) as number,
+			edgePct: rawEdge,
+			direction: (edgeObj?.direction ?? item.direction ?? "") as string,
+			matchQuality: (item.match_quality ?? "") as string,
+			status: (item.status ?? "") as string,
+			polymarketUrl: ((pmM?.url as string | undefined) ?? "") as string,
+			polymarketSlug: (item.polymarket_slug ?? item.polymarket_market_slug ?? (pmM?.slug as string | undefined) ?? bestOppSlug ?? "") as string,
+		};
+	}) : [];
+
+	// Sports fields
 	const edgeAnalysis = dossier?.edge_analysis as Record<string, unknown> | undefined;
-	const edgePct = (edgeAnalysis?.edge_pct ?? edgeAnalysis?.edge_after_vig_pct ?? edgeAnalysis?.raw_edge_pct ?? 0) as number;
-	const direction = (edgeAnalysis?.direction ?? "") as string;
-	const targetOutcome = (edgeAnalysis?.target_outcome ?? "") as string;
-	const eventName = (dossier?.event_name ?? "Unknown") as string;
-	const sport = (dossier?.sport_league ?? dossier?.sport ?? "") as string;
-	const confidence = (dossier?.raymond_confidence ?? "") as string;
 	const allGames = (dossier?.all_games_scanned ?? []) as Array<Record<string, unknown>>;
 
+	// Unified header fields
+	let edgePct: number;
+	let direction: string;
+	let targetOutcome: string;
+	let eventName: string;
+	let sourceBadge: string;
+	let confidence: string;
+
+	if (isMetaculus) {
+		// Pick best edge from bestOpportunity (v3), summary, or from the items themselves
+		const bestItem = metaculusItems.length > 0
+			? metaculusItems.reduce((a, b) => Math.abs(b.edgePct) > Math.abs(a.edgePct) ? b : a)
+			: undefined;
+		const bestOppEdgeRaw = bestOpportunity?.edge;
+		const bestOppEdgePct = typeof bestOppEdgeRaw === "number" ? bestOppEdgeRaw * 100 : undefined;
+		edgePct = (metaculusSummary?.best_edge_pct ?? bestOppEdgePct ?? bestItem?.edgePct ?? 0) as number;
+		direction = (metaculusSummary?.best_edge_direction ?? bestOpportunity?.direction ?? bestItem?.direction ?? "") as string;
+		targetOutcome = (metaculusSummary?.best_edge_subject ?? bestOpportunity?.title ?? bestItem?.title ?? "") as string;
+		eventName = (bestOpportunity?.title ?? bestItem?.title ?? "Metaculus Scan") as string;
+		sourceBadge = "Metaculus";
+		confidence = (bestOpportunity?.match_quality ?? bestItem?.matchQuality ?? "") as string;
+	} else {
+		edgePct = (edgeAnalysis?.edge_pct ?? edgeAnalysis?.edge_after_vig_pct ?? edgeAnalysis?.raw_edge_pct ?? 0) as number;
+		direction = (edgeAnalysis?.direction ?? "") as string;
+		targetOutcome = (edgeAnalysis?.target_outcome ?? "") as string;
+		eventName = (dossier?.event_name ?? "Unknown") as string;
+		sourceBadge = (dossier?.sport_league ?? dossier?.sport ?? "") as string;
+		confidence = (dossier?.raymond_confidence ?? "") as string;
+	}
+
 	const thorpVerdict = (verdict?.verdict ?? "") as string;
-	const thorpFatal = (verdict?.fatal_objection ?? "") as string;
-	const thorpChecks = (verdict?.checks ?? []) as Array<Record<string, unknown>>;
+	const thorpSummary = (verdict?.summary ?? "") as string;
+	const thorpFatalObjs = (verdict?.fatal_objections ?? []) as Array<Record<string, unknown> | string>;
+	const thorpConcernsRaw = (verdict?.concerns ?? []) as Array<string | Record<string, unknown>>;
+	const thorpConcerns = thorpConcernsRaw.map((c) =>
+		typeof c === "string" ? c : ((c.detail ?? c.reason ?? c.code ?? "") as string)
+	);
+	const thorpChecks = (verdict?.checks_performed ?? verdict?.checks ?? []) as Array<Record<string, unknown>>;
+	const thorpMaxRisk = (verdict?.max_risk_suggestion_usd ?? null) as number | null;
+
+	// Scan stats (computed here to avoid IIFE in JSX)
+	const hasScanStats = isMetaculus && !!(metaculusSummary || dossier?.all_games_scanned || dossier?.all_pairs_scanned);
+	const scanStatsScanned = metaculusSummary?.scanned_metaculus_questions ?? (dossier?.all_pairs_scanned as unknown[] | undefined)?.length ?? dossier?.all_games_scanned ?? "?";
+	const scanStatsCandidates = metaculusItems.filter((m) => m.status !== "skipped_no_prediction_data" && m.status !== "skipped_low_forecaster_count" && m.matchQuality !== "N/A");
+	const scanStatsMatched = metaculusSummary?.matched_pairs ?? dossier?.matches_count ?? scanStatsCandidates.length;
+	const scanStatsAboveThresh = metaculusSummary?.meets_threshold ?? dossier?.opportunities_found ?? scanStatsCandidates.filter((m) => m.status === "candidate" || m.matchQuality === "HIGH" || m.matchQuality === "MEDIUM").length;
 
 	const hustleDecision = (decision?.hustle_decision ?? "") as string;
 	const hustleReasoning = (decision?.reasoning ?? "") as string;
 
+	const cardBorderClass = hustleDecision === "EXECUTE" ? "border-l-4 border-l-emerald-400"
+		: hustleDecision === "PASS" ? "border-l-4 border-l-gray-300"
+		: hustleDecision === "ESCALATE_TO_CB" ? "border-l-4 border-l-amber-400"
+		: "";
+
 	return (
-		<div className="bg-white border border-border rounded-xl overflow-hidden">
+		<div className={`bg-white border border-border rounded-xl overflow-hidden ${cardBorderClass}`}>
 			{/* Header row — always visible */}
 			<button
 				type="button"
@@ -331,9 +507,14 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 						<span className="text-xs font-mono text-muted-foreground tabular-nums">
 							{run.runId}
 						</span>
-						{sport && (
-							<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
-								{sport}
+						{sourceBadge && (
+							<span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide ${isMetaculus ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
+								{sourceBadge}
+							</span>
+						)}
+						{isMetaculus && metaculusItems.length > 1 && (
+							<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-gray-100 text-gray-600">
+								{metaculusItems.length} pairs
 							</span>
 						)}
 						<span className="text-sm font-semibold text-foreground truncate">
@@ -351,11 +532,15 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 			{/* Expanded detail */}
 			{expanded && (
 				<div className="border-t border-border px-4 py-4 space-y-4">
+					{/* Plain-English summary banner (Metaculus only) */}
+					{isMetaculus && <OpportunitySummary dossier={dossier} verdict={verdict} decision={decision} metaculusItems={metaculusItems} edgePct={edgePct} direction={direction} eventName={eventName} />}
+
 					{/* Three-stage pipeline viz */}
-					<div className="grid grid-cols-3 gap-3">
+					<div className="flex items-stretch gap-0">
 						{/* Raymond */}
-						<div className="rounded-lg border border-border p-3">
+						<div className="flex-1 min-w-0 rounded-lg border border-border p-3">
 							<div className="flex items-center gap-2 mb-2">
+								<span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">1</span>
 								<IconScan size={14} className="text-blue-600" />
 								<span className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
 									Raymond — Scanner
@@ -369,18 +554,29 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 											{edgePct >= 0 ? "+" : ""}{edgePct.toFixed(1)}%
 										</span>
 									</div>
-									<div>
+									<div className="flex items-center gap-1.5">
 										<span className="text-muted-foreground">Direction: </span>
-										<span className="font-medium">
-											{targetOutcome ? `${direction.replace(/_/g, " ")} on ${targetOutcome}` : direction.replace(/_/g, " ")}
-										</span>
+										<DirectionBadge direction={direction} />
+										{targetOutcome && <span className="font-medium text-[11px]">on {targetOutcome}</span>}
 									</div>
 									<div>
-										<span className="text-muted-foreground">Confidence: </span>
+										<span className="text-muted-foreground">{isMetaculus ? "Match: " : "Confidence: "}</span>
 										<span className={`font-bold ${confidence === "HIGH" ? "text-emerald-600" : confidence === "MEDIUM" ? "text-amber-600" : "text-red-500"}`}>
 											{confidence}
 										</span>
 									</div>
+									{thorpMaxRisk !== null && (
+										<div className="mt-1">
+											<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
+												Max bet: ${thorpMaxRisk}
+											</span>
+										</div>
+									)}
+									{hasScanStats && (
+										<div className="text-muted-foreground text-[11px] mt-1 leading-relaxed">
+											{String(scanStatsScanned)} scanned, {String(scanStatsMatched)} matched, {String(scanStatsAboveThresh)} above threshold
+										</div>
+									)}
 									{dossier.raymond_note && (
 										<div className="text-muted-foreground text-[11px] mt-1 leading-relaxed">
 											{dossier.raymond_note as string}
@@ -392,9 +588,15 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 							)}
 						</div>
 
+						{/* Arrow 1→2 */}
+						<div className="flex items-center px-1 text-gray-300">
+							<IconChevronRight size={20} />
+						</div>
+
 						{/* Thorp */}
-						<div className="rounded-lg border border-border p-3">
+						<div className="flex-1 min-w-0 rounded-lg border border-border p-3">
 							<div className="flex items-center gap-2 mb-2">
+								<span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold">2</span>
 								<IconShieldCheck size={14} className="text-purple-600" />
 								<span className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
 									Thorp — Verifier
@@ -403,16 +605,38 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 							{verdict ? (
 								<div className="space-y-1.5 text-xs">
 									<div>{verdictBadge(thorpVerdict)}</div>
-									{thorpFatal && (
-										<div className="text-red-600 text-[11px] leading-relaxed">
-											{thorpFatal}
+									{thorpSummary && (
+										<div className="text-muted-foreground text-[11px] leading-relaxed">
+											{thorpSummary}
+										</div>
+									)}
+									{thorpFatalObjs.length > 0 && (
+										<div className="space-y-1 mt-1">
+											{thorpFatalObjs.map((obj, i) => (
+												<div key={i} className="flex items-start gap-1.5 text-red-600">
+													<IconCircleX size={12} className="mt-0.5 shrink-0" />
+													<span className="text-[11px] leading-relaxed">
+														{typeof obj === "string" ? obj : (obj.detail ?? obj.reason ?? obj.code ?? "") as string}
+													</span>
+												</div>
+											))}
+										</div>
+									)}
+									{thorpConcerns.length > 0 && (
+										<div className="space-y-1 mt-1">
+											{thorpConcerns.map((concern, i) => (
+												<div key={i} className="flex items-start gap-1.5 text-amber-600">
+													<IconAlertTriangle size={12} className="mt-0.5 shrink-0" />
+													<span className="text-[11px] leading-relaxed">{concern}</span>
+												</div>
+											))}
 										</div>
 									)}
 									{thorpChecks.length > 0 && (
 										<div className="space-y-1 mt-1">
 											{thorpChecks.map((check, i) => (
 												<div key={i} className="flex items-start gap-1.5">
-													{(check.result as string) === "PASS" ? (
+													{(check.result as string)?.startsWith("PASS") ? (
 														<IconCircleCheck size={12} className="text-emerald-500 mt-0.5 shrink-0" />
 													) : (
 														<IconCircleX size={12} className="text-red-500 mt-0.5 shrink-0" />
@@ -426,22 +650,21 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 									)}
 								</div>
 							) : (
-								<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-									{run.status === "dossier_only" ? (
-										<>
-											<IconLoader2 size={12} className="animate-spin" />
-											Pending...
-										</>
-									) : (
-										"Not triggered"
-									)}
+								<div className="text-xs text-muted-foreground">
+									{run.status === "dossier_only" ? "Awaiting dispatch" : "Not triggered"}
 								</div>
 							)}
 						</div>
 
+						{/* Arrow 2→3 */}
+						<div className="flex items-center px-1 text-gray-300">
+							<IconChevronRight size={20} />
+						</div>
+
 						{/* Hustle */}
-						<div className="rounded-lg border border-border p-3">
+						<div className="flex-1 min-w-0 rounded-lg border border-border p-3">
 							<div className="flex items-center gap-2 mb-2">
+								<span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold">3</span>
 								<IconArrowsExchange size={14} className="text-orange-600" />
 								<span className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
 									Hustle — Decision
@@ -464,8 +687,88 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 						</div>
 					</div>
 
-					{/* All games scanned table */}
-					{allGames.length > 0 && (
+					{/* Metaculus opportunities table */}
+					{isMetaculus && metaculusItems.length > 0 && (
+						<div>
+							<div className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase mb-2">
+								Matched Opportunities ({metaculusItems.length})
+							</div>
+							<div className="bg-gray-50 rounded-lg overflow-x-auto">
+								<table className="w-full text-xs">
+									<thead>
+										<tr className="text-[10px] text-muted-foreground font-semibold tracking-wide uppercase">
+											<th className="text-left px-3 py-2">Question</th>
+											<th className="text-right px-3 py-2">Metaculus YES</th>
+											<th className="text-right px-3 py-2">Polymarket YES</th>
+											<th className="text-center px-2 py-2" title="Visual probability comparison">&nbsp;</th>
+											<th className="text-right px-3 py-2">Edge</th>
+											<th className="text-left px-3 py-2">Trade</th>
+											<th className="text-right px-3 py-2">Return / $1</th>
+										</tr>
+									</thead>
+									<tbody>
+										{metaculusItems.map((item, i) => {
+											const isBuyNo = item.direction === "BUY_NO";
+											const buyPrice = isBuyNo ? (1 - item.pmPrice) : item.pmPrice;
+											const returnPer1 = buyPrice > 0 ? (1 / buyPrice) : 0;
+											const itemPmUrl = item.polymarketSlug ? `https://polymarket.com/market/${item.polymarketSlug}` : "";
+											return (
+												<tr key={i} className={i < metaculusItems.length - 1 ? "border-b border-border/30" : ""}>
+													<td className="px-3 py-1.5">
+														{itemPmUrl ? (
+															<a href={itemPmUrl} target="_blank" rel="noopener noreferrer" className="font-medium max-w-[280px] truncate block text-blue-700 underline decoration-blue-200 hover:decoration-blue-500 hover:text-blue-900 transition-colors" title={item.title}>
+																{item.title}
+															</a>
+														) : (
+															<div className="font-medium max-w-[280px] truncate" title={item.title}>
+																{item.title}
+															</div>
+														)}
+														{item.matchNotes && (
+															<div className="text-[10px] text-muted-foreground max-w-[280px] truncate" title={item.matchNotes}>
+																{item.matchNotes}
+															</div>
+														)}
+													</td>
+													<td className="text-right px-3 py-1.5 tabular-nums font-medium">
+														{(item.mcProb * 100).toFixed(0)}%
+													</td>
+													<td className="text-right px-3 py-1.5 tabular-nums font-medium">
+														{(item.pmPrice * 100).toFixed(1)}%
+													</td>
+													<td className="px-2 py-1.5">
+														<div className="w-16 space-y-0.5" title={`Metaculus ${(item.mcProb * 100).toFixed(0)}% vs Polymarket ${(item.pmPrice * 100).toFixed(1)}%`}>
+															<div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+																<div className="h-full rounded-full bg-violet-400" style={{ width: `${Math.max(item.mcProb * 100, 2)}%` }} />
+															</div>
+															<div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+																<div className="h-full rounded-full bg-blue-400" style={{ width: `${Math.max(item.pmPrice * 100, 2)}%` }} />
+															</div>
+														</div>
+													</td>
+													<td className="text-right px-3 py-1.5">
+														<EdgeBar edge={item.edgePct} />
+													</td>
+													<td className="px-3 py-1.5 whitespace-nowrap">
+														<div className="flex items-center gap-1.5">
+															<DirectionBadge direction={item.direction} />
+															<span className="text-muted-foreground tabular-nums text-[10px]">@ ${buyPrice.toFixed(2)}</span>
+														</div>
+													</td>
+													<td className="text-right px-3 py-1.5 tabular-nums font-semibold">
+														{returnPer1 > 0 ? `$${returnPer1.toFixed(2)}` : "---"}
+													</td>
+												</tr>
+											);
+										})}
+									</tbody>
+								</table>
+							</div>
+						</div>
+					)}
+
+					{/* All games scanned table (sports) */}
+					{!isMetaculus && allGames.length > 0 && (
 						<div>
 							<div className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase mb-2">
 								All Games Scanned ({allGames.length})
@@ -538,7 +841,7 @@ export default function ArbPaperPage() {
 	const scatterData = useScatterData(filteredTrades);
 
 	return (
-		<div className="min-h-screen bg-[#f8f9fa]">
+		<div className="h-screen overflow-y-auto bg-[#f8f9fa]">
 			<Header />
 			<main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 				{/* Page title */}
@@ -556,14 +859,17 @@ export default function ArbPaperPage() {
 					</div>
 				</div>
 
-				{/* Pipeline Runs section */}
-				<section>
+				{/* Pipeline Runs section — Soft Arb */}
+				<section className="rounded-xl border-l-4 border-l-violet-400 bg-violet-50/40 p-4">
 					<div className="flex items-center justify-between mb-3">
 						<div className="flex items-center gap-2">
-							<IconScan size={16} className="text-muted-foreground" />
-							<h3 className="text-sm font-bold text-foreground tracking-wide uppercase">
+							<IconScan size={16} className="text-violet-600" />
+							<h3 className="text-sm font-bold text-violet-900 tracking-wide uppercase">
 								Soft Arb Pipeline
 							</h3>
+							<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-violet-100 text-violet-700">
+								FORECAST vs MARKET
+							</span>
 							{pipelineRuns && pipelineRuns.length > 0 && (
 								<span className="text-muted-foreground text-xs font-normal normal-case">
 									({pipelineRuns.length} scan{pipelineRuns.length !== 1 ? "s" : ""})
@@ -595,7 +901,7 @@ export default function ArbPaperPage() {
 					)}
 				</section>
 
-				{/* Loading */}
+				{/* Hard Arb — Paper Trades */}
 				{trades === undefined || summary === undefined ? (
 					<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 						{[...Array(4)].map((_, i) => (
@@ -621,7 +927,16 @@ export default function ArbPaperPage() {
 						</p>
 					</div>
 				) : (
-					<>
+					<section className="rounded-xl border-l-4 border-l-blue-400 bg-blue-50/40 p-4 space-y-6">
+						<div className="flex items-center gap-2 mb-1">
+							<IconArrowsExchange size={16} className="text-blue-600" />
+							<h3 className="text-sm font-bold text-blue-900 tracking-wide uppercase">
+								Hard Arb — Paper Trades
+							</h3>
+							<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
+								CROSS-EXCHANGE
+							</span>
+						</div>
 						{/* Confidence filter toggle */}
 						<div className="flex items-center gap-3">
 							<button
@@ -1038,7 +1353,7 @@ export default function ArbPaperPage() {
 								</div>
 							</section>
 						)}
-					</>
+					</section>
 				)}
 			</main>
 		</div>
