@@ -460,7 +460,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 	const decision = run.decision as Record<string, unknown> | null;
 
 	// Detect metaculus vs sports — after server-side normalization, canonical field is dossier_format_version
-	const isMetaculus = String(dossier?.dossier_format_version ?? "").includes("metaculus") || run.runId.startsWith("scan-metaculus-");
+	const isMetaculus = String(dossier?.dossier_format_version ?? "").includes("metaculus") || run.runId.startsWith("scan-metaculus-") || !!(dossier?.signal_source) || !!(dossier?.matched_pairs) || !!(dossier?.opportunities) || !!(dossier?.all_pairs_scanned);
 	const rawOpportunities = (dossier?.matched_pairs ?? dossier?.opportunities ?? dossier?.matches ?? dossier?.all_pairs_scanned ?? dossier?.all_scanned ?? []) as Array<Record<string, unknown>>;
 	const metaculusSummary = (typeof dossier?.summary === "object" ? dossier.summary : undefined) as Record<string, unknown> | undefined;
 	const bestOpportunity = dossier?.best_opportunity as Record<string, unknown> | undefined;
@@ -470,12 +470,17 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 
 	// Post-normalization: canonical field names from normalize_dossier.py
 	function normalizeItem(item: Record<string, unknown>) {
-		const title = String(item.metaculus_title ?? item.title ?? item.question ?? "—");
+		// Handle metaculus_title as string or nested object (pre-normalization fallback)
+		const rawTitle = item.metaculus_title ?? item.title ?? item.question;
+		const title = typeof rawTitle === "object" && rawTitle !== null
+			? String((rawTitle as Record<string, unknown>).title ?? rawTitle)
+			: String(rawTitle ?? "—");
 		const mcProb = Number(item.community_prediction ?? item.metaculus_prob ?? 0) || 0;
 		const pmPrice = Number(item.yes_price ?? item.polymarket_price ?? 0) || 0;
 		let edgePct = Number(item.edge_pct ?? 0) || 0;
-		// Safety: if edge looks like decimal, convert
-		if (edgePct !== 0 && Math.abs(edgePct) < 1 && mcProb > 0) edgePct *= 100;
+		// Safety: if edge looks like decimal, convert (normalize_dossier.py handles this,
+		// but guard against unnormalized passthrough)
+		if (edgePct !== 0 && Math.abs(edgePct) < 1) edgePct *= 100;
 		const direction = String(item.direction ?? "");
 		const matchQuality = String(
 			typeof item.match_confidence === "string" ? item.match_confidence :
@@ -850,11 +855,20 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 											const buyPrice = isBuyNo ? (1 - item.pmPrice) : item.pmPrice;
 											const returnPer1 = buyPrice > 0 ? (1 / buyPrice) : 0;
 											const itemPmUrl = item.polymarketSlug ? `https://polymarket.com/market/${item.polymarketSlug}` : "";
-											// Per-item verdict: prefer from normalizeItem, fallback to verdictItems by title/index match
+											// Per-item verdict: prefer from normalizeItem, fallback to verdictItems by metaculus_id, title, or index
 											const itemVerdictStr = item.itemVerdict || (() => {
-												const byTitle = verdictItems.find((v) => String(v.metaculus_title ?? v.title ?? "") === item.title);
-												const match = byTitle ?? verdictItems[i];
-												return String(match?.verdict ?? "");
+												if (!hasVerdictItems) return "";
+												// Match by metaculus_id first (most reliable)
+												const itemId = (rawOpportunities[i] as Record<string, unknown>)?.metaculus_id;
+												const byId = itemId != null ? verdictItems.find((v) => v.metaculus_id === itemId) : undefined;
+												if (byId) return String(byId.verdict ?? "");
+												// Match by title (case-insensitive)
+												const titleLower = item.title.toLowerCase().trim();
+												const byTitle = verdictItems.find((v) => String(v.metaculus_title ?? v.title ?? "").toLowerCase().trim() === titleLower);
+												if (byTitle) return String(byTitle.verdict ?? "");
+												// Fallback to index (only if within bounds)
+												if (i < verdictItems.length) return String(verdictItems[i].verdict ?? "");
+												return "";
 											})();
 											return (
 												<tr key={i} className={i < metaculusItems.length - 1 ? "border-b border-border/30" : ""}>

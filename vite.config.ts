@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import { execSync } from "child_process";
 
 interface Todo {
 	blockId: string;
@@ -52,17 +53,20 @@ function normalizeRun(run: PipelineRun): PipelineRun {
 	const isMetaculus = !!(d.signal_source) || String(d.dossier_format_version ?? d.format_version ?? d.version ?? d._version ?? "").includes("metaculus") || run.runId.startsWith("scan-metaculus-");
 	if (!isMetaculus) return run;
 
+	const scriptPath = path.join(os.homedir(), ".openclaw/scripts/normalize_dossier.py");
+	if (!fs.existsSync(scriptPath)) return run;
+
 	try {
-		const { execSync } = require("child_process") as typeof import("child_process");
 		const input = JSON.stringify(d);
-		const output = execSync("python3 ~/.openclaw/scripts/normalize_dossier.py", {
+		const output = execSync(`python3 "${scriptPath}"`, {
 			input,
 			encoding: "utf-8",
 			timeout: 5000,
 		});
 		const normalized = JSON.parse(output);
 		return { ...run, dossier: normalized };
-	} catch {
+	} catch (err) {
+		console.warn(`normalizeRun failed for ${run.runId}:`, err instanceof Error ? err.message : String(err));
 		return run; // Fallback: return unnormalized
 	}
 }
