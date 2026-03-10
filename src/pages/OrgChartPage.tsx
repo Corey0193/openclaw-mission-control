@@ -5,6 +5,7 @@ import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import { ORG_MEMBERS, getMember } from "../data/orgConfig";
 import Header from "../components/Header";
 import OrgTree from "../components/OrgChart/OrgTree";
+import PanZoomCanvas from "../components/OrgChart/PanZoomCanvas";
 import AgentProfilePanel from "../components/OrgChart/AgentProfilePanel";
 import type { AgentSummary } from "../components/OrgChart/OrgTree";
 
@@ -43,13 +44,13 @@ export default function OrgChartPage() {
 							{ORG_MEMBERS.length} team members
 						</p>
 					</div>
-					<div className="flex-1 overflow-auto flex items-center justify-center">
+					<PanZoomCanvas>
 						<OrgTree
 							selectedId={selectedId}
 							onSelect={setSelectedId}
 							agentSummaries={agentSummaries}
 						/>
-					</div>
+					</PanZoomCanvas>
 				</div>
 
 				{selectedMember && (

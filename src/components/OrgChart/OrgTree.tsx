@@ -54,20 +54,20 @@ function OrgLevel({
 	return (
 		<div className="flex flex-col items-center">
 			{/* This level's node + assistants */}
-			<div className="flex items-center gap-10">
+			<div className="flex items-start gap-10">
 				{/* Left assistants (or spacer to balance right-only assistants) */}
 				{leftAssistants.length > 0
 					? leftAssistants.map((asst) => (
-							<div key={asst.id} className="flex items-center gap-0">
-								<OrgNode
+							<div key={asst.id} className="flex items-start gap-0">
+								<OrgLevel
 									member={asst}
-									isSelected={selectedId === asst.id}
+									selectedId={selectedId}
 									onSelect={onSelect}
-									status={getStatusForMember(asst, agentSummaries)}
+									agentSummaries={agentSummaries}
 									depth={depth + 1}
 								/>
-								{/* Dashed connector line */}
-								<div className="w-10 border-t-[3px] border-dashed border-[var(--accent-orange)]/40" />
+								{/* Dashed connector line — vertically centered on the top node */}
+								<div className="mt-12 w-10 border-t-[3px] border-dashed border-[var(--accent-orange)]/40" />
 							</div>
 						))
 					: rightAssistants.length > 0 && <div className="w-[200px]" />}
@@ -83,14 +83,14 @@ function OrgLevel({
 				{/* Right assistants (or spacer to balance left-only assistants) */}
 				{rightAssistants.length > 0
 					? rightAssistants.map((asst) => (
-							<div key={asst.id} className="flex items-center gap-0">
-								{/* Dashed connector line */}
-								<div className="w-10 border-t-[3px] border-dashed border-[var(--accent-orange)]/40" />
-								<OrgNode
+							<div key={asst.id} className="flex items-start gap-0">
+								{/* Dashed connector line — vertically centered on the top node */}
+								<div className="mt-12 w-10 border-t-[3px] border-dashed border-[var(--accent-orange)]/40" />
+								<OrgLevel
 									member={asst}
-									isSelected={selectedId === asst.id}
+									selectedId={selectedId}
 									onSelect={onSelect}
-									status={getStatusForMember(asst, agentSummaries)}
+									agentSummaries={agentSummaries}
 									depth={depth + 1}
 								/>
 							</div>
