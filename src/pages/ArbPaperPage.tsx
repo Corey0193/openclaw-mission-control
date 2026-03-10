@@ -459,91 +459,46 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 	const verdict = run.verdict as Record<string, unknown> | null;
 	const decision = run.decision as Record<string, unknown> | null;
 
-	// Detect metaculus vs sports — Raymond produces many schema variants, so cast a wide net
-	const isMetaculus = !!(dossier?.opportunities) || !!(dossier?.matches) || !!(dossier?.all_pairs_scanned) || !!(dossier?.matched_pairs) || !!(dossier?.all_scanned) || (dossier?.version === "2.1-metaculus") || String(dossier?.format_version ?? "").includes("metaculus") || String(dossier?.dossier_format_version ?? "").includes("metaculus") || (dossier?.signal_source === "Metaculus") || (dossier?.strategy === "metaculus_vs_polymarket") || String(dossier?.scan_type ?? "").includes("metaculus") || run.runId.startsWith("scan-metaculus-");
-	const rawOpportunities = (dossier?.opportunities ?? dossier?.matches ?? dossier?.all_pairs_scanned ?? dossier?.matched_pairs ?? dossier?.all_scanned ?? []) as Array<Record<string, unknown>>;
+	// Detect metaculus vs sports — after server-side normalization, canonical field is dossier_format_version
+	const isMetaculus = String(dossier?.dossier_format_version ?? "").includes("metaculus") || run.runId.startsWith("scan-metaculus-");
+	const rawOpportunities = (dossier?.matched_pairs ?? dossier?.opportunities ?? dossier?.matches ?? dossier?.all_pairs_scanned ?? dossier?.all_scanned ?? []) as Array<Record<string, unknown>>;
 	const metaculusSummary = (typeof dossier?.summary === "object" ? dossier.summary : undefined) as Record<string, unknown> | undefined;
 	const bestOpportunity = dossier?.best_opportunity as Record<string, unknown> | undefined;
 
 	// Fallback slug from best_opportunity
 	const bestOppSlug = String(bestOpportunity?.polymarket_market_slug ?? bestOpportunity?.polymarket_slug ?? "");
 
-	// Robust normalizer — handles 7+ dossier schema variants from Raymond
+	// Post-normalization: canonical field names from normalize_dossier.py
 	function normalizeItem(item: Record<string, unknown>) {
-		// Nested objects vary by format: metaculus_question vs metaculus, polymarket_market vs polymarket, edge vs edge_analysis
-		const mcQ = typeof item.metaculus_question === "object" ? item.metaculus_question as Record<string, unknown> : undefined;
-		const mcObj = typeof item.metaculus === "object" ? item.metaculus as Record<string, unknown> : undefined;
-		const pmM = typeof item.polymarket_market === "object" ? item.polymarket_market as Record<string, unknown> : undefined;
-		const pmObj = typeof item.polymarket === "object" ? item.polymarket as Record<string, unknown> : undefined;
-		const edgeObj = typeof item.edge === "object" && item.edge !== null ? item.edge as Record<string, unknown> : undefined;
-		const edgeAn = typeof item.edge_analysis === "object" ? item.edge_analysis as Record<string, unknown> : undefined;
-		const rec = typeof item.recommendation === "object" ? item.recommendation as Record<string, unknown> : undefined;
-
-		const title = String(
-			mcQ?.title ?? mcObj?.question_title ??
-			item.metaculus_title ?? item.title ??
-			(typeof item.metaculus_question === "string" ? item.metaculus_question : undefined) ??
-			pmM?.question ?? pmObj?.question_title ??
-			item.polymarket_title ?? item.polymarket_market_question ?? item.polymarket_question ??
-			bestOpportunity?.metaculus_question ?? bestOpportunity?.polymarket_question ??
-			"—"
-		);
-
-		const mcProb = Number(
-			edgeObj?.metaculus_prob ?? edgeAn?.metaculus_prob ??
-			mcQ?.community_prediction ?? mcObj?.community_prediction ??
-			item.metaculus_prob ?? item.metaculus_probability ?? item.metaculus_probability_yes ??
-			item.metaculus_prediction ?? item.metaculus_community_prob ?? 0
-		) || 0;
-
-		const pmPrice = Number(
-			edgeObj?.polymarket_price ?? edgeAn?.polymarket_price ??
-			(pmM?.outcome_prices as number[] | undefined)?.[0] ??
-			pmM?.yes_price ?? pmObj?.yes_price ??
-			item.polymarket_price ?? item.polymarket_yes_price ?? item.polymarket_probability_yes ?? 0
-		) || 0;
-
-		// Edge percentage: check explicit pct fields first, then compute from decimal edge
-		const pctCandidates = [edgeObj?.edge_pct, edgeAn?.edge_pct, item.edge_percent, item.edge_pct];
-		let edgePctVal = pctCandidates.find((v) => v != null);
-		// Some formats store edge_pct as a decimal (e.g., -0.45 instead of -45)
-		if (edgePctVal != null && Math.abs(Number(edgePctVal)) < 1 && mcProb > 0) {
-			edgePctVal = Number(edgePctVal) * 100;
-		}
-		const edgePct = edgePctVal != null
-			? Number(edgePctVal)
-			: typeof item.edge === "number" ? Number(item.edge) * 100
-			: typeof edgeAn?.edge === "number" ? Number(edgeAn.edge) * 100
-			: 0;
-
-		const direction = String(
-			edgeObj?.direction ?? edgeAn?.direction ?? item.direction ?? rec?.action ?? ""
-		);
-
-		const matchQualityRaw = item.match_quality;
+		const title = String(item.metaculus_title ?? item.title ?? item.question ?? "—");
+		const mcProb = Number(item.community_prediction ?? item.metaculus_prob ?? 0) || 0;
+		const pmPrice = Number(item.yes_price ?? item.polymarket_price ?? 0) || 0;
+		let edgePct = Number(item.edge_pct ?? 0) || 0;
+		// Safety: if edge looks like decimal, convert
+		if (edgePct !== 0 && Math.abs(edgePct) < 1 && mcProb > 0) edgePct *= 100;
+		const direction = String(item.direction ?? "");
 		const matchQuality = String(
-			(typeof matchQualityRaw === "string" ? matchQualityRaw : undefined) ??
-			(typeof matchQualityRaw === "object" && matchQualityRaw ? (matchQualityRaw as Record<string, unknown>).confidence : undefined) ??
-			item.match_confidence ?? ""
+			typeof item.match_confidence === "string" ? item.match_confidence :
+			typeof item.match_quality === "object" && item.match_quality
+				? (item.match_quality as Record<string, unknown>).confidence
+				: item.match_confidence ?? ""
 		);
-
-		const polymarketSlug = String(
-			item.polymarket_slug ?? item.polymarket_market_slug ??
-			(pmM?.slug as string | undefined) ?? (pmObj?.slug as string | undefined) ??
-			bestOppSlug ?? ""
-		);
+		const polymarketSlug = String(item.polymarket_slug ?? "");
 
 		return {
 			title,
-			matchNotes: String(item.match_notes ?? item.notes ?? item.confidence_reason ?? item.reasoning ?? item.rationale ?? ""),
+			matchNotes: String(item.notes ?? ""),
 			mcProb,
 			pmPrice,
 			edgePct,
 			direction,
 			matchQuality,
 			status: String(item.status ?? ""),
-			polymarketUrl: String((pmM?.url as string | undefined) ?? (pmObj?.url as string | undefined) ?? ""),
+			polymarketUrl: String(item.polymarket_url ?? ""),
 			polymarketSlug,
+			// New: per-item verdict info (from Thorp's new format)
+			itemVerdict: String(item.verdict ?? ""),
+			mismatchClass: String(item.mismatch_class ?? ""),
 		};
 	}
 
@@ -867,7 +822,10 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 					</div>
 
 					{/* Metaculus opportunities table */}
-					{isMetaculus && metaculusItems.length > 0 && (
+					{isMetaculus && metaculusItems.length > 0 && (() => {
+					const verdictItems = (verdict?.items ?? []) as Array<Record<string, unknown>>;
+					const hasVerdictItems = verdictItems.length > 0;
+					return (
 						<div>
 							<div className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase mb-2">
 								Matched Opportunities ({metaculusItems.length})
@@ -883,6 +841,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 											<th className="text-right px-3 py-2">Edge</th>
 											<th className="text-left px-3 py-2">Trade</th>
 											<th className="text-right px-3 py-2">Return / $1</th>
+											{hasVerdictItems && <th className="text-center px-3 py-2">Verdict</th>}
 										</tr>
 									</thead>
 									<tbody>
@@ -891,6 +850,12 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 											const buyPrice = isBuyNo ? (1 - item.pmPrice) : item.pmPrice;
 											const returnPer1 = buyPrice > 0 ? (1 / buyPrice) : 0;
 											const itemPmUrl = item.polymarketSlug ? `https://polymarket.com/market/${item.polymarketSlug}` : "";
+											// Per-item verdict: prefer from normalizeItem, fallback to verdictItems by title/index match
+											const itemVerdictStr = item.itemVerdict || (() => {
+												const byTitle = verdictItems.find((v) => String(v.metaculus_title ?? v.title ?? "") === item.title);
+												const match = byTitle ?? verdictItems[i];
+												return String(match?.verdict ?? "");
+											})();
 											return (
 												<tr key={i} className={i < metaculusItems.length - 1 ? "border-b border-border/30" : ""}>
 													<td className="px-3 py-1.5">
@@ -937,6 +902,22 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 													<td className="text-right px-3 py-1.5 tabular-nums font-semibold">
 														{returnPer1 > 0 ? `$${returnPer1.toFixed(2)}` : "---"}
 													</td>
+													{hasVerdictItems && (
+														<td className="text-center px-3 py-1.5">
+															{itemVerdictStr === "TRADEABLE" && (
+																<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-emerald-100 text-emerald-700">TRADEABLE</span>
+															)}
+															{itemVerdictStr === "MARGINAL" && (
+																<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-yellow-100 text-yellow-700">MARGINAL</span>
+															)}
+															{itemVerdictStr === "UNTRADEABLE" && (
+																<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-red-100 text-red-700">UNTRADEABLE</span>
+															)}
+															{itemVerdictStr && itemVerdictStr !== "TRADEABLE" && itemVerdictStr !== "MARGINAL" && itemVerdictStr !== "UNTRADEABLE" && (
+																<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-gray-100 text-gray-600">{itemVerdictStr}</span>
+															)}
+														</td>
+													)}
 												</tr>
 											);
 										})}
@@ -944,7 +925,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 								</table>
 							</div>
 						</div>
-					)}
+					); })()}
 
 					{/* All games scanned table (sports) */}
 					{!isMetaculus && allGames.length > 0 && (

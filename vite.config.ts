@@ -43,6 +43,30 @@ function readJsonSafe(filePath: string): Record<string, unknown> | null {
 	}
 }
 
+function normalizeRun(run: PipelineRun): PipelineRun {
+	if (!run.dossier) return run;
+	// Only normalize Metaculus dossiers (sports pass through unchanged)
+	const d = run.dossier as Record<string, unknown>;
+	if (d.market_b || d.market_type) return run;
+
+	const isMetaculus = !!(d.signal_source) || String(d.dossier_format_version ?? d.format_version ?? d.version ?? d._version ?? "").includes("metaculus") || run.runId.startsWith("scan-metaculus-");
+	if (!isMetaculus) return run;
+
+	try {
+		const { execSync } = require("child_process") as typeof import("child_process");
+		const input = JSON.stringify(d);
+		const output = execSync("python3 ~/.openclaw/scripts/normalize_dossier.py", {
+			input,
+			encoding: "utf-8",
+			timeout: 5000,
+		});
+		const normalized = JSON.parse(output);
+		return { ...run, dossier: normalized };
+	} catch {
+		return run; // Fallback: return unnormalized
+	}
+}
+
 function getPipelineRuns(): PipelineRun[] {
 	if (!fs.existsSync(ARB_PIPELINE_DIR)) return [];
 
@@ -77,7 +101,7 @@ function getPipelineRuns(): PipelineRun[] {
 		else if (dossier && verdict) status = "completed";
 		else if (dossier && archivedIds.has(id)) status = "abandoned";
 		else if (dossier) status = "dossier_only";
-		runs.push({ runId: id, dossier, verdict, decision, status });
+		runs.push(normalizeRun({ runId: id, dossier, verdict, decision, status }));
 	}
 	return runs;
 }
