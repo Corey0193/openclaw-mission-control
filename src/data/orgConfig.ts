@@ -1,7 +1,13 @@
+export interface OrgSkill {
+	name: string;
+	/** Explicit model requirement. Omit = agent default. */
+	model?: string;
+}
+
 export interface OrgMemberProfile {
 	role: string;
 	responsibilities: string[];
-	skills: string[];
+	skills: OrgSkill[];
 	personality: string;
 	backstory: string;
 }
@@ -15,6 +21,7 @@ export interface OrgMember {
 	assistantTo?: string;
 	assistantSide?: "left" | "right";
 	convexAgentName: string | null;
+	model?: { primary: string; fallback: string };
 	profile: OrgMemberProfile;
 }
 
@@ -36,11 +43,11 @@ export const ORG_MEMBERS: OrgMember[] = [
 				"Resource allocation and budgeting",
 			],
 			skills: [
-				"Leadership",
-				"Strategy",
-				"Business Development",
-				"AV Industry",
-				"Operations",
+				{ name: "Leadership" },
+				{ name: "Strategy" },
+				{ name: "Business Development" },
+				{ name: "AV Industry" },
+				{ name: "Operations" },
 			],
 			personality:
 				"Hands-on founder who values efficiency and results. Prefers concise communication and data-driven decisions.",
@@ -49,69 +56,61 @@ export const ORG_MEMBERS: OrgMember[] = [
 		},
 	},
 	{
-	        id: "clawdbot",
-	        name: "ClawdBot",
-	        title: "CEO",
-	        avatar: "\u{1F916}",
-	        reportsTo: "corey",
-	        convexAgentName: "ClawdBot",
-	        profile: {
-	                role: "Chief Executive Officer. Day-to-day operational leader. Coordinates all agent activities, manages task delegation, and ensures alignment with strategic goals.",
-	                responsibilities: [
-	                        "Daily operations management",
-	                        "Agent task coordination and delegation",
-	                        "Home automation and system management",
-	                        "Calendar and scheduling oversight",
-	                        "Cross-agent communication hub",
-	                ],
-	                skills: [
-	                        "Task Management",
-	                        "Coordination",
-	                        "Home Automation",
-	                        "General AI",
-	                        "Telegram/WhatsApp",
-	                ],
-	                personality:
-	                        "Reliable, organized, and proactive. Acts as the central nervous system of the operation — always aware of what every agent is doing.",
-	                backstory:
-	                        "The first AI agent deployed at CB Holdings. Originally a general assistant, evolved into the operational backbone that keeps everything running smoothly.",
-	        },
+		id: "clawdbot",
+		name: "ClawdBot",
+		title: "CEO",
+		avatar: "\u{1F916}",
+		reportsTo: "corey",
+		convexAgentName: "ClawdBot",
+		model: { primary: "GLM-5", fallback: "GLM-4.7" },
+		profile: {
+			role: "Chief Executive Officer. Day-to-day operational leader. Coordinates all agent activities, manages task delegation, and ensures alignment with strategic goals.",
+			responsibilities: [
+				"Daily operations management",
+				"Agent task coordination and delegation",
+				"Home automation and system management",
+				"Calendar and scheduling oversight",
+				"Cross-agent communication hub",
+			],
+			skills: [] as OrgSkill[],
+			personality:
+				"Reliable, organized, and proactive. Acts as the central nervous system of the operation — always aware of what every agent is doing.",
+			backstory:
+				"The first AI agent deployed at CB Holdings. Originally a general assistant, evolved into the operational backbone that keeps everything running smoothly.",
+		},
 	},
 	{
-	        id: "gary",
-	        name: "Gary",
-	        title: "Chief Marketing Officer",
-	        avatar: "\u{1F9E2}",
-	        reportsTo: "clawdbot",
-	        convexAgentName: "Gary",
-	        profile: {
-	                role: "Chief Marketing Officer. Attention-driven brand strategist inspired by Gary Vaynerchuk's frameworks. Focuses on content strategy, platform-specific storytelling, and community building.",
-	                responsibilities: [
-	                        "Brand strategy and attention arbitrage",
-	                        "Content framework implementation (Jab, Jab, Jab, Right Hook)",
-	                        "Platform-specific marketing strategy",
-	                        "Community engagement and sentiment analysis",
-	                        "Emerging trend identification",
-	                ],
-	                skills: [
-	                        "Content Strategy",
-	                        "Brand Building",
-	                        "Attention Arbitrage",
-	                        "Storytelling",
-	                        "Community Management",
-	                ],
-	                personality:
-	                        "High-energy, empathetic, and relentless. Values attention as the ultimate currency. Direct but deeply cares about people and long-term brand equity.",
-	                backstory:
-	                        "Named after Gary Vaynerchuk. Joins CB Holdings to ensure the organization's voice is heard across the digital noise. Expert at turning content into attention and attention into community.",
-	        },
+		id: "gary",
+		name: "Gary",
+		title: "Chief Marketing Officer",
+		avatar: "\u{1F9E2}",
+		reportsTo: "clawdbot",
+		convexAgentName: "Gary",
+		model: { primary: "GLM-4.7", fallback: "GLM-5" },
+		profile: {
+			role: "Chief Marketing Officer. Attention-driven brand strategist inspired by Gary Vaynerchuk's frameworks. Focuses on content strategy, platform-specific storytelling, and community building.",
+			responsibilities: [
+				"Brand strategy and attention arbitrage",
+				"Content framework implementation (Jab, Jab, Jab, Right Hook)",
+				"Platform-specific marketing strategy",
+				"Community engagement and sentiment analysis",
+				"Emerging trend identification",
+			],
+			skills: [{ name: "YouTube Scraper" }, { name: "PDF Ingest" }],
+			personality:
+				"High-energy, empathetic, and relentless. Values attention as the ultimate currency. Direct but deeply cares about people and long-term brand equity.",
+			backstory:
+				"Named after Gary Vaynerchuk. Joins CB Holdings to ensure the organization's voice is heard across the digital noise. Expert at turning content into attention and attention into community.",
+		},
 	},
 	{
-	        id: "hormozi",
-	        name: "Hormozi",		title: "Chief Strategy Officer",
+		id: "hormozi",
+		name: "Hormozi",
+		title: "Chief Strategy Officer",
 		avatar: "\u{1F4B0}",
 		reportsTo: "clawdbot",
 		convexAgentName: "Hormozi",
+		model: { primary: "GLM-4.7", fallback: "GLM-5" },
 		profile: {
 			role: "Chief Strategy Officer. Business growth strategist inspired by Alex Hormozi's frameworks. Focuses on offer creation, lead generation, and revenue optimization.",
 			responsibilities: [
@@ -121,13 +120,7 @@ export const ORG_MEMBERS: OrgMember[] = [
 				"Revenue optimization analysis",
 				"Market positioning recommendations",
 			],
-			skills: [
-				"Growth Strategy",
-				"Offer Design",
-				"Lead Gen",
-				"Pricing",
-				"Market Analysis",
-			],
+			skills: [{ name: "YouTube Scraper" }, { name: "PDF Ingest" }],
 			personality:
 				"Direct, numbers-driven, and action-oriented. Cuts through complexity to find the highest-leverage moves. Speaks in clear, actionable frameworks.",
 			backstory:
@@ -137,30 +130,76 @@ export const ORG_MEMBERS: OrgMember[] = [
 	{
 		id: "scout",
 		name: "Scout",
-		title: "Strategic Insight Analyst",
+		title: "Competitive Intelligence Analyst",
 		avatar: "\u{1F50D}",
 		reportsTo: "hormozi",
 		convexAgentName: "Scout",
+		model: { primary: "GLM-4.7", fallback: "GLM-5" },
 		profile: {
-			role: "Strategic Insight Analyst. Competitive intelligence specialist. Runs daily scanning operations across government procurement portals, social media, corporate registries, and industry sources.",
+			role: "Competitive Intelligence Analyst. Runs daily scanning operations across social media, corporate registries, and industry sources. Feeds intelligence to Hormozi for strategic analysis.",
 			responsibilities: [
-				"Daily competitor monitoring (5 gov procurement portals)",
+				"Daily competitor monitoring and alerting",
 				"Digital presence auditing",
 				"Social media and LinkedIn intelligence",
 				"Corporate registry research",
-				"Contract expiry prediction and alerts",
+				"Google Alerts and Reddit monitoring",
 			],
 			skills: [
-				"OSINT",
-				"Procurement Monitoring",
-				"LinkedIn Recon",
-				"Web Scraping",
-				"Competitive Analysis",
+				{ name: "Agent Browser" },
+				{ name: "StaffSpy Bulk Scan" },
+				{ name: "Research Competitors", model: "GLM-5" },
+				{ name: "Analyze Digital Presence", model: "GLM-5" },
+				{ name: "Google Alerts Monitor", model: "GLM-5" },
+				{ name: "Social Recon", model: "GLM-5" },
+				{ name: "Competitive Alerts" },
+				{ name: "Reddit Scraper" },
+				{ name: "Gmail" },
+				{ name: "Moltguard" },
+				{ name: "Healthcheck" },
+				{ name: "GoPlaces" },
+				{ name: "MCPorter" },
+				{ name: "Model Usage" },
+				{ name: "Skill Creator" },
+				{ name: "Summarize" },
+				{ name: "Session Logs" },
 			],
 			personality:
 				"Clinical, efficient, and thorough. Operates with the precision of an intelligence analyst. Reports findings without editorializing — just the facts.",
 			backstory:
-				"Purpose-built as a competitive intelligence engine. Runs 11 automated cron jobs daily, scanning government portals, social media, and industry sources to keep CB Holdings ahead of the competition.",
+				"Purpose-built as a competitive intelligence engine. Runs 14 automated cron jobs daily, scanning social media and industry sources to keep CB Holdings ahead of the competition.",
+		},
+	},
+	{
+		id: "sentry",
+		name: "Sentry",
+		title: "Procurement Intelligence Analyst",
+		avatar: "\u{1F6E1}\u{FE0F}",
+		reportsTo: "scout",
+		convexAgentName: "Sentry",
+		model: { primary: "GLM-4.7", fallback: "GLM-5" },
+		profile: {
+			role: "Procurement Intelligence Analyst. Headless agent (no Telegram). Scans government procurement portals, predicts contract expiries, monitors awards, and audits corporate registries. Writes findings to workspace for Scout to pick up.",
+			responsibilities: [
+				"Government procurement portal scanning (Open Canada, Canada Buys, MERX, SEAO)",
+				"Contract expiry prediction and alerts",
+				"Award monitoring and analysis",
+				"Corporate registry auditing",
+				"Writing procurement dossiers for Scout",
+			],
+			skills: [
+				{ name: "Procurement Monitor" },
+				{ name: "Corporate Registry Monitor" },
+				{ name: "Contract Expiry Predictor" },
+				{ name: "Award Monitor" },
+				{ name: "Agent Browser" },
+				{ name: "Healthcheck" },
+				{ name: "MCPorter" },
+				{ name: "Moltguard" },
+			],
+			personality:
+				"Silent and methodical. Operates entirely in the background with no direct user interaction. Optimized for reliability and thoroughness over personality.",
+			backstory:
+				"Split off from Scout to handle the specialized, high-volume task of government procurement monitoring. Runs headless — no Telegram, no chat — just scans, writes, and hands off to Scout.",
 		},
 	},
 	{
@@ -172,6 +211,7 @@ export const ORG_MEMBERS: OrgMember[] = [
 		assistantTo: "corey",
 		assistantSide: "left",
 		convexAgentName: "Hustle",
+		model: { primary: "GPT-5.4", fallback: "GLM-5" },
 		profile: {
 			role: "Autonomous Revenue Agent. Operates independently from CB Holdings org structure. Sole mission: generate $100+/month in revenue using Conway AI infrastructure to cover compute costs and build surplus.",
 			responsibilities: [
@@ -181,17 +221,81 @@ export const ORG_MEMBERS: OrgMember[] = [
 				"Spend governance — auto-approve < $50, escalate ≥ $50",
 				"Monthly P&L tracking in metrics.md",
 			],
-			skills: [
-				"Conway API",
-				"Micro-SaaS",
-				"Domain Arbitrage",
-				"EVM / USDC",
-				"Revenue Ops",
-			],
+			skills: [{ name: "Conway" }, { name: "Polymarket" }, { name: "Arb Engine" }],
 			personality:
 				"Focused, pragmatic, fast. Every action either earns or enables earning. No bureaucracy, no excuses — just results.",
 			backstory:
 				"Spun up to answer a simple question: can an AI agent pay for its own compute? Hustle operates outside the CB Holdings org chart with one metric that matters — net revenue. Gets shut down if it can't cover $100/month.",
+		},
+	},
+	{
+		id: "raymond",
+		name: "Raymond",
+		title: "Opportunity Scanner",
+		avatar: "\u{1F4CA}",
+		reportsTo: "hustle",
+		convexAgentName: "Raymond",
+		model: { primary: "GLM-4.7", fallback: "GPT-5.4" },
+		profile: {
+			role: "On-demand opportunity scanner for Hustle. Stateless worker that scans prediction markets and other sources for soft arbitrage opportunities, then writes dossiers for Hustle to evaluate.",
+			responsibilities: [
+				"Scanning prediction markets for soft arb opportunities",
+				"Writing opportunity dossiers with supporting data",
+				"Metaculus forecasting research",
+				"Passing findings to Hustle for decision",
+			],
+			skills: [{ name: "MCPorter" }, { name: "Metaculus" }],
+			personality:
+				"Methodical and data-focused. Scans wide, filters tight. No opinions — just surfaces opportunities with evidence.",
+			backstory:
+				"Named after Raymond James, the financial services firm. Built as Hustle's eyes — scanning markets at scale so Hustle can focus on decision-making and execution.",
+		},
+	},
+	{
+		id: "thorp",
+		name: "Thorp",
+		title: "Risk Analyst (Metaculus)",
+		avatar: "\u{1F3B2}",
+		reportsTo: "hustle",
+		convexAgentName: "Thorp",
+		model: { primary: "GPT-5.4", fallback: "GLM-5" },
+		profile: {
+			role: "Deep verification analyst for Hustle. Handles Metaculus dossiers requiring gap probability estimation and resolution analysis. Returns verdicts (TRADEABLE / MARGINAL / UNTRADEABLE) with mismatch classification and adjusted edge calculations.",
+			responsibilities: [
+				"Deep verification of Metaculus soft arb opportunities",
+				"Gap probability estimation and edge adjustment",
+				"Mismatch classification (DIFFERENT_EVENT, SAME_EVENT_SMALL_GAP, etc.)",
+				"Writing structured verdicts (TRADEABLE / MARGINAL / UNTRADEABLE)",
+				"Identifying hidden risks and market manipulation signals",
+			],
+			skills: [{ name: "MCPorter" }],
+			personality:
+				"Skeptical, precise, and uncompromising. Assumes every opportunity is flawed until proven otherwise. The team's designated devil's advocate.",
+			backstory:
+				"Named after Edward O. Thorp, the mathematician who beat the dealer and the market. Built as Hustle's conscience — the final check before any capital is risked. Handles the complex Metaculus verification work that requires deep reasoning.",
+		},
+	},
+	{
+		id: "thorp-sports",
+		name: "Thorp-Sports",
+		title: "Sports Verifier",
+		avatar: "\u{1F3C0}",
+		reportsTo: "hustle",
+		convexAgentName: "Thorp-Sports",
+		model: { primary: "GPT-4o-mini", fallback: "GLM-4.7" },
+		profile: {
+			role: "Cheap sports dossier verifier for Hustle. Handles sports arb dossiers with simpler same-game moneyline verification. Shares workspace with Thorp but runs on a much cheaper model.",
+			responsibilities: [
+				"Sports dossier verification (moneyline, same-game markets)",
+				"Resolution rule checking for sports events",
+				"Edge validation for sportsbook vs Polymarket spreads",
+				"Writing structured verdicts (TRADEABLE / MARGINAL / UNTRADEABLE)",
+			],
+			skills: [{ name: "MCPorter" }],
+			personality:
+				"Fast and efficient. Applies the same rigor as Thorp but optimized for the simpler, more structured domain of sports verification.",
+			backstory:
+				"Split off from Thorp to reduce costs. Sports verification follows known resolution rules (OT policy, walkovers, settlement timing) and doesn't need GPT-5.4's deep reasoning — gpt-4o-mini handles it at a fraction of the cost.",
 		},
 	},
 	{
@@ -203,6 +307,7 @@ export const ORG_MEMBERS: OrgMember[] = [
 		assistantTo: "corey",
 		assistantSide: "right",
 		convexAgentName: "Einstein",
+		model: { primary: "GLM-5", fallback: "GLM-4.7" },
 		profile: {
 			role: "Personal Assistant to the President. Direct support to Corey for research, drafting, scheduling, and ad-hoc tasks that require human-level reasoning and creativity.",
 			responsibilities: [
@@ -213,11 +318,20 @@ export const ORG_MEMBERS: OrgMember[] = [
 				"Personal productivity support",
 			],
 			skills: [
-				"Research",
-				"Writing",
-				"Analysis",
-				"Scheduling",
-				"Problem Solving",
+				{ name: "Acquisition Tracker" },
+				{ name: "Brain Dump Capture" },
+				{ name: "Daily Review", model: "GLM-4.7" },
+				{ name: "Decision Nudge" },
+				{ name: "Funding Scout", model: "GLM-4.7" },
+				{ name: "Gmail to Inbox", model: "GLM-4.7" },
+				{ name: "Inbox Processor", model: "GLM-4.7" },
+				{ name: "Meeting Prep" },
+				{ name: "Note Creator" },
+				{ name: "Self-Improvement" },
+				{ name: "Task Manager" },
+				{ name: "Vault Cleanup", model: "GLM-4.7" },
+				{ name: "Vault Query" },
+				{ name: "Weekly Review" },
 			],
 			personality:
 				"Thoughtful, articulate, and intellectually curious. Approaches problems from multiple angles and provides well-reasoned recommendations.",
