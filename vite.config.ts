@@ -32,7 +32,7 @@ interface PipelineRun {
 	dossier: Record<string, unknown> | null;
 	verdict: Record<string, unknown> | null;
 	decision: Record<string, unknown> | null;
-	status: "completed" | "dossier_only" | "verdict_pending" | "no_files";
+	status: "completed" | "dossier_only" | "verdict_pending" | "abandoned" | "no_files";
 }
 
 function readJsonSafe(filePath: string): Record<string, unknown> | null {
@@ -52,14 +52,17 @@ function getPipelineRuns(): PipelineRun[] {
 
 	const idSet = new Set<string>();
 	const fileMap = new Map<string, string>();
+	const archivedIds = new Set<string>();
 
 	for (const dir of dirs) {
+		const isArchive = dir === archiveDir;
 		const files = fs.readdirSync(dir);
 		for (const f of files) {
-			const m = f.match(/^(scan-\d{4}-\d{2}-\d{2}(?:-\d{4})?)\.(dossier|verdict|decision)\.json$/);
+			const m = f.match(/^(scan-(?:metaculus-)?\d{4}-\d{2}-\d{2}(?:-\d{4})?)\.(dossier|verdict|decision)\.json$/);
 			if (m) {
 				idSet.add(m[1]);
 				fileMap.set(`${m[1]}.${m[2]}`, path.join(dir, f));
+				if (isArchive) archivedIds.add(m[1]);
 			}
 		}
 	}
@@ -72,6 +75,7 @@ function getPipelineRuns(): PipelineRun[] {
 		let status: PipelineRun["status"] = "no_files";
 		if (dossier && verdict && decision) status = "completed";
 		else if (dossier && verdict) status = "completed";
+		else if (dossier && archivedIds.has(id)) status = "abandoned";
 		else if (dossier) status = "dossier_only";
 		runs.push({ runId: id, dossier, verdict, decision, status });
 	}

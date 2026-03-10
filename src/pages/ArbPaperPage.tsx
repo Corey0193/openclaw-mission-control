@@ -61,6 +61,33 @@ function timeAgo(isoOrMs: string | number): string {
 	return `${days}d ago`;
 }
 
+/** Safely convert any value to a displayable string — prevents "Objects are not valid as React child" crashes */
+function safeStr(v: unknown): string {
+	if (v == null) return "";
+	if (typeof v === "string") return v;
+	if (typeof v === "number" || typeof v === "boolean") return String(v);
+	if (Array.isArray(v)) return v.map(safeStr).join(", ");
+	if (typeof v === "object") {
+		try { return JSON.stringify(v); } catch { return "[object]"; }
+	}
+	return String(v);
+}
+
+/** Format an adjusted_edge value that may be a number, string, or object mapping names to numbers */
+function formatAdjustedEdge(v: unknown): string {
+	if (typeof v === "number") return `${(v * 100).toFixed(1)}%`;
+	if (typeof v === "string") { const n = Number(v); return Number.isNaN(n) ? v : `${(n * 100).toFixed(1)}%`; }
+	if (v != null && typeof v === "object" && !Array.isArray(v)) {
+		const entries = Object.entries(v as Record<string, unknown>);
+		return entries.map(([k, val]) => {
+			const label = k.replace(/_/g, " ");
+			const num = typeof val === "number" ? `${val.toFixed(1)}%` : String(val);
+			return `${label}: ${num}`;
+		}).join(", ");
+	}
+	return String(v ?? "");
+}
+
 function PnlBadge({ value }: { value: number }) {
 	const isPositive = value >= 0;
 	return (
@@ -213,7 +240,7 @@ interface PipelineRun {
 	dossier: Record<string, unknown> | null;
 	verdict: Record<string, unknown> | null;
 	decision: Record<string, unknown> | null;
-	status: "completed" | "dossier_only" | "verdict_pending" | "no_files";
+	status: "completed" | "dossier_only" | "verdict_pending" | "abandoned" | "no_files";
 }
 
 function usePipelineRuns() {
@@ -377,10 +404,11 @@ function OpportunitySummary({
 	const buyPrice = isBuyNo ? (1 - pmPrice) : pmPrice;
 	const returnPer1 = buyPrice > 0 ? (1 / buyPrice) : 0;
 	const likelihood = mcProb < 0.3 ? "unlikely" : mcProb > 0.7 ? "likely" : "uncertain";
-	const hustleDecision = (decision?.hustle_decision ?? "") as string;
-	const hustleReasoning = (decision?.reasoning ?? "") as string;
+	const hustleDecision = safeStr(decision?.hustle_decision ?? "");
+	const hustleReasoning = safeStr(decision?.reasoning ?? "");
 	const thorpKelly = verdict?.kelly_check as Record<string, unknown> | undefined;
-	const thorpMaxRisk = (thorpKelly?.kelly_bet_usd ?? verdict?.max_risk_suggestion_usd ?? null) as string | number | null;
+	const thorpMaxRiskRaw = thorpKelly?.kelly_bet_usd ?? verdict?.max_risk_suggestion_usd ?? null;
+	const thorpMaxRisk = thorpMaxRiskRaw != null ? (typeof thorpMaxRiskRaw === "number" ? thorpMaxRiskRaw : safeStr(thorpMaxRiskRaw)) : null;
 	const pmUrl = bestItem.polymarketSlug ? `https://polymarket.com/market/${bestItem.polymarketSlug}` : "";
 	const truncatedTitle = bestItem.title.length > 60 ? bestItem.title.slice(0, 60) + "..." : bestItem.title;
 
@@ -406,7 +434,7 @@ function OpportunitySummary({
 				)}
 				{thorpMaxRisk !== null && (
 					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
-						Kelly: {typeof thorpMaxRisk === "number" ? `$${thorpMaxRisk}` : thorpMaxRisk}
+						Kelly: {typeof thorpMaxRisk === "number" ? `$${thorpMaxRisk}` : String(thorpMaxRisk)}
 					</span>
 				)}
 			</div>
@@ -560,11 +588,11 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 		confidence = String(dossier?.raymond_confidence ?? (bestOpp?.confidence as string | undefined) ?? "");
 	}
 
-	const thorpVerdict = (verdict?.verdict ?? verdict?.final_verdict ?? "") as string;
-	const thorpSummary = (verdict?.thorp_note ?? verdict?.summary ?? "") as string;
-	const thorpMismatchClass = (verdict?.mismatch_class ?? "") as string;
-	const thorpRawEdge = verdict?.raw_edge as number | undefined;
-	const thorpAdjustedEdge = verdict?.adjusted_edge as number | undefined;
+	const thorpVerdict = safeStr(verdict?.verdict ?? verdict?.final_verdict ?? "");
+	const thorpSummary = safeStr(verdict?.thorp_note ?? verdict?.summary ?? "");
+	const thorpMismatchClass = safeStr(verdict?.mismatch_class ?? "");
+	const thorpRawEdge = typeof verdict?.raw_edge === "number" ? verdict.raw_edge : undefined;
+	const thorpAdjustedEdge = verdict?.adjusted_edge;
 	const thorpAdjustments = (verdict?.adjustments ?? []) as Array<Record<string, unknown>>;
 	// Phase 6.6: objections array with severity field; legacy: separate fatal_objections + concerns
 	const thorpObjArr = (verdict?.objections ?? []) as Array<Record<string, unknown>>;
@@ -575,12 +603,13 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 		? thorpObjArr.filter((o) => o.severity === "MAJOR" || o.severity === "MINOR")
 		: (verdict?.concerns ?? []) as Array<Record<string, unknown> | string>;
 	const thorpConcerns = thorpConcernsRaw.map((c) =>
-		typeof c === "string" ? c : ((c.argument ?? c.detail ?? c.reason ?? c.code ?? "") as string)
+		typeof c === "string" ? c : safeStr(c.argument ?? c.detail ?? c.reason ?? c.code ?? "")
 	);
 	const thorpChecks = (verdict?.checks_performed ?? verdict?.checks ?? []) as Array<Record<string, unknown>>;
 	// Phase 6.6: kelly_check object; legacy: max_risk_suggestion_usd
 	const thorpKellyCheck = verdict?.kelly_check as Record<string, unknown> | undefined;
-	const thorpMaxRisk = (thorpKellyCheck?.kelly_bet_usd ?? verdict?.max_risk_suggestion_usd ?? null) as string | number | null;
+	const thorpMaxRiskRaw = thorpKellyCheck?.kelly_bet_usd ?? verdict?.max_risk_suggestion_usd ?? null;
+	const thorpMaxRisk = thorpMaxRiskRaw != null ? (typeof thorpMaxRiskRaw === "number" ? thorpMaxRiskRaw : safeStr(thorpMaxRiskRaw)) : null;
 
 	// Scan stats (computed here to avoid IIFE in JSX)
 	const hasScanStats = isMetaculus && !!(metaculusSummary || dossier?.all_games_scanned || dossier?.all_pairs_scanned);
@@ -589,12 +618,14 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 	const scanStatsMatched = metaculusSummary?.matched_pairs ?? dossier?.matches_count ?? scanStatsCandidates.length;
 	const scanStatsAboveThresh = metaculusSummary?.meets_threshold ?? dossier?.opportunities_found ?? scanStatsCandidates.filter((m) => m.status === "candidate" || m.matchQuality === "HIGH" || m.matchQuality === "MEDIUM").length;
 
-	const hustleDecision = (decision?.hustle_decision ?? "") as string;
-	const hustleReasoning = (decision?.reasoning ?? "") as string;
-	const hustleMismatchClass = (decision?.mismatch_class ?? "") as string;
-	const hustleAdjustedEdge = decision?.adjusted_edge as number | string | undefined;
+	const hustleDecision = safeStr(decision?.hustle_decision ?? "");
+	const hustleReasoning = safeStr(decision?.reasoning ?? "");
+	const hustleMismatchClass = safeStr(decision?.mismatch_class ?? "");
+	const hustleAdjustedEdge = decision?.adjusted_edge;
 
-	const cardBorderClass = hustleDecision === "EXECUTE" ? "border-l-4 border-l-emerald-400"
+	const isAbandoned = run.status === "abandoned";
+	const cardBorderClass = isAbandoned ? "border-l-4 border-l-red-200 opacity-60"
+		: hustleDecision === "EXECUTE" ? "border-l-4 border-l-emerald-400"
 		: hustleDecision === "PASS" ? "border-l-4 border-l-gray-300"
 		: hustleDecision === "ESCALATE_TO_CB" ? "border-l-4 border-l-amber-400"
 		: "";
@@ -687,7 +718,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 									)}
 									{dossier.raymond_note && (
 										<div className="text-muted-foreground text-[11px] mt-1 leading-relaxed">
-											{dossier.raymond_note as string}
+											{safeStr(dossier.raymond_note)}
 										</div>
 									)}
 								</div>
@@ -721,8 +752,8 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 											{thorpRawEdge !== undefined && (
 												<span className="text-muted-foreground">Raw: <span className="font-semibold text-foreground tabular-nums">{(thorpRawEdge * 100).toFixed(1)}%</span></span>
 											)}
-											{thorpAdjustedEdge !== undefined && (
-												<span className="text-muted-foreground ml-2">Adj: <span className="font-semibold text-foreground tabular-nums">{(thorpAdjustedEdge * 100).toFixed(1)}%</span></span>
+											{thorpAdjustedEdge != null && (
+												<span className="text-muted-foreground ml-2">Adj: <span className="font-semibold text-foreground tabular-nums">{formatAdjustedEdge(thorpAdjustedEdge)}</span></span>
 											)}
 										</div>
 									)}
@@ -730,8 +761,8 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 										<div className="space-y-0.5 mt-1">
 											{thorpAdjustments.map((adj, i) => (
 												<div key={i} className="text-[10px] text-muted-foreground">
-													{adj.type as string}: <span className="tabular-nums">{((adj.value as number) * 100).toFixed(2)}%</span>
-													{adj.reason && <span className="ml-1">({adj.reason as string})</span>}
+													{safeStr(adj.type)}: <span className="tabular-nums">{((Number(adj.value) || 0) * 100).toFixed(2)}%</span>
+													{adj.reason && <span className="ml-1">({safeStr(adj.reason)})</span>}
 												</div>
 											))}
 										</div>
@@ -747,7 +778,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 												<div key={i} className="flex items-start gap-1.5 text-red-600">
 													<IconCircleX size={12} className="mt-0.5 shrink-0" />
 													<span className="text-[11px] leading-relaxed">
-														{typeof obj === "string" ? obj : (obj.argument ?? obj.detail ?? obj.reason ?? obj.code ?? "") as string}
+														{typeof obj === "string" ? obj : safeStr(obj.argument ?? obj.detail ?? obj.reason ?? obj.code ?? "")}
 													</span>
 												</div>
 											))}
@@ -767,13 +798,13 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 										<div className="space-y-1 mt-1">
 											{thorpChecks.map((check, i) => (
 												<div key={i} className="flex items-start gap-1.5">
-													{(check.result as string)?.startsWith("PASS") ? (
+													{safeStr(check.result).startsWith("PASS") ? (
 														<IconCircleCheck size={12} className="text-emerald-500 mt-0.5 shrink-0" />
 													) : (
 														<IconCircleX size={12} className="text-red-500 mt-0.5 shrink-0" />
 													)}
 													<span className="text-[11px] text-muted-foreground">
-														{check.name as string}
+														{safeStr(check.name)}
 													</span>
 												</div>
 											))}
@@ -789,7 +820,9 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 								</div>
 							) : (
 								<div className="text-xs text-muted-foreground">
-									{run.status === "dossier_only" ? "Awaiting dispatch" : "Not triggered"}
+									{run.status === "abandoned" ? (
+									<span className="text-red-400">Abandoned — gateway dropped pipeline</span>
+								) : run.status === "dossier_only" ? "Awaiting dispatch" : "Not triggered"}
 								</div>
 							)}
 						</div>
@@ -814,9 +847,9 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 										{decisionBadge(hustleDecision)}
 										{hustleMismatchClass && mismatchBadge(hustleMismatchClass)}
 									</div>
-									{hustleAdjustedEdge !== undefined && (
+									{hustleAdjustedEdge != null && (
 										<div className="text-muted-foreground">
-											Adj. edge: <span className="font-semibold text-foreground tabular-nums">{typeof hustleAdjustedEdge === "number" ? `${(hustleAdjustedEdge * 100).toFixed(1)}%` : hustleAdjustedEdge}</span>
+											Adj. edge: <span className="font-semibold text-foreground tabular-nums">{formatAdjustedEdge(hustleAdjustedEdge)}</span>
 										</div>
 									)}
 									{hustleReasoning && (
@@ -827,7 +860,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 								</div>
 							) : (
 								<div className="text-xs text-muted-foreground">
-									Waiting for verdict
+									{run.status === "abandoned" ? <span className="text-red-400">Abandoned</span> : "Waiting for verdict"}
 								</div>
 							)}
 						</div>
