@@ -148,7 +148,7 @@ function ScatterTooltip({ active, payload }: ChartTooltipProps) {
 		<div className="bg-white border border-border rounded-lg px-3 py-2 shadow-sm text-xs">
 			<div className="font-medium mb-1 max-w-[200px] truncate">{d.pairName}</div>
 			<div className="text-muted-foreground">Maker: {d.makerExchange}</div>
-			<div className="text-muted-foreground">Size: {d.viableSize.toFixed(1)} shares</div>
+			<div className="text-muted-foreground">Size: {(Number(d.viableSize) || 0).toFixed(1)} shares</div>
 			<div className="font-semibold">{formatPnl(d.netProfit)}</div>
 		</div>
 	);
@@ -233,6 +233,23 @@ function usePipelineRuns() {
 function verdictBadge(verdict: string | undefined) {
 	if (!verdict) return null;
 	const map: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+		// Phase 6.6 vocabulary
+		TRADEABLE: {
+			bg: "bg-emerald-100",
+			text: "text-emerald-700",
+			icon: <IconCircleCheck size={12} />,
+		},
+		MARGINAL: {
+			bg: "bg-amber-100",
+			text: "text-amber-700",
+			icon: <IconAlertCircle size={12} />,
+		},
+		UNTRADEABLE: {
+			bg: "bg-red-100",
+			text: "text-red-700",
+			icon: <IconCircleX size={12} />,
+		},
+		// Legacy vocabulary (backward compat for archived runs)
 		HARD_NO: {
 			bg: "bg-red-100",
 			text: "text-red-700",
@@ -260,6 +277,24 @@ function verdictBadge(verdict: string | undefined) {
 	);
 }
 
+function mismatchBadge(mismatchClass: string | undefined) {
+	if (!mismatchClass) return null;
+	const map: Record<string, { bg: string; text: string }> = {
+		CONTRACT_EQUIVALENT: { bg: "bg-emerald-50", text: "text-emerald-600" },
+		SAME_EVENT_SMALL_GAP: { bg: "bg-blue-50", text: "text-blue-600" },
+		SAME_EVENT_LARGE_GAP: { bg: "bg-amber-50", text: "text-amber-600" },
+		STRUCTURAL_MISMATCH: { bg: "bg-red-50", text: "text-red-600" },
+		METADATA_CONFLICT: { bg: "bg-orange-50", text: "text-orange-600" },
+		DIFFERENT_EVENT: { bg: "bg-red-100", text: "text-red-700" },
+	};
+	const style = map[mismatchClass] ?? { bg: "bg-gray-50", text: "text-gray-600" };
+	return (
+		<span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide ${style.bg} ${style.text}`}>
+			{mismatchClass.replace(/_/g, " ")}
+		</span>
+	);
+}
+
 function decisionBadge(decision: string | undefined) {
 	if (!decision) return null;
 	const map: Record<string, { bg: string; text: string }> = {
@@ -279,8 +314,8 @@ function decisionBadge(decision: string | undefined) {
 
 function DirectionBadge({ direction }: { direction: string }) {
 	if (!direction) return null;
-	const isBuyNo = direction === "BUY_NO";
-	const isBuyYes = direction === "BUY_YES";
+	const isBuyNo = direction === "BUY_NO" || direction === "BUY_POLYMARKET_NO";
+	const isBuyYes = direction === "BUY_YES" || direction === "BUY_POLYMARKET_YES";
 	if (!isBuyNo && !isBuyYes) {
 		return (
 			<span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-gray-100 text-gray-700" title={direction}>
@@ -298,6 +333,7 @@ function DirectionBadge({ direction }: { direction: string }) {
 }
 
 function EdgeBar({ edge }: { edge: number }) {
+	edge = Number(edge) || 0;
 	const absEdge = Math.min(Math.abs(edge), 50);
 	const width = `${Math.max(absEdge * 2, 4)}%`;
 	const color = Math.abs(edge) >= 15 ? "bg-emerald-500" : Math.abs(edge) >= 5 ? "bg-amber-400" : "bg-gray-300";
@@ -337,13 +373,14 @@ function OpportunitySummary({
 
 	const mcProb = bestItem.mcProb;
 	const pmPrice = bestItem.pmPrice;
-	const isBuyNo = bestItem.direction === "BUY_NO";
+	const isBuyNo = bestItem.direction === "BUY_NO" || bestItem.direction === "BUY_POLYMARKET_NO";
 	const buyPrice = isBuyNo ? (1 - pmPrice) : pmPrice;
 	const returnPer1 = buyPrice > 0 ? (1 / buyPrice) : 0;
 	const likelihood = mcProb < 0.3 ? "unlikely" : mcProb > 0.7 ? "likely" : "uncertain";
 	const hustleDecision = (decision?.hustle_decision ?? "") as string;
 	const hustleReasoning = (decision?.reasoning ?? "") as string;
-	const thorpMaxRisk = (verdict?.max_risk_suggestion_usd ?? null) as number | null;
+	const thorpKelly = verdict?.kelly_check as Record<string, unknown> | undefined;
+	const thorpMaxRisk = (thorpKelly?.kelly_bet_usd ?? verdict?.max_risk_suggestion_usd ?? null) as string | number | null;
 	const pmUrl = bestItem.polymarketSlug ? `https://polymarket.com/market/${bestItem.polymarketSlug}` : "";
 	const truncatedTitle = bestItem.title.length > 60 ? bestItem.title.slice(0, 60) + "..." : bestItem.title;
 
@@ -369,7 +406,7 @@ function OpportunitySummary({
 				)}
 				{thorpMaxRisk !== null && (
 					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
-						max risk: ${thorpMaxRisk}
+						Kelly: {typeof thorpMaxRisk === "number" ? `$${thorpMaxRisk}` : thorpMaxRisk}
 					</span>
 				)}
 			</div>
@@ -394,43 +431,95 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 	const verdict = run.verdict as Record<string, unknown> | null;
 	const decision = run.decision as Record<string, unknown> | null;
 
-	// Detect format — metaculus dossiers come in three shapes:
-	// v1 (1819-style): opportunities[] with nested metaculus_question/polymarket_market/edge + summary
-	// v2 (1835-style): matches[] with flat fields (metaculus_title, edge_percent, direction)
-	// v3 (2034-style): best_opportunity + all_pairs_scanned[] with flat fields
-	const isMetaculus = !!(dossier?.opportunities) || !!(dossier?.matches) || !!(dossier?.all_pairs_scanned) || (dossier?.version === "2.1-metaculus") || (dossier?.signal_source === "Metaculus");
-	const rawOpportunities = (dossier?.opportunities ?? dossier?.matches ?? dossier?.all_pairs_scanned ?? []) as Array<Record<string, unknown>>;
-	const metaculusSummary = dossier?.summary as Record<string, unknown> | undefined;
+	// Detect metaculus vs sports — Raymond produces many schema variants, so cast a wide net
+	const isMetaculus = !!(dossier?.opportunities) || !!(dossier?.matches) || !!(dossier?.all_pairs_scanned) || !!(dossier?.matched_pairs) || !!(dossier?.all_scanned) || (dossier?.version === "2.1-metaculus") || String(dossier?.format_version ?? "").includes("metaculus") || String(dossier?.dossier_format_version ?? "").includes("metaculus") || (dossier?.signal_source === "Metaculus") || (dossier?.strategy === "metaculus_vs_polymarket") || String(dossier?.scan_type ?? "").includes("metaculus") || run.runId.startsWith("scan-metaculus-");
+	const rawOpportunities = (dossier?.opportunities ?? dossier?.matches ?? dossier?.all_pairs_scanned ?? dossier?.matched_pairs ?? dossier?.all_scanned ?? []) as Array<Record<string, unknown>>;
+	const metaculusSummary = (typeof dossier?.summary === "object" ? dossier.summary : undefined) as Record<string, unknown> | undefined;
 	const bestOpportunity = dossier?.best_opportunity as Record<string, unknown> | undefined;
 
-	// Fallback slug from best_opportunity (v3 items in all_pairs_scanned lack their own slug)
-	const bestOppSlug = (bestOpportunity?.polymarket_market_slug ?? bestOpportunity?.polymarket_slug ?? "") as string;
+	// Fallback slug from best_opportunity
+	const bestOppSlug = String(bestOpportunity?.polymarket_market_slug ?? bestOpportunity?.polymarket_slug ?? "");
 
-	// Normalize metaculus items into a common shape for display
-	const metaculusItems = isMetaculus ? rawOpportunities.map((item) => {
-		// v1 nested format
-		const mcQ = item.metaculus_question as Record<string, unknown> | undefined;
-		const pmM = item.polymarket_market as Record<string, unknown> | undefined;
+	// Robust normalizer — handles 7+ dossier schema variants from Raymond
+	function normalizeItem(item: Record<string, unknown>) {
+		// Nested objects vary by format: metaculus_question vs metaculus, polymarket_market vs polymarket, edge vs edge_analysis
+		const mcQ = typeof item.metaculus_question === "object" ? item.metaculus_question as Record<string, unknown> : undefined;
+		const mcObj = typeof item.metaculus === "object" ? item.metaculus as Record<string, unknown> : undefined;
+		const pmM = typeof item.polymarket_market === "object" ? item.polymarket_market as Record<string, unknown> : undefined;
+		const pmObj = typeof item.polymarket === "object" ? item.polymarket as Record<string, unknown> : undefined;
 		const edgeObj = typeof item.edge === "object" && item.edge !== null ? item.edge as Record<string, unknown> : undefined;
-		// v2/v3 flat format fields used as fallbacks
-		// edge_pct and edge_percent are already percentage values; raw edge is a decimal
-		const edgePctVal = edgeObj?.edge_pct ?? item.edge_percent;
-		const rawEdge = edgePctVal != null
-			? (edgePctVal as number)
-			: typeof item.edge === "number" ? (item.edge as number) * 100 : 0;
+		const edgeAn = typeof item.edge_analysis === "object" ? item.edge_analysis as Record<string, unknown> : undefined;
+		const rec = typeof item.recommendation === "object" ? item.recommendation as Record<string, unknown> : undefined;
+
+		const title = String(
+			mcQ?.title ?? mcObj?.question_title ??
+			item.metaculus_title ?? item.title ??
+			(typeof item.metaculus_question === "string" ? item.metaculus_question : undefined) ??
+			pmM?.question ?? pmObj?.question_title ??
+			item.polymarket_title ?? item.polymarket_market_question ?? item.polymarket_question ??
+			bestOpportunity?.metaculus_question ?? bestOpportunity?.polymarket_question ??
+			"—"
+		);
+
+		const mcProb = Number(
+			edgeObj?.metaculus_prob ?? edgeAn?.metaculus_prob ??
+			mcQ?.community_prediction ?? mcObj?.community_prediction ??
+			item.metaculus_prob ?? item.metaculus_probability ?? item.metaculus_probability_yes ??
+			item.metaculus_prediction ?? item.metaculus_community_prob ?? 0
+		) || 0;
+
+		const pmPrice = Number(
+			edgeObj?.polymarket_price ?? edgeAn?.polymarket_price ??
+			(pmM?.outcome_prices as number[] | undefined)?.[0] ??
+			pmM?.yes_price ?? pmObj?.yes_price ??
+			item.polymarket_price ?? item.polymarket_yes_price ?? item.polymarket_probability_yes ?? 0
+		) || 0;
+
+		// Edge percentage: check explicit pct fields first, then compute from decimal edge
+		const pctCandidates = [edgeObj?.edge_pct, edgeAn?.edge_pct, item.edge_percent, item.edge_pct];
+		let edgePctVal = pctCandidates.find((v) => v != null);
+		// Some formats store edge_pct as a decimal (e.g., -0.45 instead of -45)
+		if (edgePctVal != null && Math.abs(Number(edgePctVal)) < 1 && mcProb > 0) {
+			edgePctVal = Number(edgePctVal) * 100;
+		}
+		const edgePct = edgePctVal != null
+			? Number(edgePctVal)
+			: typeof item.edge === "number" ? Number(item.edge) * 100
+			: typeof edgeAn?.edge === "number" ? Number(edgeAn.edge) * 100
+			: 0;
+
+		const direction = String(
+			edgeObj?.direction ?? edgeAn?.direction ?? item.direction ?? rec?.action ?? ""
+		);
+
+		const matchQualityRaw = item.match_quality;
+		const matchQuality = String(
+			(typeof matchQualityRaw === "string" ? matchQualityRaw : undefined) ??
+			(typeof matchQualityRaw === "object" && matchQualityRaw ? (matchQualityRaw as Record<string, unknown>).confidence : undefined) ??
+			item.match_confidence ?? ""
+		);
+
+		const polymarketSlug = String(
+			item.polymarket_slug ?? item.polymarket_market_slug ??
+			(pmM?.slug as string | undefined) ?? (pmObj?.slug as string | undefined) ??
+			bestOppSlug ?? ""
+		);
+
 		return {
-			title: (mcQ?.title ?? item.metaculus_title ?? item.title ?? pmM?.question ?? item.polymarket_title ?? item.polymarket_market_question ?? "—") as string,
-			matchNotes: (item.match_notes ?? item.notes ?? item.confidence_reason ?? "") as string,
-			mcProb: (edgeObj?.metaculus_prob ?? mcQ?.community_prediction ?? item.metaculus_probability ?? item.metaculus_probability_yes ?? 0) as number,
-			pmPrice: (edgeObj?.polymarket_price ?? pmM?.outcome_prices?.[0] ?? item.polymarket_price ?? item.polymarket_probability_yes ?? 0) as number,
-			edgePct: rawEdge,
-			direction: (edgeObj?.direction ?? item.direction ?? "") as string,
-			matchQuality: (item.match_quality ?? "") as string,
-			status: (item.status ?? "") as string,
-			polymarketUrl: ((pmM?.url as string | undefined) ?? "") as string,
-			polymarketSlug: (item.polymarket_slug ?? item.polymarket_market_slug ?? (pmM?.slug as string | undefined) ?? bestOppSlug ?? "") as string,
+			title,
+			matchNotes: String(item.match_notes ?? item.notes ?? item.confidence_reason ?? item.reasoning ?? item.rationale ?? ""),
+			mcProb,
+			pmPrice,
+			edgePct,
+			direction,
+			matchQuality,
+			status: String(item.status ?? ""),
+			polymarketUrl: String((pmM?.url as string | undefined) ?? (pmObj?.url as string | undefined) ?? ""),
+			polymarketSlug,
 		};
-	}) : [];
+	}
+
+	const metaculusItems = isMetaculus ? rawOpportunities.map(normalizeItem) : [];
 
 	// Sports fields
 	const edgeAnalysis = dossier?.edge_analysis as Record<string, unknown> | undefined;
@@ -445,36 +534,53 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 	let confidence: string;
 
 	if (isMetaculus) {
-		// Pick best edge from bestOpportunity (v3), summary, or from the items themselves
 		const bestItem = metaculusItems.length > 0
 			? metaculusItems.reduce((a, b) => Math.abs(b.edgePct) > Math.abs(a.edgePct) ? b : a)
 			: undefined;
+		// When no items were normalized but best_opportunity exists, extract header from it directly
 		const bestOppEdgeRaw = bestOpportunity?.edge;
-		const bestOppEdgePct = typeof bestOppEdgeRaw === "number" ? bestOppEdgeRaw * 100 : undefined;
-		edgePct = (metaculusSummary?.best_edge_pct ?? bestOppEdgePct ?? bestItem?.edgePct ?? 0) as number;
-		direction = (metaculusSummary?.best_edge_direction ?? bestOpportunity?.direction ?? bestItem?.direction ?? "") as string;
-		targetOutcome = (metaculusSummary?.best_edge_subject ?? bestOpportunity?.title ?? bestItem?.title ?? "") as string;
-		eventName = (bestOpportunity?.title ?? bestItem?.title ?? "Metaculus Scan") as string;
+		const bestOppEdgePct = typeof bestOppEdgeRaw === "number" ? Number(bestOppEdgeRaw) * 100
+			: Number(bestOpportunity?.edge_percent ?? bestOpportunity?.edge_pct ?? 0) || undefined;
+		const bestOppTitle = String(bestOpportunity?.title ?? bestOpportunity?.metaculus_question ?? bestOpportunity?.polymarket_question ?? "");
+		edgePct = Number(metaculusSummary?.best_edge ?? metaculusSummary?.best_edge_pct ?? bestOppEdgePct ?? bestItem?.edgePct ?? 0) || 0;
+		direction = String(metaculusSummary?.best_edge_direction ?? bestOpportunity?.direction ?? bestItem?.direction ?? "");
+		targetOutcome = String(metaculusSummary?.best_edge_subject ?? bestOppTitle ?? bestItem?.title ?? "");
+		eventName = bestOppTitle || bestItem?.title || "Metaculus Scan";
 		sourceBadge = "Metaculus";
-		confidence = (bestOpportunity?.match_quality ?? bestItem?.matchQuality ?? "") as string;
+		confidence = String(bestOpportunity?.match_quality ?? bestOpportunity?.match_confidence ?? bestItem?.matchQuality ?? "");
 	} else {
-		edgePct = (edgeAnalysis?.edge_pct ?? edgeAnalysis?.edge_after_vig_pct ?? edgeAnalysis?.raw_edge_pct ?? 0) as number;
-		direction = (edgeAnalysis?.direction ?? "") as string;
-		targetOutcome = (edgeAnalysis?.target_outcome ?? "") as string;
-		eventName = (dossier?.event_name ?? "Unknown") as string;
-		sourceBadge = (dossier?.sport_league ?? dossier?.sport ?? "") as string;
-		confidence = (dossier?.raymond_confidence ?? "") as string;
+		const bestOpp = dossier?.best_opportunity as Record<string, unknown> | undefined;
+		const bestOppEdge = typeof bestOpp?.edge === "object" && bestOpp?.edge !== null ? bestOpp.edge as Record<string, unknown> : undefined;
+		const bestOppAbsEdge = bestOppEdge?.absolute_edge ?? bestOppEdge?.home_edge ?? bestOppEdge?.away_edge;
+		edgePct = Number(edgeAnalysis?.edge_pct ?? edgeAnalysis?.edge_after_vig_pct ?? edgeAnalysis?.raw_edge_pct ?? (typeof bestOppAbsEdge === "number" ? bestOppAbsEdge * 100 : 0)) || 0;
+		direction = String(edgeAnalysis?.direction ?? (bestOppEdge?.direction as string | undefined) ?? "");
+		targetOutcome = String(edgeAnalysis?.target_outcome ?? (bestOppEdge?.team as string | undefined) ?? "");
+		eventName = String(dossier?.event_name ?? (bestOpp?.game as string | undefined) ?? "Unknown");
+		sourceBadge = String(dossier?.sport_league ?? dossier?.sport ?? (bestOpp?.sport as string | undefined) ?? "");
+		confidence = String(dossier?.raymond_confidence ?? (bestOpp?.confidence as string | undefined) ?? "");
 	}
 
-	const thorpVerdict = (verdict?.verdict ?? "") as string;
-	const thorpSummary = (verdict?.summary ?? "") as string;
-	const thorpFatalObjs = (verdict?.fatal_objections ?? []) as Array<Record<string, unknown> | string>;
-	const thorpConcernsRaw = (verdict?.concerns ?? []) as Array<string | Record<string, unknown>>;
+	const thorpVerdict = (verdict?.verdict ?? verdict?.final_verdict ?? "") as string;
+	const thorpSummary = (verdict?.thorp_note ?? verdict?.summary ?? "") as string;
+	const thorpMismatchClass = (verdict?.mismatch_class ?? "") as string;
+	const thorpRawEdge = verdict?.raw_edge as number | undefined;
+	const thorpAdjustedEdge = verdict?.adjusted_edge as number | undefined;
+	const thorpAdjustments = (verdict?.adjustments ?? []) as Array<Record<string, unknown>>;
+	// Phase 6.6: objections array with severity field; legacy: separate fatal_objections + concerns
+	const thorpObjArr = (verdict?.objections ?? []) as Array<Record<string, unknown>>;
+	const thorpFatalObjs = thorpObjArr.length > 0
+		? thorpObjArr.filter((o) => o.severity === "FATAL")
+		: (verdict?.fatal_objections ?? []) as Array<Record<string, unknown> | string>;
+	const thorpConcernsRaw = thorpObjArr.length > 0
+		? thorpObjArr.filter((o) => o.severity === "MAJOR" || o.severity === "MINOR")
+		: (verdict?.concerns ?? []) as Array<Record<string, unknown> | string>;
 	const thorpConcerns = thorpConcernsRaw.map((c) =>
-		typeof c === "string" ? c : ((c.detail ?? c.reason ?? c.code ?? "") as string)
+		typeof c === "string" ? c : ((c.argument ?? c.detail ?? c.reason ?? c.code ?? "") as string)
 	);
 	const thorpChecks = (verdict?.checks_performed ?? verdict?.checks ?? []) as Array<Record<string, unknown>>;
-	const thorpMaxRisk = (verdict?.max_risk_suggestion_usd ?? null) as number | null;
+	// Phase 6.6: kelly_check object; legacy: max_risk_suggestion_usd
+	const thorpKellyCheck = verdict?.kelly_check as Record<string, unknown> | undefined;
+	const thorpMaxRisk = (thorpKellyCheck?.kelly_bet_usd ?? verdict?.max_risk_suggestion_usd ?? null) as string | number | null;
 
 	// Scan stats (computed here to avoid IIFE in JSX)
 	const hasScanStats = isMetaculus && !!(metaculusSummary || dossier?.all_games_scanned || dossier?.all_pairs_scanned);
@@ -485,6 +591,8 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 
 	const hustleDecision = (decision?.hustle_decision ?? "") as string;
 	const hustleReasoning = (decision?.reasoning ?? "") as string;
+	const hustleMismatchClass = (decision?.mismatch_class ?? "") as string;
+	const hustleAdjustedEdge = decision?.adjusted_edge as number | string | undefined;
 
 	const cardBorderClass = hustleDecision === "EXECUTE" ? "border-l-4 border-l-emerald-400"
 		: hustleDecision === "PASS" ? "border-l-4 border-l-gray-300"
@@ -508,7 +616,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 							{run.runId}
 						</span>
 						{sourceBadge && (
-							<span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide ${isMetaculus ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
+							<span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase ${isMetaculus ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
 								{sourceBadge}
 							</span>
 						)}
@@ -551,7 +659,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 									<div>
 										<span className="text-muted-foreground">Edge: </span>
 										<span className="font-semibold">
-											{edgePct >= 0 ? "+" : ""}{edgePct.toFixed(1)}%
+											{Number(edgePct) >= 0 ? "+" : ""}{(Number(edgePct) || 0).toFixed(1)}%
 										</span>
 									</div>
 									<div className="flex items-center gap-1.5">
@@ -568,7 +676,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 									{thorpMaxRisk !== null && (
 										<div className="mt-1">
 											<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
-												Max bet: ${thorpMaxRisk}
+												Kelly: {typeof thorpMaxRisk === "number" ? `$${thorpMaxRisk}` : String(thorpMaxRisk)}
 											</span>
 										</div>
 									)}
@@ -604,7 +712,30 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 							</div>
 							{verdict ? (
 								<div className="space-y-1.5 text-xs">
-									<div>{verdictBadge(thorpVerdict)}</div>
+									<div className="flex items-center gap-2 flex-wrap">
+										{verdictBadge(thorpVerdict)}
+										{mismatchBadge(thorpMismatchClass)}
+									</div>
+									{(thorpRawEdge !== undefined || thorpAdjustedEdge !== undefined) && (
+										<div>
+											{thorpRawEdge !== undefined && (
+												<span className="text-muted-foreground">Raw: <span className="font-semibold text-foreground tabular-nums">{(thorpRawEdge * 100).toFixed(1)}%</span></span>
+											)}
+											{thorpAdjustedEdge !== undefined && (
+												<span className="text-muted-foreground ml-2">Adj: <span className="font-semibold text-foreground tabular-nums">{(thorpAdjustedEdge * 100).toFixed(1)}%</span></span>
+											)}
+										</div>
+									)}
+									{thorpAdjustments.length > 0 && (
+										<div className="space-y-0.5 mt-1">
+											{thorpAdjustments.map((adj, i) => (
+												<div key={i} className="text-[10px] text-muted-foreground">
+													{adj.type as string}: <span className="tabular-nums">{((adj.value as number) * 100).toFixed(2)}%</span>
+													{adj.reason && <span className="ml-1">({adj.reason as string})</span>}
+												</div>
+											))}
+										</div>
+									)}
 									{thorpSummary && (
 										<div className="text-muted-foreground text-[11px] leading-relaxed">
 											{thorpSummary}
@@ -616,7 +747,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 												<div key={i} className="flex items-start gap-1.5 text-red-600">
 													<IconCircleX size={12} className="mt-0.5 shrink-0" />
 													<span className="text-[11px] leading-relaxed">
-														{typeof obj === "string" ? obj : (obj.detail ?? obj.reason ?? obj.code ?? "") as string}
+														{typeof obj === "string" ? obj : (obj.argument ?? obj.detail ?? obj.reason ?? obj.code ?? "") as string}
 													</span>
 												</div>
 											))}
@@ -648,6 +779,13 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 											))}
 										</div>
 									)}
+									{thorpMaxRisk !== null && (
+										<div className="mt-1">
+											<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
+												Kelly: {typeof thorpMaxRisk === "number" ? `$${thorpMaxRisk}` : thorpMaxRisk}
+											</span>
+										</div>
+									)}
 								</div>
 							) : (
 								<div className="text-xs text-muted-foreground">
@@ -672,7 +810,15 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 							</div>
 							{decision ? (
 								<div className="space-y-1.5 text-xs">
-									<div>{decisionBadge(hustleDecision)}</div>
+									<div className="flex items-center gap-2 flex-wrap">
+										{decisionBadge(hustleDecision)}
+										{hustleMismatchClass && mismatchBadge(hustleMismatchClass)}
+									</div>
+									{hustleAdjustedEdge !== undefined && (
+										<div className="text-muted-foreground">
+											Adj. edge: <span className="font-semibold text-foreground tabular-nums">{typeof hustleAdjustedEdge === "number" ? `${(hustleAdjustedEdge * 100).toFixed(1)}%` : hustleAdjustedEdge}</span>
+										</div>
+									)}
 									{hustleReasoning && (
 										<div className="text-muted-foreground text-[11px] leading-relaxed">
 											{hustleReasoning}
@@ -708,7 +854,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 									</thead>
 									<tbody>
 										{metaculusItems.map((item, i) => {
-											const isBuyNo = item.direction === "BUY_NO";
+											const isBuyNo = item.direction === "BUY_NO" || item.direction === "BUY_POLYMARKET_NO";
 											const buyPrice = isBuyNo ? (1 - item.pmPrice) : item.pmPrice;
 											const returnPer1 = buyPrice > 0 ? (1 / buyPrice) : 0;
 											const itemPmUrl = item.polymarketSlug ? `https://polymarket.com/market/${item.polymarketSlug}` : "";
@@ -783,16 +929,25 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 										</tr>
 									</thead>
 									<tbody>
-										{(allGames as Array<{ game?: string; edge_pct?: number; direction?: string }>)
-											.sort((a, b) => Math.abs(b.edge_pct ?? 0) - Math.abs(a.edge_pct ?? 0))
+										{(allGames as Array<{ game?: string; edge_pct?: number; away_edge?: number; home_edge?: number; direction?: string; status?: string; team?: string }>)
+											.map((g) => {
+												const edgeVal = g.edge_pct ?? (Math.max(Math.abs(g.away_edge ?? 0), Math.abs(g.home_edge ?? 0)) * 100);
+												return { ...g, _edge: edgeVal };
+											})
+											.sort((a, b) => Math.abs(b._edge) - Math.abs(a._edge))
 											.map((g, i) => (
 												<tr key={i} className={i < allGames.length - 1 ? "border-b border-border/30" : ""}>
-													<td className="px-3 py-1.5 font-medium">{g.game ?? "—"}</td>
-													<td className="text-right px-3 py-1.5">
-														<EdgeBar edge={g.edge_pct ?? 0} />
+													<td className="px-3 py-1.5">
+														<div className="font-medium">{g.game ?? "—"}</div>
+														{g.status && g.status !== "matched" && (
+															<div className="text-[10px] text-muted-foreground">{g.status.replace(/_/g, " ")}</div>
+														)}
 													</td>
-													<td className="px-3 py-1.5 text-muted-foreground">
-														{(g.direction ?? "").replace(/_/g, " ")}
+													<td className="text-right px-3 py-1.5">
+														<EdgeBar edge={g._edge} />
+													</td>
+													<td className="px-3 py-1.5">
+														{g.direction ? <DirectionBadge direction={g.direction} /> : <span className="text-muted-foreground">—</span>}
 													</td>
 												</tr>
 											))}
