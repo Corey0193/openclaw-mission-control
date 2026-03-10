@@ -50,15 +50,20 @@ function OrgLevel({
 	const assistants = getAssistants(member.id);
 	const leftAssistants = assistants.filter((a) => a.assistantSide === "left");
 	const rightAssistants = assistants.filter((a) => a.assistantSide !== "left");
+	const hasAssistants = leftAssistants.length > 0 || rightAssistants.length > 0;
 
 	return (
 		<div className="flex flex-col items-center">
 			{/* This level's node + assistants */}
-			<div className="flex items-start gap-10">
-				{/* Left assistants (or spacer to balance right-only assistants) */}
-				{leftAssistants.length > 0
-					? leftAssistants.map((asst) => (
-							<div key={asst.id} className="flex items-start gap-0">
+			{hasAssistants ? (
+				<div className="relative flex items-start justify-center">
+					{/* Left assistants — absolutely positioned to the left of the node */}
+					{leftAssistants.map((asst) => (
+						<div
+							key={asst.id}
+							className="absolute right-full top-0 flex items-start mr-0"
+						>
+							<div className="flex flex-col items-end">
 								<OrgLevel
 									member={asst}
 									selectedId={selectedId}
@@ -66,12 +71,41 @@ function OrgLevel({
 									agentSummaries={agentSummaries}
 									depth={depth + 1}
 								/>
-								{/* Dashed connector line — vertically centered on the top node */}
-								<div className="mt-12 w-10 border-t-[3px] border-dashed border-[var(--accent-orange)]/40" />
 							</div>
-						))
-					: rightAssistants.length > 0 && <div className="w-[200px]" />}
+							{/* Dashed connector line */}
+							<div className="mt-12 w-10 border-t-[3px] border-dashed border-[var(--accent-orange)]/40" />
+						</div>
+					))}
 
+					<OrgNode
+						member={member}
+						isSelected={selectedId === member.id}
+						onSelect={onSelect}
+						status={getStatusForMember(member, agentSummaries)}
+						depth={depth}
+					/>
+
+					{/* Right assistants — absolutely positioned to the right of the node */}
+					{rightAssistants.map((asst) => (
+						<div
+							key={asst.id}
+							className="absolute left-full top-0 flex items-start ml-0"
+						>
+							{/* Dashed connector line */}
+							<div className="mt-12 w-10 border-t-[3px] border-dashed border-[var(--accent-orange)]/40" />
+							<div className="flex flex-col items-start">
+								<OrgLevel
+									member={asst}
+									selectedId={selectedId}
+									onSelect={onSelect}
+									agentSummaries={agentSummaries}
+									depth={depth + 1}
+								/>
+							</div>
+						</div>
+					))}
+				</div>
+			) : (
 				<OrgNode
 					member={member}
 					isSelected={selectedId === member.id}
@@ -79,24 +113,7 @@ function OrgLevel({
 					status={getStatusForMember(member, agentSummaries)}
 					depth={depth}
 				/>
-
-				{/* Right assistants (or spacer to balance left-only assistants) */}
-				{rightAssistants.length > 0
-					? rightAssistants.map((asst) => (
-							<div key={asst.id} className="flex items-start gap-0">
-								{/* Dashed connector line — vertically centered on the top node */}
-								<div className="mt-12 w-10 border-t-[3px] border-dashed border-[var(--accent-orange)]/40" />
-								<OrgLevel
-									member={asst}
-									selectedId={selectedId}
-									onSelect={onSelect}
-									agentSummaries={agentSummaries}
-									depth={depth + 1}
-								/>
-							</div>
-						))
-					: leftAssistants.length > 0 && <div className="w-[200px]" />}
-			</div>
+			)}
 
 			{/* Connector down + children */}
 			{children.length > 0 && (

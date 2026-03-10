@@ -22,6 +22,21 @@ export default function PanZoomCanvas({
 	const dragStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
 	const DRAG_THRESHOLD = 4;
 
+	// Measure the union bounding rect of all visible descendants (handles absolute positioning)
+	const measureFullBounds = useCallback((root: HTMLElement) => {
+		const elements = root.querySelectorAll("button, .org-connector-stem, .org-connector-drop, .org-connector-row");
+		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		for (const el of elements) {
+			const r = el.getBoundingClientRect();
+			if (r.width === 0 && r.height === 0) continue;
+			minX = Math.min(minX, r.left);
+			minY = Math.min(minY, r.top);
+			maxX = Math.max(maxX, r.right);
+			maxY = Math.max(maxY, r.bottom);
+		}
+		return { width: maxX - minX, height: maxY - minY, left: minX, top: minY };
+	}, []);
+
 	// Fit content to container on mount and resize
 	const fitToView = useCallback(() => {
 		const container = containerRef.current;
@@ -30,18 +45,38 @@ export default function PanZoomCanvas({
 
 		// Temporarily reset transform to measure natural size
 		content.style.transform = "none";
-		const contentRect = content.getBoundingClientRect();
+		const bounds = measureFullBounds(content);
 		const containerRect = container.getBoundingClientRect();
 		content.style.transform = "";
 
-		const scaleX = containerRect.width / contentRect.width;
-		const scaleY = containerRect.height / contentRect.height;
+		if (!isFinite(bounds.width) || !isFinite(bounds.height)) return;
+
+		const scaleX = containerRect.width / bounds.width;
+		const scaleY = containerRect.height / bounds.height;
 		const fitScale = Math.min(scaleX, scaleY, 1) * 0.9; // 90% to add some padding
 		const clampedScale = Math.max(minZoom, Math.min(maxZoom, fitScale));
 
+		// Pan so the union bounds center aligns with container center.
+		// Bounds are in viewport coords while transform is "none" (content at inset-0).
+		// Content origin = container origin when transform is none.
+		// After scaling by clampedScale around center center, we need to shift so the
+		// scaled content's visual center matches the container center.
+		const contentOriginX = containerRect.left + containerRect.width / 2;
+		const contentOriginY = containerRect.top + containerRect.height / 2;
+		const boundsCenterX = bounds.left + bounds.width / 2;
+		const boundsCenterY = bounds.top + bounds.height / 2;
+		// How far the bounds center is from the transform origin (before scaling)
+		const offsetX = boundsCenterX - contentOriginX;
+		const offsetY = boundsCenterY - contentOriginY;
+		// After scaling, that offset becomes offset * scale, so pan to compensate
+		const panX = -offsetX * clampedScale;
+		const panY = -offsetY * clampedScale;
+
+		// Apply transform directly to avoid race with ResizeObserver re-triggering
+		content.style.transform = `translate(${panX}px, ${panY}px) scale(${clampedScale})`;
 		setZoom(clampedScale);
-		setPan({ x: 0, y: 0 });
-	}, [minZoom, maxZoom]);
+		setPan({ x: panX, y: panY });
+	}, [minZoom, maxZoom, measureFullBounds]);
 
 	useEffect(() => {
 		// Small delay to let the tree render
