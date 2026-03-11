@@ -1001,6 +1001,8 @@ export default function ArbPaperPage() {
 	const { runs: pipelineRuns, refresh: refreshPipeline } = usePipelineRuns();
 
 	const [showLowConf, setShowLowConf] = useState(false);
+	const [softArbOpen, setSoftArbOpen] = useState(true);
+	const [hardArbOpen, setHardArbOpen] = useState(true);
 
 	const allTrades = trades ?? [];
 
@@ -1045,7 +1047,15 @@ export default function ArbPaperPage() {
 				{/* Pipeline Runs section — Soft Arb */}
 				<section className="rounded-xl border-l-4 border-l-violet-400 bg-violet-50/40 p-4">
 					<div className="flex items-center justify-between mb-3">
-						<div className="flex items-center gap-2">
+						<button
+							type="button"
+							onClick={() => setSoftArbOpen((v) => !v)}
+							className="flex items-center gap-2 text-left"
+						>
+							<IconChevronDown
+								size={15}
+								className={`text-violet-500 transition-transform duration-200 ${softArbOpen ? "" : "-rotate-90"}`}
+							/>
 							<IconScan size={16} className="text-violet-600" />
 							<h3 className="text-sm font-bold text-violet-900 tracking-wide uppercase">
 								Soft Arb Pipeline
@@ -1058,7 +1068,7 @@ export default function ArbPaperPage() {
 									({pipelineRuns.length} scan{pipelineRuns.length !== 1 ? "s" : ""})
 								</span>
 							)}
-						</div>
+						</button>
 						<button
 							type="button"
 							onClick={refreshPipeline}
@@ -1067,19 +1077,23 @@ export default function ArbPaperPage() {
 							Refresh
 						</button>
 					</div>
-					{pipelineRuns === null ? (
-						<div className="h-20 bg-white border border-border rounded-xl animate-pulse" />
-					) : pipelineRuns.length === 0 ? (
-						<div className="bg-white border border-border rounded-xl p-6 text-center text-sm text-muted-foreground">
-							<IconScan size={32} strokeWidth={1.2} className="mx-auto mb-2 opacity-40" />
-							<p className="font-medium">No pipeline runs yet</p>
-							<p className="text-xs mt-1">Send &quot;arb scan&quot; to Hustle to trigger a scan</p>
-						</div>
-					) : (
-						<div className="space-y-2">
-							{pipelineRuns.map((run) => (
-								<PipelineRunCard key={run.runId} run={run} />
-							))}
+					{softArbOpen && (
+						<div className="max-h-[500px] overflow-y-auto">
+							{pipelineRuns === null ? (
+								<div className="h-20 bg-white border border-border rounded-xl animate-pulse" />
+							) : pipelineRuns.length === 0 ? (
+								<div className="bg-white border border-border rounded-xl p-6 text-center text-sm text-muted-foreground">
+									<IconScan size={32} strokeWidth={1.2} className="mx-auto mb-2 opacity-40" />
+									<p className="font-medium">No pipeline runs yet</p>
+									<p className="text-xs mt-1">Send &quot;arb scan&quot; to Hustle to trigger a scan</p>
+								</div>
+							) : (
+								<div className="space-y-2 pr-1">
+									{pipelineRuns.map((run) => (
+										<PipelineRunCard key={run.runId} run={run} />
+									))}
+								</div>
+							)}
 						</div>
 					)}
 				</section>
@@ -1110,8 +1124,16 @@ export default function ArbPaperPage() {
 						</p>
 					</div>
 				) : (
-					<section className="rounded-xl border-l-4 border-l-blue-400 bg-blue-50/40 p-4 space-y-6">
-						<div className="flex items-center gap-2 mb-1">
+					<section className="rounded-xl border-l-4 border-l-blue-400 bg-blue-50/40 p-4">
+						<button
+							type="button"
+							onClick={() => setHardArbOpen((v) => !v)}
+							className="flex items-center gap-2 mb-1 text-left"
+						>
+							<IconChevronDown
+								size={15}
+								className={`text-blue-500 transition-transform duration-200 ${hardArbOpen ? "" : "-rotate-90"}`}
+							/>
 							<IconArrowsExchange size={16} className="text-blue-600" />
 							<h3 className="text-sm font-bold text-blue-900 tracking-wide uppercase">
 								Hard Arb — Paper Trades
@@ -1119,7 +1141,9 @@ export default function ArbPaperPage() {
 							<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
 								CROSS-EXCHANGE
 							</span>
-						</div>
+						</button>
+						{hardArbOpen && (
+						<div className="max-h-[800px] overflow-y-auto space-y-6 pr-1 mt-3">
 						{/* Confidence filter toggle */}
 						<div className="flex items-center gap-3">
 							<button
@@ -1536,6 +1560,8 @@ export default function ArbPaperPage() {
 								</div>
 							</section>
 						)}
+					</div>
+					)}
 					</section>
 				)}
 			</main>
