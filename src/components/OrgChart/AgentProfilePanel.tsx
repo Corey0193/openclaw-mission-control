@@ -118,21 +118,77 @@ export default function AgentProfilePanel({
 					</div>
 				</section>
 
+				{/* LLM Model */}
+				{member.model && (
+					<section className="mb-5">
+						<div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase mb-2">
+							LLM Model
+						</div>
+						<div className="flex items-center gap-2 flex-wrap">
+							<div className="flex items-center gap-1.5">
+								<span className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
+									Primary
+								</span>
+								<span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] border border-[var(--accent-blue)]/20">
+									{member.model.primary}
+								</span>
+							</div>
+							<span className="text-muted-foreground text-[10px]">/</span>
+							<div className="flex items-center gap-1.5">
+								<span className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
+									Fallback
+								</span>
+								<span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+									{member.model.fallback}
+								</span>
+							</div>
+						</div>
+					</section>
+				)}
+
 				{/* Skills */}
 				<section className="mb-5">
 					<div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase mb-2">
 						Skills
-					</div>
-					<div className="flex flex-wrap gap-1.5">
-						{member.profile.skills.map((s) => (
-							<span
-								key={s}
-								className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--accent-orange)]/10 text-[var(--accent-orange)] border border-[var(--accent-orange)]/20"
-							>
-								{s}
+						{member.profile.skills.length > 0 && (
+							<span className="ml-2 text-[10px] font-normal normal-case text-muted-foreground">
+								({member.profile.skills.length})
 							</span>
-						))}
+						)}
 					</div>
+					{member.profile.skills.length === 0 ? (
+						<p className="text-xs text-muted-foreground italic">
+							No skills configured
+						</p>
+					) : (
+						<div className="bg-muted/50 rounded-lg overflow-hidden divide-y divide-border">
+							{member.profile.skills.map((s) => {
+								const modelLabel = s.model ?? member.model?.primary;
+								const isOverride = !!s.model;
+								return (
+									<div
+										key={s.name}
+										className="flex items-center justify-between px-3 py-1.5 gap-2"
+									>
+										<span className="text-xs text-foreground">
+											{s.name}
+										</span>
+										{modelLabel && (
+											<span
+												className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap border ${
+													isOverride
+														? "bg-[var(--accent-orange)]/10 text-[var(--accent-orange)] border-[var(--accent-orange)]/20"
+														: "bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] border-[var(--accent-blue)]/20"
+												}`}
+											>
+												{modelLabel}
+											</span>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					)}
 				</section>
 
 				{/* Character */}

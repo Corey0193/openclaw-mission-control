@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import SignOutButton from "./Signout";
+import ArbDaemonBadge from "./ArbDaemonBadge";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
@@ -15,6 +16,7 @@ const NAV_ITEMS = [
 	{ to: "/org", label: "Org Chart" },
 	{ to: "/todos", label: "To-Dos" },
 	{ to: "/polymarket", label: "Polymarket" },
+	{ to: "/arb", label: "Arb Paper" },
 ];
 
 const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
@@ -144,6 +146,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 						{formatDate(time)}
 					</div>
 				</div>
+				<ArbDaemonBadge />
 				<div className="flex items-center gap-2 bg-[#e6fcf5] text-[#0ca678] px-3 py-1.5 rounded-full text-[11px] font-bold tracking-[0.5px]">
 					<span className="w-2 h-2 bg-[#0ca678] rounded-full" />
 					ONLINE

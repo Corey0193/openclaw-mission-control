@@ -1,4 +1,5 @@
-import { useQuery } from "convex/react";
+import { useState } from "react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import Header from "../components/Header";
@@ -98,11 +99,29 @@ export default function PolymarketPage() {
 	const data = useQuery(api.polymarket.getPositions, {
 		tenantId: DEFAULT_TENANT_ID,
 	});
+	const scheduleRefresh = useMutation(api.polymarket.scheduleRefresh);
+	const [isRefreshing, setIsRefreshing] = useState(false);
+
+	const handleRefresh = () => {
+		if (isRefreshing) return;
+		setIsRefreshing(true);
+		void scheduleRefresh({}).finally(() => {
+			setTimeout(() => setIsRefreshing(false), 4000);
+		});
+	};
 
 	const openPositions =
 		data?.positions.filter((p) => !p.marketResolved && p.shares > 0) ?? [];
-	const resolvedPositions =
-		data?.positions.filter((p) => p.marketResolved) ?? [];
+	const closedMarkets = new Set(
+		(data?.positions ?? []).filter((p) => p.marketResolved).map((p) => p.market),
+	);
+	const cutoff = new Date("2026-01-01").getTime();
+	const recentTrades = (data?.trades ?? [])
+		.filter((t) => t.timestamp >= cutoff)
+		.sort((a, b) => b.timestamp - a.timestamp);
+	const recentMarkets = new Set(recentTrades.map((t) => t.market));
+	const resolvedPositions = (data?.positions ?? [])
+		.filter((p) => p.marketResolved && recentMarkets.has(p.market));
 
 	return (
 		<div className="min-h-screen bg-[#f8f9fa]">
@@ -130,10 +149,20 @@ export default function PolymarketPage() {
 						</div>
 					</div>
 					{data && (
-						<div className="flex items-center gap-2 text-xs text-muted-foreground">
-							<IconRefresh size={14} />
-							Last synced: {timeAgo(data.lastSyncedAt)}
-						</div>
+						<button
+						type="button"
+						onClick={handleRefresh}
+						disabled={isRefreshing}
+						className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+					>
+						<IconRefresh
+							size={14}
+							className={isRefreshing ? "animate-spin" : ""}
+						/>
+						{isRefreshing
+							? "Refreshing..."
+							: `Last synced: ${timeAgo(data.lastSyncedAt)}`}
+					</button>
 					)}
 				</div>
 
@@ -391,16 +420,16 @@ export default function PolymarketPage() {
 											</tr>
 										</thead>
 										<tbody>
-											{[...data.trades]
-												.sort((a, b) => b.timestamp - a.timestamp)
-												.map((t, i) => (
+											{recentTrades.map((t, i) => {
+													const isClosed = closedMarkets.has(t.market);
+													return (
 													<tr
 														key={t.id}
-														className={
-															i < data.trades.length - 1
+														className={`${
+															i < recentTrades.length - 1
 																? "border-b border-border/50"
 																: ""
-														}
+														}${isClosed ? " opacity-40" : ""}`}
 													>
 														<td className="px-4 py-3 text-muted-foreground tabular-nums whitespace-nowrap">
 															{new Date(t.timestamp).toLocaleDateString(
@@ -414,16 +443,18 @@ export default function PolymarketPage() {
 															)}
 														</td>
 														<td className="px-3 py-3 max-w-[200px]">
-															<span className="truncate block font-medium">
+															<span className={`truncate block ${isClosed ? "text-muted-foreground" : "font-medium"}`}>
 																{t.marketQuestion}
 															</span>
 														</td>
 														<td className="px-3 py-3">
 															<span
 																className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${
-																	t.side === "BUY"
-																		? "bg-emerald-100 text-emerald-700"
-																		: "bg-amber-100 text-amber-700"
+																	isClosed
+																		? "bg-gray-100 text-gray-500"
+																		: t.side === "BUY"
+																			? "bg-emerald-100 text-emerald-700"
+																			: "bg-amber-100 text-amber-700"
 																}`}
 															>
 																{t.side}
@@ -432,9 +463,11 @@ export default function PolymarketPage() {
 														<td className="px-3 py-3">
 															<span
 																className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide ${
-																	t.outcome === "Yes"
-																		? "bg-emerald-100 text-emerald-700"
-																		: "bg-red-100 text-red-600"
+																	isClosed
+																		? "bg-gray-100 text-gray-500"
+																		: t.outcome === "Yes"
+																			? "bg-emerald-100 text-emerald-700"
+																			: "bg-red-100 text-red-600"
 																}`}
 															>
 																{t.outcome.toUpperCase()}
@@ -449,24 +482,27 @@ export default function PolymarketPage() {
 														<td className="text-right px-3 py-3 tabular-nums">
 															{formatUsd(t.cost)}
 														</td>
-														<td className="text-right px-3 py-3 tabular-nums text-blue-600">
+														<td className={`text-right px-3 py-3 tabular-nums ${isClosed ? "text-muted-foreground" : "text-blue-600"}`}>
 															{formatUsd(t.payout)}
 														</td>
 														<td className="text-right px-4 py-3">
 															<span
 																className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${
-																	t.status === "MATCHED"
-																		? "bg-emerald-100 text-emerald-700"
-																		: t.status === "LIVE"
-																			? "bg-blue-100 text-blue-700"
-																			: "bg-gray-100 text-gray-600"
+																	isClosed
+																		? "bg-gray-100 text-gray-500"
+																		: t.status === "MATCHED"
+																			? "bg-emerald-100 text-emerald-700"
+																			: t.status === "LIVE"
+																				? "bg-blue-100 text-blue-700"
+																				: "bg-gray-100 text-gray-600"
 																}`}
 															>
 																{t.status}
 															</span>
 														</td>
 													</tr>
-												))}
+													);
+												})}
 										</tbody>
 									</table>
 								</div>

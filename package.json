@@ -6,7 +6,7 @@
 	"scripts": {
 		"dev": "npm-run-all --parallel dev:frontend dev:backend",
 		"dev:frontend": "vite --open",
-		"dev:backend": "convex dev",
+		"dev:backend": "convex dev --local --local-force-upgrade",
 		"predev": "convex dev --until-success && convex dev --once --run-sh \"node setup.mjs --once\" && convex dashboard",
 		"build": "tsc -b && vite build",
 		"lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
@@ -25,7 +25,8 @@
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
 		"react-markdown": "^10.1.0",
-		"react-router-dom": "^7.13.1"
+		"react-router-dom": "^7.13.1",
+		"recharts": "^3.8.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.13",

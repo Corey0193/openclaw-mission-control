@@ -1,4 +1,10 @@
-import { mutation, query } from "./_generated/server";
+import {
+	mutation,
+	query,
+	internalQuery,
+	internalMutation,
+} from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
 const positionValidator = v.object({
@@ -55,7 +61,7 @@ export const syncPositions = mutation({
 			.first();
 
 		if (existing) {
-			await ctx.db.patch(existing._id, {
+			await ctx.db.patch("polymarketPositions", existing._id, {
 				walletAddress: args.walletAddress,
 				balanceUsdc: args.balanceUsdc,
 				positions: args.positions,
@@ -92,5 +98,58 @@ export const getPositions = query({
 			.query("polymarketPositions")
 			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
 			.first();
+	},
+});
+
+export const getPositionsInternal = internalQuery({
+	args: {
+		tenantId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		return await ctx.db
+			.query("polymarketPositions")
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.first();
+	},
+});
+
+export const updatePositionPrices = internalMutation({
+	args: {
+		tenantId: v.string(),
+		positions: v.array(positionValidator),
+		totalCurrentValue: v.number(),
+		totalPnl: v.number(),
+		lastSyncedAt: v.number(),
+	},
+	returns: v.null(),
+	handler: async (ctx, args) => {
+		const existing = await ctx.db
+			.query("polymarketPositions")
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.first();
+
+		if (existing) {
+			await ctx.db.patch("polymarketPositions", existing._id, {
+				positions: args.positions,
+				totalCurrentValue: args.totalCurrentValue,
+				totalPnl: args.totalPnl,
+				lastSyncedAt: args.lastSyncedAt,
+			});
+		}
+
+		return null;
+	},
+});
+
+export const scheduleRefresh = mutation({
+	args: {},
+	returns: v.null(),
+	handler: async (ctx) => {
+		await ctx.scheduler.runAfter(
+			0,
+			internal.polymarketActions.refreshPrices,
+			{},
+		);
+		return null;
 	},
 });
