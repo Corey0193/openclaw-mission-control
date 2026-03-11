@@ -28,6 +28,9 @@ const ARB_PIPELINE_DIR = path.join(
 	".openclaw/workspace-hustle/arb-pipeline",
 );
 
+const SOFT_ARB_TRADES_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-paper-trades.jsonl");
+const SOFT_ARB_MTM_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-mtm.json");
+
 interface PipelineRun {
 	runId: string;
 	dossier: Record<string, unknown> | null;
@@ -126,6 +129,123 @@ function arbPipelinePlugin() {
 							const runs = getPipelineRuns();
 							res.setHeader("Content-Type", "application/json");
 							res.end(JSON.stringify({ runs }));
+						} catch {
+							res.statusCode = 500;
+							res.end("Internal server error");
+						}
+						return;
+					}
+					next();
+				},
+			);
+		},
+	};
+}
+
+interface SoftArbTrade {
+	trade_id: string;
+	pair: string;
+	direction: string;
+	entry_price: number;
+	position_size_usd: number;
+	shares: number;
+	adjusted_edge_pct: number;
+	opened_at: string;
+	resolves_by: string;
+	polymarket_slug: string;
+	metaculus_id: number;
+	status: string;
+	current_price: number | null;
+	unrealized_pnl: number | null;
+	realized_pnl: number | null;
+	resolved_outcome: string | null;
+}
+
+function getSoftArbTrades(): { trades: SoftArbTrade[]; summary: Record<string, unknown>; lastUpdated: string | null } {
+	// Read JSONL trades
+	const rawTrades: Record<string, unknown>[] = [];
+	if (fs.existsSync(SOFT_ARB_TRADES_PATH)) {
+		const lines = fs.readFileSync(SOFT_ARB_TRADES_PATH, "utf-8").split("\n");
+		for (const line of lines) {
+			const trimmed = line.trim();
+			if (!trimmed) continue;
+			try {
+				rawTrades.push(JSON.parse(trimmed));
+			} catch {
+				// skip malformed lines
+			}
+		}
+	}
+
+	// Read MTM sidecar if it exists
+	let mtm: { trades: Record<string, Record<string, unknown>>; summary: Record<string, unknown>; last_updated: string } | null = null;
+	if (fs.existsSync(SOFT_ARB_MTM_PATH)) {
+		try {
+			mtm = JSON.parse(fs.readFileSync(SOFT_ARB_MTM_PATH, "utf-8"));
+		} catch {
+			// ignore malformed sidecar
+		}
+	}
+
+	// Merge trades with MTM overlay
+	const trades: SoftArbTrade[] = rawTrades.map((t) => {
+		const tradeId = String(t.trade_id ?? "");
+		const mtmData = mtm?.trades?.[tradeId];
+		return {
+			trade_id: tradeId,
+			pair: String(t.pair ?? ""),
+			direction: String(t.direction ?? ""),
+			entry_price: Number(t.entry_price ?? 0),
+			position_size_usd: Number(t.position_size_usd ?? 0),
+			shares: Number(t.shares ?? 0),
+			adjusted_edge_pct: Number(t.adjusted_edge_pct ?? 0),
+			opened_at: String(t.opened_at ?? ""),
+			resolves_by: String(t.resolves_by ?? ""),
+			polymarket_slug: String(t.polymarket_slug ?? ""),
+			metaculus_id: Number(t.metaculus_id ?? 0),
+			status: String(mtmData?.status ?? t.status ?? "OPEN"),
+			current_price: mtmData?.current_price != null ? Number(mtmData.current_price) : null,
+			unrealized_pnl: mtmData?.unrealized_pnl != null ? Number(mtmData.unrealized_pnl) : null,
+			realized_pnl: mtmData?.realized_pnl != null ? Number(mtmData.realized_pnl) : null,
+			resolved_outcome: mtmData?.resolved_outcome != null ? String(mtmData.resolved_outcome) : null,
+		};
+	});
+
+	// Summary: use MTM summary if available, else compute basic stats
+	const summary = mtm?.summary ?? {
+		total_trades: trades.length,
+		open_trades: trades.length,
+		resolved_trades: 0,
+		total_invested: trades.reduce((s, t) => s + t.position_size_usd, 0),
+		total_unrealized_pnl: null,
+		total_realized_pnl: 0,
+		wins: 0,
+		losses: 0,
+	};
+
+	return {
+		trades,
+		summary,
+		lastUpdated: mtm?.last_updated ?? null,
+	};
+}
+
+function softArbTradesPlugin() {
+	return {
+		name: "soft-arb-trades",
+		configureServer(server: import("vite").ViteDevServer) {
+			server.middlewares.use(
+				(
+					req: import("http").IncomingMessage,
+					res: import("http").ServerResponse,
+					next: () => void,
+				) => {
+					const url = (req.url ?? "/").split("?")[0];
+					if (req.method === "GET" && url === "/api/soft-arb-trades") {
+						try {
+							const data = getSoftArbTrades();
+							res.setHeader("Content-Type", "application/json");
+							res.end(JSON.stringify(data));
 						} catch {
 							res.statusCode = 500;
 							res.end("Internal server error");
@@ -341,6 +461,7 @@ export default defineConfig({
 		tailwindcss(),
 		einsteinTodosPlugin(),
 		arbPipelinePlugin(),
+		softArbTradesPlugin(),
 		{
 			name: "local-file-server",
 			configureServer(server) {

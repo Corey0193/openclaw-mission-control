@@ -257,6 +257,47 @@ function usePipelineRuns() {
 	return { runs, refresh };
 }
 
+// --- Soft Arb Paper Trades types and hook ---
+
+interface SoftArbTrade {
+	trade_id: string;
+	pair: string;
+	direction: string;
+	entry_price: number;
+	position_size_usd: number;
+	shares: number;
+	adjusted_edge_pct: number;
+	opened_at: string;
+	resolves_by: string;
+	polymarket_slug: string;
+	metaculus_id: number;
+	status: string;
+	current_price: number | null;
+	unrealized_pnl: number | null;
+	realized_pnl: number | null;
+	resolved_outcome: string | null;
+}
+
+interface SoftArbData {
+	trades: SoftArbTrade[];
+	summary: Record<string, unknown>;
+	lastUpdated: string | null;
+}
+
+function useSoftArbTrades() {
+	const [data, setData] = useState<SoftArbData | null>(null);
+	const refresh = useCallback(() => {
+		fetch("/api/soft-arb-trades")
+			.then((r) => r.json())
+			.then((d) => setData(d))
+			.catch(() => setData({ trades: [], summary: {}, lastUpdated: null }));
+	}, []);
+	useEffect(() => {
+		refresh();
+	}, [refresh]);
+	return { data, refresh };
+}
+
 function verdictBadge(verdict: string | undefined) {
 	if (!verdict) return null;
 	const map: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
@@ -461,7 +502,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 
 	// Detect metaculus vs sports — after server-side normalization, canonical field is dossier_format_version
 	const isMetaculus = String(dossier?.dossier_format_version ?? "").includes("metaculus") || run.runId.startsWith("scan-metaculus-") || !!(dossier?.signal_source) || !!(dossier?.matched_pairs) || !!(dossier?.opportunities) || !!(dossier?.all_pairs_scanned);
-	const rawOpportunities = (dossier?.matched_pairs ?? dossier?.opportunities ?? dossier?.matches ?? dossier?.all_pairs_scanned ?? dossier?.all_scanned ?? []) as Array<Record<string, unknown>>;
+	const rawOpportunities = (dossier?.matched_pairs ?? dossier?.opportunities ?? dossier?.matches ?? dossier?.all_pairs_scanned ?? dossier?.all_scanned ?? dossier?.pairs ?? dossier?.items ?? []) as Array<Record<string, unknown>>;
 	const metaculusSummary = (typeof dossier?.summary === "object" ? dossier.summary : undefined) as Record<string, unknown> | undefined;
 	const bestOpportunity = dossier?.best_opportunity as Record<string, unknown> | undefined;
 
@@ -999,9 +1040,11 @@ export default function ArbPaperPage() {
 	});
 
 	const { runs: pipelineRuns, refresh: refreshPipeline } = usePipelineRuns();
+	const { data: softArbData, refresh: refreshSoftArb } = useSoftArbTrades();
 
 	const [showLowConf, setShowLowConf] = useState(false);
 	const [softArbOpen, setSoftArbOpen] = useState(true);
+	const [softArbPaperOpen, setSoftArbPaperOpen] = useState(true);
 	const [hardArbOpen, setHardArbOpen] = useState(true);
 
 	const allTrades = trades ?? [];
@@ -1093,6 +1136,231 @@ export default function ArbPaperPage() {
 										<PipelineRunCard key={run.runId} run={run} />
 									))}
 								</div>
+							)}
+						</div>
+					)}
+				</section>
+
+				{/* Soft Arb — Paper Trades */}
+				<section className="rounded-xl border-l-4 border-l-emerald-400 bg-emerald-50/40 p-4">
+					<div className="flex items-center justify-between mb-3">
+						<button
+							type="button"
+							onClick={() => setSoftArbPaperOpen((v) => !v)}
+							className="flex items-center gap-2 text-left"
+						>
+							<IconChevronDown
+								size={15}
+								className={`text-emerald-500 transition-transform duration-200 ${softArbPaperOpen ? "" : "-rotate-90"}`}
+							/>
+							<IconTrendingUp size={16} className="text-emerald-600" />
+							<h3 className="text-sm font-bold text-emerald-900 tracking-wide uppercase">
+								Soft Arb — Paper Trades
+							</h3>
+							<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-emerald-100 text-emerald-700">
+								FORECAST EDGE
+							</span>
+							{softArbData && softArbData.trades.length > 0 && (
+								<span className="text-muted-foreground text-xs font-normal normal-case">
+									({softArbData.trades.length} trade{softArbData.trades.length !== 1 ? "s" : ""})
+								</span>
+							)}
+						</button>
+						<div className="flex items-center gap-2">
+							{softArbData?.lastUpdated && (
+								<span className="text-[10px] text-muted-foreground">
+									MTM: {timeAgo(softArbData.lastUpdated)}
+								</span>
+							)}
+							<button
+								type="button"
+								onClick={refreshSoftArb}
+								className="text-[10px] font-semibold text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border hover:bg-gray-50 transition-colors uppercase tracking-wide"
+							>
+								Refresh
+							</button>
+						</div>
+					</div>
+					{softArbPaperOpen && (
+						<div className="space-y-4">
+							{softArbData === null ? (
+								<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+									{[...Array(4)].map((_, i) => (
+										<div key={i} className="h-20 bg-white border border-border rounded-xl animate-pulse" />
+									))}
+								</div>
+							) : softArbData.trades.length === 0 ? (
+								<div className="bg-white border border-border rounded-xl p-6 text-center text-sm text-muted-foreground">
+									<IconTrendingUp size={32} strokeWidth={1.2} className="mx-auto mb-2 opacity-40" />
+									<p className="font-medium">No soft arb paper trades yet</p>
+									<p className="text-xs mt-1">The pipeline will log trades here when forecast edges are found</p>
+								</div>
+							) : (
+								<>
+									{/* Summary cards */}
+									<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+										<SummaryCard
+											label="Paper Trades"
+											value={Number(softArbData.summary.total_trades ?? softArbData.trades.length)}
+											icon={<IconArrowsExchange size={20} />}
+										/>
+										<SummaryCard
+											label="Total Invested"
+											value={Number(softArbData.summary.total_invested ?? softArbData.trades.reduce((s, t) => s + t.position_size_usd, 0))}
+											icon={<IconChartBar size={20} />}
+											isPnl={false}
+										/>
+										<SummaryCard
+											label="Unrealized P&L"
+											value={softArbData.summary.total_unrealized_pnl != null ? Number(softArbData.summary.total_unrealized_pnl) : 0}
+											icon={<IconTrendingUp size={20} />}
+											isPnl
+										/>
+										<SummaryCard
+											label="Realized P&L"
+											value={Number(softArbData.summary.total_realized_pnl ?? 0)}
+											icon={<IconPercentage size={20} />}
+											isPnl
+										/>
+									</div>
+
+									{!softArbData.lastUpdated && (
+										<div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-xs text-amber-700">
+											No MTM data yet — run <code className="bg-amber-100 px-1 rounded">python3 ~/.openclaw/workspace-hustle/scripts/soft_arb_mtm.py</code> to fetch current prices
+										</div>
+									)}
+
+									{/* Open trades table */}
+									{softArbData.trades.filter((t) => t.status === "OPEN").length > 0 && (
+										<section>
+											<h4 className="text-xs font-bold text-emerald-800 tracking-wide uppercase mb-2">Open Positions</h4>
+											<div className="overflow-x-auto">
+												<table className="w-full text-xs">
+													<thead>
+														<tr className="border-b border-emerald-200/60 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
+															<th className="text-left px-3 py-2">Opened</th>
+															<th className="text-left px-3 py-2">Market</th>
+															<th className="text-left px-3 py-2">Direction</th>
+															<th className="text-right px-3 py-2">Entry</th>
+															<th className="text-right px-3 py-2">Current</th>
+															<th className="text-left px-3 py-2">Edge</th>
+															<th className="text-right px-3 py-2">Size</th>
+															<th className="text-right px-3 py-2">Unrealized P&L</th>
+															<th className="text-left px-3 py-2">Resolves</th>
+														</tr>
+													</thead>
+													<tbody>
+														{softArbData.trades
+															.filter((t) => t.status === "OPEN")
+															.sort((a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime())
+															.map((t, i, arr) => (
+																<tr key={t.trade_id} className={i < arr.length - 1 ? "border-b border-border/50" : ""}>
+																	<td className="px-3 py-2 text-muted-foreground tabular-nums whitespace-nowrap">
+																		{timeAgo(t.opened_at)}
+																	</td>
+																	<td className="px-3 py-2 font-medium max-w-[220px] truncate">
+																		{t.polymarket_slug ? (
+																			<a
+																				href={`https://polymarket.com/event/${t.polymarket_slug}`}
+																				target="_blank"
+																				rel="noopener noreferrer"
+																				className="text-blue-700 hover:text-blue-900 underline decoration-blue-300 hover:decoration-blue-500 transition-colors"
+																				title={t.pair}
+																			>
+																				{t.pair.length > 45 ? t.pair.slice(0, 45) + "..." : t.pair}
+																			</a>
+																		) : (
+																			<span title={t.pair}>{t.pair.length > 45 ? t.pair.slice(0, 45) + "..." : t.pair}</span>
+																		)}
+																	</td>
+																	<td className="px-3 py-2">
+																		<DirectionBadge direction={t.direction} />
+																	</td>
+																	<td className="text-right px-3 py-2 tabular-nums text-muted-foreground">
+																		${t.entry_price.toFixed(3)}
+																	</td>
+																	<td className="text-right px-3 py-2 tabular-nums font-medium">
+																		{t.current_price != null ? `$${t.current_price.toFixed(3)}` : "---"}
+																	</td>
+																	<td className="px-3 py-2">
+																		<EdgeBar edge={t.adjusted_edge_pct} />
+																	</td>
+																	<td className="text-right px-3 py-2 tabular-nums font-medium">
+																		{formatUsd(t.position_size_usd)}
+																	</td>
+																	<td className="text-right px-3 py-2 tabular-nums">
+																		{t.unrealized_pnl != null ? <PnlBadge value={t.unrealized_pnl} /> : <span className="text-muted-foreground">---</span>}
+																	</td>
+																	<td className="px-3 py-2 text-muted-foreground tabular-nums whitespace-nowrap">
+																		{t.resolves_by ? new Date(t.resolves_by).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "---"}
+																	</td>
+																</tr>
+															))}
+													</tbody>
+												</table>
+											</div>
+										</section>
+									)}
+
+									{/* Resolved trades table */}
+									{softArbData.trades.filter((t) => t.status === "RESOLVED_WIN" || t.status === "RESOLVED_LOSS").length > 0 && (
+										<section>
+											<h4 className="text-xs font-bold text-emerald-800 tracking-wide uppercase mb-2">Resolved</h4>
+											<div className="overflow-x-auto">
+												<table className="w-full text-xs">
+													<thead>
+														<tr className="border-b border-emerald-200/60 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
+															<th className="text-left px-3 py-2">Opened</th>
+															<th className="text-left px-3 py-2">Market</th>
+															<th className="text-left px-3 py-2">Direction</th>
+															<th className="text-right px-3 py-2">Entry</th>
+															<th className="text-right px-3 py-2">Size</th>
+															<th className="text-center px-3 py-2">Result</th>
+															<th className="text-right px-3 py-2">Realized P&L</th>
+														</tr>
+													</thead>
+													<tbody>
+														{softArbData.trades
+															.filter((t) => t.status === "RESOLVED_WIN" || t.status === "RESOLVED_LOSS")
+															.map((t, i, arr) => (
+																<tr key={t.trade_id} className={i < arr.length - 1 ? "border-b border-border/50" : ""}>
+																	<td className="px-3 py-2 text-muted-foreground tabular-nums whitespace-nowrap">
+																		{timeAgo(t.opened_at)}
+																	</td>
+																	<td className="px-3 py-2 font-medium max-w-[220px] truncate" title={t.pair}>
+																		{t.pair.length > 45 ? t.pair.slice(0, 45) + "..." : t.pair}
+																	</td>
+																	<td className="px-3 py-2">
+																		<DirectionBadge direction={t.direction} />
+																	</td>
+																	<td className="text-right px-3 py-2 tabular-nums text-muted-foreground">
+																		${t.entry_price.toFixed(3)}
+																	</td>
+																	<td className="text-right px-3 py-2 tabular-nums font-medium">
+																		{formatUsd(t.position_size_usd)}
+																	</td>
+																	<td className="text-center px-3 py-2">
+																		{t.status === "RESOLVED_WIN" ? (
+																			<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-emerald-100 text-emerald-700">
+																				<IconCircleCheck size={12} /> WIN
+																			</span>
+																		) : (
+																			<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-red-100 text-red-700">
+																				<IconCircleX size={12} /> LOSS
+																			</span>
+																		)}
+																	</td>
+																	<td className="text-right px-3 py-2 tabular-nums">
+																		{t.realized_pnl != null ? <PnlBadge value={t.realized_pnl} /> : <span className="text-muted-foreground">---</span>}
+																	</td>
+																</tr>
+															))}
+													</tbody>
+												</table>
+											</div>
+										</section>
+									)}
+								</>
 							)}
 						</div>
 					)}
