@@ -24,7 +24,7 @@ export default function PanZoomCanvas({
 
 	// Measure the union bounding rect of all visible descendants (handles absolute positioning)
 	const measureFullBounds = useCallback((root: HTMLElement) => {
-		const elements = root.querySelectorAll("button, .org-connector-stem, .org-connector-drop, .org-connector-row");
+		const elements = root.querySelectorAll("button, .org-layout-canvas");
 		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 		for (const el of elements) {
 			const r = el.getBoundingClientRect();

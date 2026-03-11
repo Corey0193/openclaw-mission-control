@@ -351,53 +351,6 @@
 		var(--background);
 }
 
-/* Tree layout */
-.org-tree {
-	display: flex;
-	justify-content: center;
-}
-
-/* ── Connectors ── */
-
-/* Vertical stem between parent and child */
-.org-connector-stem {
-	width: 3px;
-	height: 40px;
-	background: oklch(0.82 0 0);
-	border-radius: 2px;
-	flex-shrink: 0;
-}
-
-/* Horizontal row for multiple children */
-.org-connector-row {
-	display: flex;
-	justify-content: center;
-	gap: 56px;
-	position: relative;
-}
-
-/* Horizontal bar spanning children row */
-.org-connector-row::before {
-	content: "";
-	position: absolute;
-	top: 0;
-	/* Inset to center of first/last child */
-	left: calc(50% / var(--child-count, 2));
-	right: calc(50% / var(--child-count, 2));
-	height: 3px;
-	background: oklch(0.82 0 0);
-	border-radius: 2px;
-}
-
-/* Vertical drop from horizontal bar into each child */
-.org-connector-drop {
-	width: 3px;
-	height: 40px;
-	background: oklch(0.82 0 0);
-	border-radius: 2px;
-	flex-shrink: 0;
-}
-
 /* Mobile */
 @media (max-width: 768px) {
 	.org-page-content {
@@ -409,21 +362,6 @@
 		position: fixed;
 		inset: 0;
 		z-index: 50;
-	}
-
-	.org-connector-stem,
-	.org-connector-drop {
-		height: 28px;
-	}
-
-	.org-connector-row {
-		flex-direction: column;
-		align-items: center;
-		gap: 0;
-	}
-
-	.org-connector-row::before {
-		display: none;
 	}
 }
 
