@@ -31,6 +31,7 @@ const ARB_PIPELINE_DIR = path.join(
 const SOFT_ARB_TRADES_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-paper-trades.jsonl");
 const SOFT_ARB_MTM_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-mtm.json");
 const SOFT_ARB_OUTCOMES_PATH = path.join(ARB_PIPELINE_DIR, "outcome-tracking.jsonl");
+const SOFT_ARB_CALIBRATION_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-calibration.json");
 
 interface PipelineRun {
 	runId: string;
@@ -162,6 +163,7 @@ function arbPipelinePlugin() {
 interface SoftArbTrade {
 	trade_id: string;
 	pair: string;
+	signal_family: string;
 	direction: string;
 	entry_price: number;
 	position_size_usd: number;
@@ -175,6 +177,10 @@ interface SoftArbTrade {
 	current_price: number | null;
 	unrealized_pnl: number | null;
 	realized_pnl: number | null;
+	shadow_pnl: number | null;
+	ready_to_close: boolean;
+	fair_value: number | null;
+	exit_price: number | null;
 	resolved_outcome: string | null;
 	event_slug: string | null;
 }
@@ -185,18 +191,93 @@ interface SoftArbOutcome {
 	trade_id: string;
 	pair: string;
 	polymarket_slug: string;
+	signal_family: string;
 	signal_source: string;
 	direction: string;
+	sample_key: string;
 	raw_edge_pct: number | null;
 	adjusted_edge_pct: number | null;
 	entry_price: number | null;
+	market_prob_side_at_entry: number | null;
 	polymarket_price: number | null;
 	signal_prob_yes: number | null;
 	signal_prob_no: number | null;
+	signal_prob_side: number | null;
+	resolves_by: string;
+	position_size_usd: number | null;
+	shares: number | null;
 	actual_outcome: string;
 	pnl_usd: number;
 	edge_was_real: boolean;
 	notes: string;
+}
+
+interface SoftArbCalibrationFamily {
+	label: string;
+	status: string;
+	progress: {
+		unique_resolved: number;
+		required: number;
+		remaining: number;
+	};
+	baseline: {
+		edge_threshold_pct: number;
+		kelly_multiplier: number;
+	};
+	recommended: {
+		edge_threshold_pct: number;
+		kelly_multiplier: number;
+	};
+	summary: {
+		unique_resolved_samples: number;
+		wins: number;
+		losses: number;
+		win_rate_pct: number;
+		avg_market_prob_side_pct: number;
+		market_outperformance_pp: number;
+		total_pnl_usd: number;
+	};
+	selected_bucket: {
+		threshold_pct: number;
+		eligible_unique_samples: number;
+		win_rate_pct: number;
+		market_outperformance_pp: number;
+		total_pnl_usd: number;
+		avg_adjusted_edge_pct: number;
+	};
+	thresholds: Array<{
+		threshold_pct: number;
+		eligible_unique_samples: number;
+		wins: number;
+		losses: number;
+		win_rate_pct: number;
+		total_pnl_usd: number;
+		avg_market_prob_side_pct: number;
+		avg_signal_prob_side_pct: number;
+		avg_adjusted_edge_pct: number;
+		market_outperformance_pp: number;
+	}>;
+	recommendation_reason: string;
+}
+
+interface SoftArbCalibration {
+	generated_at: string;
+	sample_policy: Record<string, unknown>;
+	families: Record<string, SoftArbCalibrationFamily>;
+}
+
+function normalizeSoftArbPct(value: unknown): number {
+	const n = Number(value ?? 0);
+	if (!Number.isFinite(n)) return 0;
+	return Math.abs(n) <= 1 ? n * 100 : n;
+}
+
+function getSignalFamily(row: Record<string, unknown>): string {
+	const explicit = String(row.signal_family ?? "").toLowerCase();
+	if (explicit === "metaculus" || explicit === "sportsbook") return explicit;
+	if (String(row.signal_source ?? "").toLowerCase().includes("metaculus")) return "metaculus";
+	if (row.metaculus_id != null && Number(row.metaculus_id) > 0) return "metaculus";
+	return "sportsbook";
 }
 
 function getSoftArbTrades(): {
@@ -204,10 +285,12 @@ function getSoftArbTrades(): {
 	summary: Record<string, unknown>;
 	outcomes: SoftArbOutcome[];
 	outcomeSummary: Record<string, unknown>;
+	calibration: SoftArbCalibration | null;
 	lastUpdated: string | null;
 } {
 	const rawTrades = readJsonlSafe(SOFT_ARB_TRADES_PATH);
 	const rawOutcomes = readJsonlSafe(SOFT_ARB_OUTCOMES_PATH);
+	const calibration = readJsonSafe(SOFT_ARB_CALIBRATION_PATH) as SoftArbCalibration | null;
 
 	// Read MTM sidecar if it exists
 	let mtm: { trades: Record<string, Record<string, unknown>>; summary: Record<string, unknown>; last_updated: string } | null = null;
@@ -226,11 +309,12 @@ function getSoftArbTrades(): {
 		return {
 			trade_id: tradeId,
 			pair: String(t.pair ?? ""),
+			signal_family: String(mtmData?.signal_family ?? getSignalFamily(t)),
 			direction: String(t.direction ?? ""),
 			entry_price: Number(t.entry_price ?? 0),
 			position_size_usd: Number(t.position_size_usd ?? 0),
 			shares: Number(t.shares ?? 0),
-			adjusted_edge_pct: Number(t.adjusted_edge_pct ?? 0),
+			adjusted_edge_pct: normalizeSoftArbPct(t.adjusted_edge_pct),
 			opened_at: String(t.opened_at ?? ""),
 			resolves_by: String(t.resolves_by ?? ""),
 			polymarket_slug: String(t.polymarket_slug ?? ""),
@@ -239,8 +323,12 @@ function getSoftArbTrades(): {
 			current_price: mtmData?.current_price != null ? Number(mtmData.current_price) : null,
 			unrealized_pnl: mtmData?.unrealized_pnl != null ? Number(mtmData.unrealized_pnl) : null,
 			realized_pnl: mtmData?.realized_pnl != null ? Number(mtmData.realized_pnl) : null,
+			shadow_pnl: mtmData?.shadow_pnl != null ? Number(mtmData.shadow_pnl) : null,
+			ready_to_close: Boolean(mtmData?.ready_to_close),
+			fair_value: mtmData?.fair_value != null ? Number(mtmData.fair_value) : null,
+			exit_price: mtmData?.exit_price != null ? Number(mtmData.exit_price) : null,
 			resolved_outcome: mtmData?.resolved_outcome != null ? String(mtmData.resolved_outcome) : null,
-		event_slug: mtmData?.event_slug != null ? String(mtmData.event_slug) : null,
+			event_slug: mtmData?.event_slug != null ? String(mtmData.event_slug) : null,
 		};
 	});
 
@@ -251,14 +339,21 @@ function getSoftArbTrades(): {
 			trade_id: String(row.trade_id ?? ""),
 			pair: String(row.pair ?? ""),
 			polymarket_slug: String(row.polymarket_slug ?? ""),
+			signal_family: getSignalFamily(row),
 			signal_source: String(row.signal_source ?? ""),
 			direction: String(row.direction ?? ""),
-			raw_edge_pct: row.raw_edge_pct != null ? Number(row.raw_edge_pct) : null,
-			adjusted_edge_pct: row.adjusted_edge_pct != null ? Number(row.adjusted_edge_pct) : null,
+			sample_key: String(row.sample_key ?? ""),
+			raw_edge_pct: row.raw_edge_pct != null ? normalizeSoftArbPct(row.raw_edge_pct) : null,
+			adjusted_edge_pct: row.adjusted_edge_pct != null ? normalizeSoftArbPct(row.adjusted_edge_pct) : null,
 			entry_price: row.entry_price != null ? Number(row.entry_price) : null,
+			market_prob_side_at_entry: row.market_prob_side_at_entry != null ? Number(row.market_prob_side_at_entry) : null,
 			polymarket_price: row.polymarket_price != null ? Number(row.polymarket_price) : null,
 			signal_prob_yes: row.signal_prob_yes != null ? Number(row.signal_prob_yes) : null,
 			signal_prob_no: row.signal_prob_no != null ? Number(row.signal_prob_no) : null,
+			signal_prob_side: row.signal_prob_side != null ? Number(row.signal_prob_side) : null,
+			resolves_by: String(row.resolves_by ?? ""),
+			position_size_usd: row.position_size_usd != null ? Number(row.position_size_usd) : null,
+			shares: row.shares != null ? Number(row.shares) : null,
 			actual_outcome: String(row.actual_outcome ?? ""),
 			pnl_usd: Number(row.pnl_usd ?? 0),
 			edge_was_real: Boolean(row.edge_was_real),
@@ -316,6 +411,7 @@ function getSoftArbTrades(): {
 			totalPnl: Math.round(outcomeSummary.totalPnl * 100) / 100,
 			avgAdjustedEdgePct: Math.round(avgAdjustedEdgePct * 100) / 100,
 		},
+		calibration,
 		lastUpdated: mtm?.last_updated ?? null,
 	};
 }

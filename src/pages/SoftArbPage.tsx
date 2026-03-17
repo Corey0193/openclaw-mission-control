@@ -38,19 +38,13 @@ function timeAgo(isoOrMs: string | number): string {
 	return `${days}d ago`;
 }
 
-/** Format an adjusted_edge value that may be a number, string, or object mapping names to numbers */
-function formatAdjustedEdge(v: unknown): string {
-	if (typeof v === "number") return `${(v * 100).toFixed(1)}%`;
-	if (typeof v === "string") { const n = Number(v); return Number.isNaN(n) ? v : `${(n * 100).toFixed(1)}%`; }
-	if (v != null && typeof v === "object" && !Array.isArray(v)) {
-		const entries = Object.entries(v as Record<string, unknown>);
-		return entries.map(([k, val]) => {
-			const label = k.replace(/_/g, " ");
-			const num = typeof val === "number" ? `${val.toFixed(1)}%` : String(val);
-			return `${label}: ${num}`;
-		}).join(", ");
-	}
-	return String(v ?? "");
+function formatPct(n: number | null | undefined, digits = 1): string {
+	if (n == null || Number.isNaN(n)) return "---";
+	return `${n.toFixed(digits)}%`;
+}
+
+function familyLabel(family: string): string {
+	return family === "metaculus" ? "Metaculus" : family === "sportsbook" ? "Sportsbook" : family;
 }
 
 function PnlBadge({ value }: { value: number | null }) {
@@ -111,6 +105,7 @@ function SummaryCard({
 interface SoftArbTrade {
 	trade_id: string;
 	pair: string;
+	signal_family: string;
 	direction: string;
 	entry_price: number;
 	position_size_usd: number;
@@ -138,12 +133,50 @@ interface SoftArbOutcome {
 	opportunity_id: string;
 	trade_id: string;
 	pair: string;
+	signal_family: string;
 	signal_source: string;
 	direction: string;
+	sample_key: string;
 	adjusted_edge_pct: number | null;
 	pnl_usd: number;
 	actual_outcome: string;
 	edge_was_real: boolean;
+}
+
+interface SoftArbCalibrationFamily {
+	label: string;
+	status: string;
+	progress: {
+		unique_resolved: number;
+		required: number;
+		remaining: number;
+	};
+	baseline: {
+		edge_threshold_pct: number;
+		kelly_multiplier: number;
+	};
+	recommended: {
+		edge_threshold_pct: number;
+		kelly_multiplier: number;
+	};
+	summary: {
+		unique_resolved_samples: number;
+		wins: number;
+		losses: number;
+		win_rate_pct: number;
+		avg_market_prob_side_pct: number;
+		market_outperformance_pp: number;
+		total_pnl_usd: number;
+	};
+	selected_bucket: {
+		threshold_pct: number;
+		eligible_unique_samples: number;
+		win_rate_pct: number;
+		market_outperformance_pp: number;
+		total_pnl_usd: number;
+		avg_adjusted_edge_pct: number;
+	};
+	recommendation_reason: string;
 }
 
 interface SoftArbData {
@@ -158,6 +191,9 @@ interface SoftArbData {
 		totalPnl: number;
 		avgAdjustedEdgePct: number;
 	};
+	calibration: {
+		families: Record<string, SoftArbCalibrationFamily>;
+	} | null;
 	lastUpdated: string | null;
 }
 
@@ -180,6 +216,7 @@ function useSoftArbTrades() {
 						totalPnl: 0,
 						avgAdjustedEdgePct: 0,
 					},
+					calibration: null,
 					lastUpdated: null,
 				}),
 			);
@@ -288,6 +325,11 @@ export default function SoftArbPage() {
 		];
 	}, [softArbData?.outcomeSummary]);
 
+	const calibrationFamilies = useMemo(
+		() => Object.entries(softArbData?.calibration?.families ?? {}),
+		[softArbData?.calibration?.families],
+	);
+
 	return (
 		<div className="h-screen bg-[#f8f9fa] overflow-y-auto">
 			<Header />
@@ -374,6 +416,75 @@ export default function SoftArbPage() {
 											))}
 										</div>
 
+										{calibrationFamilies.length > 0 && (
+											<div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+												{calibrationFamilies.map(([familyKey, family]) => (
+													<div key={familyKey} className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
+														<div className="flex items-center justify-between gap-3 mb-3">
+															<div>
+																<div className="text-[11px] font-bold tracking-widest uppercase text-emerald-900">
+																	{family.label} Calibration
+																</div>
+																<div className="text-xs text-muted-foreground">
+																	{family.progress.unique_resolved}/{family.progress.required} unique resolved events
+																</div>
+															</div>
+															<span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
+																family.status === "ready"
+																	? "bg-emerald-100 text-emerald-700"
+																	: "bg-amber-100 text-amber-700"
+															}`}>
+																{family.status}
+															</span>
+														</div>
+
+														<div className="grid grid-cols-2 gap-3 text-sm">
+															<div className="rounded-lg bg-white border border-border px-3 py-2">
+																<div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Baseline</div>
+																<div className="font-semibold text-foreground">
+																	{formatPct(family.baseline.edge_threshold_pct)} edge
+																</div>
+																<div className="text-xs text-muted-foreground">
+																	{family.baseline.kelly_multiplier.toFixed(2)}x Kelly
+																</div>
+															</div>
+															<div className="rounded-lg bg-white border border-border px-3 py-2">
+																<div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Recommended</div>
+																<div className="font-semibold text-foreground">
+																	{formatPct(family.recommended.edge_threshold_pct)} edge
+																</div>
+																<div className="text-xs text-muted-foreground">
+																	{family.recommended.kelly_multiplier.toFixed(2)}x Kelly
+																</div>
+															</div>
+															<div className="rounded-lg bg-white border border-border px-3 py-2">
+																<div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Win Rate</div>
+																<div className="font-semibold text-foreground">{formatPct(family.summary.win_rate_pct)}</div>
+																<div className="text-xs text-muted-foreground">
+																	Outperformance {formatPct(family.summary.market_outperformance_pp)}
+																</div>
+															</div>
+															<div className="rounded-lg bg-white border border-border px-3 py-2">
+																<div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Selected Bucket</div>
+																<div className="font-semibold text-foreground">{formatPct(family.selected_bucket.threshold_pct)} edge</div>
+																<div className="text-xs text-muted-foreground">
+																	{family.selected_bucket.eligible_unique_samples} unique samples
+																</div>
+															</div>
+														</div>
+
+														<div className="mt-3 flex items-center justify-between gap-3 text-xs">
+															<span className="text-muted-foreground">Resolved P&L</span>
+															<PnlBadge value={family.summary.total_pnl_usd} />
+														</div>
+														<p className="mt-3 text-xs text-muted-foreground">
+															{family.recommendation_reason}
+														</p>
+													</div>
+												))}
+											</div>
+										)}
+
 										{softArbData.outcomes.length > 0 ? (
 											<div className="border border-border rounded-xl overflow-hidden">
 												<table className="w-full text-sm">
@@ -381,6 +492,7 @@ export default function SoftArbPage() {
 														<tr className="border-b border-border bg-muted/30 text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
 															<th className="text-left px-4 py-2">Logged</th>
 															<th className="text-left px-3 py-2">Event / Market</th>
+															<th className="text-left px-3 py-2">Family</th>
 															<th className="text-left px-3 py-2">Signal</th>
 															<th className="text-right px-3 py-2">Edge</th>
 															<th className="text-right px-3 py-2">Result</th>
@@ -398,11 +510,20 @@ export default function SoftArbPage() {
 																		{o.pair}
 																	</div>
 																</td>
+																<td className="px-3 py-2 text-xs">
+																	<span className={`inline-flex rounded-full px-2 py-1 font-semibold ${
+																		o.signal_family === "metaculus"
+																			? "bg-sky-100 text-sky-700"
+																			: "bg-orange-100 text-orange-700"
+																	}`}>
+																		{familyLabel(o.signal_family)}
+																	</span>
+																</td>
 																<td className="px-3 py-2 text-xs font-medium">
 																	{o.signal_source}
 																</td>
 																<td className="px-3 py-2 text-right tabular-nums">
-																	{o.adjusted_edge_pct != null ? `${o.adjusted_edge_pct.toFixed(1)}%` : "---"}
+																	{formatPct(o.adjusted_edge_pct)}
 																</td>
 																<td className="px-3 py-2 text-right">
 																	{o.actual_outcome === "WIN" ? (
@@ -468,6 +589,15 @@ export default function SoftArbPage() {
 																	<div className="font-medium text-foreground truncate max-w-[200px]" title={t.pair}>
 																		{t.pair}
 																	</div>
+																	<div className="mt-1">
+																		<span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+																			t.signal_family === "metaculus"
+																				? "bg-sky-100 text-sky-700"
+																				: "bg-orange-100 text-orange-700"
+																		}`}>
+																			{familyLabel(t.signal_family)}
+																		</span>
+																	</div>
 																</td>
 																<td className="px-3 py-2.5 font-semibold text-emerald-700">
 																	{t.direction}
@@ -479,7 +609,7 @@ export default function SoftArbPage() {
 																{t.current_price != null ? t.current_price.toFixed(3) : "---"}
 																</td>
 																<td className="px-3 py-2.5 text-right tabular-nums font-bold text-emerald-600">
-																{formatAdjustedEdge(t.adjusted_edge_pct / 100)}
+																{formatPct(t.adjusted_edge_pct)}
 																</td>
 																<td className="px-3 py-2.5 text-right tabular-nums">
 																<PnlBadge value={t.unrealized_pnl} />
@@ -593,12 +723,21 @@ export default function SoftArbPage() {
 																	<div className="font-medium text-foreground/80 truncate max-w-[180px]">
 																		{t.pair}
 																	</div>
+																	<div className="mt-1">
+																		<span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+																			t.signal_family === "metaculus"
+																				? "bg-sky-100 text-sky-700"
+																				: "bg-orange-100 text-orange-700"
+																		}`}>
+																			{familyLabel(t.signal_family)}
+																		</span>
+																	</div>
 																</td>
 																<td className="px-3 py-2 font-medium">
 																	{t.direction}
 																</td>
 																<td className="px-3 py-2 text-right tabular-nums">
-																	{formatAdjustedEdge(t.adjusted_edge_pct / 100)}
+																	{formatPct(t.adjusted_edge_pct)}
 																</td>
 																<td className="px-3 py-2 text-right">
 																	{t.status === "RESOLVED_WIN" ? (
