@@ -133,9 +133,31 @@ interface SoftArbTrade {
 	event_slug: string | null;
 }
 
+interface SoftArbOutcome {
+	timestamp: string;
+	opportunity_id: string;
+	trade_id: string;
+	pair: string;
+	signal_source: string;
+	direction: string;
+	adjusted_edge_pct: number | null;
+	pnl_usd: number;
+	actual_outcome: string;
+	edge_was_real: boolean;
+}
+
 interface SoftArbData {
 	trades: SoftArbTrade[];
 	summary: Record<string, unknown>;
+	outcomes: SoftArbOutcome[];
+	outcomeSummary: {
+		resolvedTrades: number;
+		wins: number;
+		losses: number;
+		winRatePct: number;
+		totalPnl: number;
+		avgAdjustedEdgePct: number;
+	};
 	lastUpdated: string | null;
 }
 
@@ -145,7 +167,22 @@ function useSoftArbTrades() {
 		fetch("/api/soft-arb-trades")
 			.then((r) => r.json())
 			.then((d) => setData(d))
-			.catch(() => setData({ trades: [], summary: {}, lastUpdated: null }));
+			.catch(() =>
+				setData({
+					trades: [],
+					summary: {},
+					outcomes: [],
+					outcomeSummary: {
+						resolvedTrades: 0,
+						wins: 0,
+						losses: 0,
+						winRatePct: 0,
+						totalPnl: 0,
+						avgAdjustedEdgePct: 0,
+					},
+					lastUpdated: null,
+				}),
+			);
 	}, []);
 	useEffect(() => {
 		refresh();
@@ -221,6 +258,36 @@ export default function SoftArbPage() {
 		];
 	}, [summary]);
 
+	const outcomeSummaryCards = useMemo(() => {
+		const outcomeSummary = softArbData?.outcomeSummary;
+		if (!outcomeSummary) return [];
+		return [
+			{
+				label: "Resolved Trades",
+				value: outcomeSummary.resolvedTrades,
+				icon: <IconChartBar size={20} />,
+			},
+			{
+				label: "Win Rate",
+				value: outcomeSummary.winRatePct,
+				icon: <IconCircleCheck size={20} />,
+				isPercent: true,
+			},
+			{
+				label: "Outcome P&L",
+				value: outcomeSummary.totalPnl,
+				icon: <IconTrendingUp size={20} />,
+				isPnl: true,
+			},
+			{
+				label: "Avg Edge",
+				value: outcomeSummary.avgAdjustedEdgePct,
+				icon: <IconArrowsExchange size={20} />,
+				isPercent: true,
+			},
+		];
+	}, [softArbData?.outcomeSummary]);
+
 	return (
 		<div className="h-screen bg-[#f8f9fa] overflow-y-auto">
 			<Header />
@@ -289,6 +356,79 @@ export default function SoftArbPage() {
 											<SummaryCard key={card.label} {...card} />
 										))}
 									</div>
+
+									<section className="rounded-xl border border-emerald-100 bg-white/80 p-4">
+										<div className="flex items-center gap-2 mb-4">
+											<IconChartBar size={16} className="text-emerald-700" />
+											<h4 className="text-[11px] font-bold text-emerald-800 tracking-widest uppercase">
+												Outcome Feedback Loop
+											</h4>
+											<span className="text-[10px] text-muted-foreground">
+												{softArbData.outcomes.length} logged result{softArbData.outcomes.length !== 1 ? "s" : ""}
+											</span>
+										</div>
+
+										<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+											{outcomeSummaryCards.map((card) => (
+												<SummaryCard key={card.label} {...card} />
+											))}
+										</div>
+
+										{softArbData.outcomes.length > 0 ? (
+											<div className="border border-border rounded-xl overflow-hidden">
+												<table className="w-full text-sm">
+													<thead>
+														<tr className="border-b border-border bg-muted/30 text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
+															<th className="text-left px-4 py-2">Logged</th>
+															<th className="text-left px-3 py-2">Event / Market</th>
+															<th className="text-left px-3 py-2">Signal</th>
+															<th className="text-right px-3 py-2">Edge</th>
+															<th className="text-right px-3 py-2">Result</th>
+															<th className="text-right px-4 py-2">P&L</th>
+														</tr>
+													</thead>
+													<tbody>
+														{softArbData.outcomes.map((o, idx) => (
+															<tr key={`${o.trade_id}-${idx}`} className="border-b border-border/50 last:border-0 hover:bg-muted/10">
+																<td className="px-4 py-2 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+																	{o.timestamp ? timeAgo(o.timestamp) : "---"}
+																</td>
+																<td className="px-3 py-2">
+																	<div className="font-medium text-foreground/80 truncate max-w-[220px]" title={o.pair}>
+																		{o.pair}
+																	</div>
+																</td>
+																<td className="px-3 py-2 text-xs font-medium">
+																	{o.signal_source}
+																</td>
+																<td className="px-3 py-2 text-right tabular-nums">
+																	{o.adjusted_edge_pct != null ? `${o.adjusted_edge_pct.toFixed(1)}%` : "---"}
+																</td>
+																<td className="px-3 py-2 text-right">
+																	{o.actual_outcome === "WIN" ? (
+																		<span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-xs">
+																			<IconCircleCheck size={12} /> WIN
+																		</span>
+																	) : (
+																		<span className="inline-flex items-center gap-1 text-red-500 font-bold text-xs">
+																			<IconCircleX size={12} /> LOSS
+																		</span>
+																	)}
+																</td>
+																<td className="text-right px-4 py-2 tabular-nums">
+																	<PnlBadge value={o.pnl_usd} />
+																</td>
+															</tr>
+														))}
+													</tbody>
+												</table>
+											</div>
+										) : (
+											<div className="text-sm text-muted-foreground">
+												No resolved outcomes logged yet.
+											</div>
+										)}
+									</section>
 
 									{/* Open Soft Arb Trades */}
 									<section>

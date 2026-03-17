@@ -30,6 +30,7 @@ const ARB_PIPELINE_DIR = path.join(
 
 const SOFT_ARB_TRADES_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-paper-trades.jsonl");
 const SOFT_ARB_MTM_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-mtm.json");
+const SOFT_ARB_OUTCOMES_PATH = path.join(ARB_PIPELINE_DIR, "outcome-tracking.jsonl");
 
 interface PipelineRun {
 	runId: string;
@@ -45,6 +46,22 @@ function readJsonSafe(filePath: string): Record<string, unknown> | null {
 	} catch {
 		return null;
 	}
+}
+
+function readJsonlSafe(filePath: string): Record<string, unknown>[] {
+	if (!fs.existsSync(filePath)) return [];
+
+	const rows: Record<string, unknown>[] = [];
+	for (const line of fs.readFileSync(filePath, "utf-8").split("\n")) {
+		const trimmed = line.trim();
+		if (!trimmed) continue;
+		try {
+			rows.push(JSON.parse(trimmed));
+		} catch {
+			// skip malformed lines
+		}
+	}
+	return rows;
 }
 
 function normalizeRun(run: PipelineRun): PipelineRun {
@@ -159,23 +176,38 @@ interface SoftArbTrade {
 	unrealized_pnl: number | null;
 	realized_pnl: number | null;
 	resolved_outcome: string | null;
+	event_slug: string | null;
 }
 
-function getSoftArbTrades(): { trades: SoftArbTrade[]; summary: Record<string, unknown>; lastUpdated: string | null } {
-	// Read JSONL trades
-	const rawTrades: Record<string, unknown>[] = [];
-	if (fs.existsSync(SOFT_ARB_TRADES_PATH)) {
-		const lines = fs.readFileSync(SOFT_ARB_TRADES_PATH, "utf-8").split("\n");
-		for (const line of lines) {
-			const trimmed = line.trim();
-			if (!trimmed) continue;
-			try {
-				rawTrades.push(JSON.parse(trimmed));
-			} catch {
-				// skip malformed lines
-			}
-		}
-	}
+interface SoftArbOutcome {
+	timestamp: string;
+	opportunity_id: string;
+	trade_id: string;
+	pair: string;
+	polymarket_slug: string;
+	signal_source: string;
+	direction: string;
+	raw_edge_pct: number | null;
+	adjusted_edge_pct: number | null;
+	entry_price: number | null;
+	polymarket_price: number | null;
+	signal_prob_yes: number | null;
+	signal_prob_no: number | null;
+	actual_outcome: string;
+	pnl_usd: number;
+	edge_was_real: boolean;
+	notes: string;
+}
+
+function getSoftArbTrades(): {
+	trades: SoftArbTrade[];
+	summary: Record<string, unknown>;
+	outcomes: SoftArbOutcome[];
+	outcomeSummary: Record<string, unknown>;
+	lastUpdated: string | null;
+} {
+	const rawTrades = readJsonlSafe(SOFT_ARB_TRADES_PATH);
+	const rawOutcomes = readJsonlSafe(SOFT_ARB_OUTCOMES_PATH);
 
 	// Read MTM sidecar if it exists
 	let mtm: { trades: Record<string, Record<string, unknown>>; summary: Record<string, unknown>; last_updated: string } | null = null;
@@ -208,8 +240,31 @@ function getSoftArbTrades(): { trades: SoftArbTrade[]; summary: Record<string, u
 			unrealized_pnl: mtmData?.unrealized_pnl != null ? Number(mtmData.unrealized_pnl) : null,
 			realized_pnl: mtmData?.realized_pnl != null ? Number(mtmData.realized_pnl) : null,
 			resolved_outcome: mtmData?.resolved_outcome != null ? String(mtmData.resolved_outcome) : null,
+		event_slug: mtmData?.event_slug != null ? String(mtmData.event_slug) : null,
 		};
 	});
+
+	const outcomes: SoftArbOutcome[] = rawOutcomes
+		.map((row) => ({
+			timestamp: String(row.timestamp ?? ""),
+			opportunity_id: String(row.opportunity_id ?? ""),
+			trade_id: String(row.trade_id ?? ""),
+			pair: String(row.pair ?? ""),
+			polymarket_slug: String(row.polymarket_slug ?? ""),
+			signal_source: String(row.signal_source ?? ""),
+			direction: String(row.direction ?? ""),
+			raw_edge_pct: row.raw_edge_pct != null ? Number(row.raw_edge_pct) : null,
+			adjusted_edge_pct: row.adjusted_edge_pct != null ? Number(row.adjusted_edge_pct) : null,
+			entry_price: row.entry_price != null ? Number(row.entry_price) : null,
+			polymarket_price: row.polymarket_price != null ? Number(row.polymarket_price) : null,
+			signal_prob_yes: row.signal_prob_yes != null ? Number(row.signal_prob_yes) : null,
+			signal_prob_no: row.signal_prob_no != null ? Number(row.signal_prob_no) : null,
+			actual_outcome: String(row.actual_outcome ?? ""),
+			pnl_usd: Number(row.pnl_usd ?? 0),
+			edge_was_real: Boolean(row.edge_was_real),
+			notes: String(row.notes ?? ""),
+		}))
+		.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
 	// Summary: use MTM summary if available, else compute basic stats
 	const summary = mtm?.summary ?? {
@@ -223,9 +278,44 @@ function getSoftArbTrades(): { trades: SoftArbTrade[]; summary: Record<string, u
 		losses: 0,
 	};
 
+	const outcomeSummary = outcomes.reduce(
+		(acc, outcome) => {
+			acc.resolvedTrades += 1;
+			acc.totalPnl += outcome.pnl_usd;
+			if (outcome.actual_outcome === "WIN") acc.wins += 1;
+			if (outcome.actual_outcome === "LOSS") acc.losses += 1;
+			if (outcome.adjusted_edge_pct != null) acc.totalAdjustedEdgePct += outcome.adjusted_edge_pct;
+			return acc;
+		},
+		{
+			resolvedTrades: 0,
+			wins: 0,
+			losses: 0,
+			totalPnl: 0,
+			totalAdjustedEdgePct: 0,
+		},
+	);
+
+	const avgAdjustedEdgePct =
+		outcomeSummary.resolvedTrades > 0
+			? outcomeSummary.totalAdjustedEdgePct / outcomeSummary.resolvedTrades
+			: 0;
+
 	return {
 		trades,
 		summary,
+		outcomes,
+		outcomeSummary: {
+			resolvedTrades: outcomeSummary.resolvedTrades,
+			wins: outcomeSummary.wins,
+			losses: outcomeSummary.losses,
+			winRatePct:
+				outcomeSummary.resolvedTrades > 0
+					? (outcomeSummary.wins / outcomeSummary.resolvedTrades) * 100
+					: 0,
+			totalPnl: Math.round(outcomeSummary.totalPnl * 100) / 100,
+			avgAdjustedEdgePct: Math.round(avgAdjustedEdgePct * 100) / 100,
+		},
 		lastUpdated: mtm?.last_updated ?? null,
 	};
 }
