@@ -44,6 +44,7 @@ def sync():
                 synced += 1
             else:
                 print(f"Failed to sync {w['address']}: {resp.status_code}")
+                print(f"Response: {resp.text}")
         except Exception as e:
             print(f"Error syncing {w['address']}: {e}")
             break
