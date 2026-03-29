@@ -165,6 +165,28 @@ http.route({
                 });
         }),
 });
+
+// Wallet upsert endpoint
+http.route({
+        path: "/wallet/upsert",
+        method: "POST",
+        handler: httpAction(async (ctx, request) => {
+                const body = await request.json();
+                await ctx.runMutation(api.wallets.upsert, {
+                        address: body.address,
+                        username: body.username,
+                        totalPnl: body.totalPnl ?? 0,
+                        performanceScore: body.performanceScore ?? 0,
+                        isInsider: body.isInsider ?? false,
+                        tags: body.tags ?? [],
+                        tenantId: body.tenantId ?? "default",
+                });
+                return new Response(JSON.stringify({ ok: true }), {
+                        status: 200,
+                        headers: { "Content-Type": "application/json" },
+                });
+        }),
+});
 // Token telemetry endpoint
 http.route({
 	path: "/telemetry/tokens",

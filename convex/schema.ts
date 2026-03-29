@@ -219,17 +219,31 @@ export default defineSchema({
 		tenantId: v.optional(v.string()),
 	}).index("by_tenant", ["tenantId"]),
 	tokenUsage: defineTable({
-		agentId: v.optional(v.id("agents")),
-		agentName: v.string(),
-		skillName: v.string(),
-		inputTokens: v.number(),
-		outputTokens: v.number(),
-		totalTokens: v.number(),
-		timestamp: v.number(),
-		runId: v.optional(v.string()),
-		tenantId: v.optional(v.string()),
+	        agentId: v.optional(v.id("agents")),
+	        agentName: v.string(),
+	        skillName: v.string(),
+	        inputTokens: v.number(),
+	        outputTokens: v.number(),
+	        totalTokens: v.number(),
+	        timestamp: v.number(),
+	        runId: v.optional(v.string()),
+	        tenantId: v.optional(v.string()),
 	})
-		.index("by_tenant_timestamp", ["tenantId", "timestamp"])
-		.index("by_agent_timestamp", ["agentId", "timestamp"])
-		.index("by_agent_skill", ["agentName", "skillName"]),
-});
+	        .index("by_tenant_timestamp", ["tenantId", "timestamp"])
+	        .index("by_agent_timestamp", ["agentId", "timestamp"])
+	        .index("by_agent_skill", ["agentName", "skillName"]),
+	wallets: defineTable({
+	        address: v.string(),
+	        username: v.optional(v.string()),
+	        totalPnl: v.number(),
+	        performanceScore: v.number(),
+	        isInsider: v.boolean(),
+	        lastSyncedAt: v.number(),
+	        tags: v.array(v.string()),
+	        tenantId: v.optional(v.string()),
+	})
+	        .index("by_tenant", ["tenantId"])
+	        .index("by_address", ["address"])
+	        .index("by_pnl", ["totalPnl"])
+	        .index("by_score", ["performanceScore"]),
+	});

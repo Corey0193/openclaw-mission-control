@@ -178,19 +178,28 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 									Soft Arb
 								</Link>
 								<Link
-									to="/arb/hard"
-									onClick={() => setIsArbDropdownOpen(false)}
-									className={`
-										block px-4 py-2 text-[12px] font-semibold hover:bg-muted transition-colors
-										${location.pathname === "/arb/hard" ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
-									`}
+								        to="/arb/hard"
+								        onClick={() => setIsArbDropdownOpen(false)}
+								        className={`
+								                block px-4 py-2 text-[12px] font-semibold hover:bg-muted transition-colors
+								                ${location.pathname === "/arb/hard" ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
+								        `}
 								>
-									Hard Arb
+								        Hard Arb
 								</Link>
-							</div>
-						)}
-					</div>
-				</nav>
+								<Link
+								        to="/arb/wallets"
+								        onClick={() => setIsArbDropdownOpen(false)}
+								        className={`
+								                block px-4 py-2 text-[12px] font-semibold hover:bg-muted transition-colors
+								                ${location.pathname === "/arb/wallets" ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
+								        `}
+								>
+								        Wallets
+								</Link>
+								</div>
+								)}
+								</div>				</nav>
 			</div>
 
 			<div className="hidden md:flex items-center gap-6 bg-muted/40 px-5 py-2 rounded-full border border-border/50">

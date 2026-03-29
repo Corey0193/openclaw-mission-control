@@ -8,6 +8,7 @@ import EinsteinTodosPage from "./pages/EinsteinTodosPage";
 import PolymarketPage from "./pages/PolymarketPage";
 import TokenUsagePage from "./pages/TokenUsagePage";
 import ArbPipelinePage from "./pages/ArbPipelinePage";
+import WalletsPage from "./pages/WalletsPage";
 
 const SoftArbPage = lazy(() => import("./pages/SoftArbPage"));
 const HardArbPage = lazy(() => import("./pages/HardArbPage"));
@@ -29,10 +30,10 @@ export default function App() {
 
 			<Route path="/arb/polymarket" element={<PolymarketPage />} />
 			<Route path="/arb/pipeline" element={<ArbPipelinePage />} />
+			<Route path="/arb/wallets" element={<WalletsPage />} />
 
 			<Route
-				path="/arb/soft"
-				element={
+			        path="/arb/soft"				element={
 					<Suspense fallback={<div className="min-h-screen bg-[#f8f9fa]" />}>
 						<SoftArbPage />
 					</Suspense>
