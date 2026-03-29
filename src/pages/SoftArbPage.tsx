@@ -590,7 +590,8 @@ export default function SoftArbPage() {
 	};
 
 	const activePositions = useMemo(() => {
-		return softArbData?.trades.filter(t => t.status === "OPEN") || [];
+		return (softArbData?.trades.filter(t => t.status === "OPEN") || [])
+			.sort((a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime());
 	}, [softArbData]);
 
 	const historyPositions = useMemo(() => {
