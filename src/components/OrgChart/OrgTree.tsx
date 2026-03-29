@@ -127,9 +127,7 @@ function AssistantConnector({
 			? fromNode.x - fromNode.width / 2
 			: fromNode.x + fromNode.width / 2;
 	const x2 =
-		side === "left"
-			? toNode.x + toNode.width / 2
-			: toNode.x - toNode.width / 2;
+		side === "left" ? toNode.x + toNode.width / 2 : toNode.x - toNode.width / 2;
 
 	return (
 		<line

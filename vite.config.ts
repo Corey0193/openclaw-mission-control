@@ -28,17 +28,35 @@ const ARB_PIPELINE_DIR = path.join(
 	".openclaw/workspace-hustle/arb-pipeline",
 );
 
-const SOFT_ARB_TRADES_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-paper-trades.jsonl");
+const SOFT_ARB_TRADES_PATH = path.join(
+	ARB_PIPELINE_DIR,
+	"soft-arb-paper-trades.jsonl",
+);
 const SOFT_ARB_MTM_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-mtm.json");
-const SOFT_ARB_OUTCOMES_PATH = path.join(ARB_PIPELINE_DIR, "outcome-tracking.jsonl");
-const SOFT_ARB_CALIBRATION_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-calibration.json");
+const SOFT_ARB_OUTCOMES_PATH = path.join(
+	ARB_PIPELINE_DIR,
+	"outcome-tracking.jsonl",
+);
+const SOFT_ARB_CALIBRATION_PATH = path.join(
+	ARB_PIPELINE_DIR,
+	"soft-arb-calibration.json",
+);
+const SOFT_ARB_SHIELD_STATE_PATH = path.join(
+	ARB_PIPELINE_DIR,
+	"oracle-shield-state.json",
+);
 
 interface PipelineRun {
 	runId: string;
 	dossier: Record<string, unknown> | null;
 	verdict: Record<string, unknown> | null;
 	decision: Record<string, unknown> | null;
-	status: "completed" | "dossier_only" | "verdict_pending" | "abandoned" | "no_files";
+	status:
+		| "completed"
+		| "dossier_only"
+		| "verdict_pending"
+		| "abandoned"
+		| "no_files";
 }
 
 function readJsonSafe(filePath: string): Record<string, unknown> | null {
@@ -71,10 +89,22 @@ function normalizeRun(run: PipelineRun): PipelineRun {
 	const d = run.dossier as Record<string, unknown>;
 	if (d.market_b || d.market_type) return run;
 
-	const isMetaculus = !!(d.signal_source) || String(d.dossier_format_version ?? d.format_version ?? d.version ?? d._version ?? "").includes("metaculus") || run.runId.startsWith("scan-metaculus-");
+	const isMetaculus =
+		!!d.signal_source ||
+		String(
+			d.dossier_format_version ??
+				d.format_version ??
+				d.version ??
+				d._version ??
+				"",
+		).includes("metaculus") ||
+		run.runId.startsWith("scan-metaculus-");
 	if (!isMetaculus) return run;
 
-	const scriptPath = path.join(os.homedir(), ".openclaw/scripts/normalize_dossier.py");
+	const scriptPath = path.join(
+		os.homedir(),
+		".openclaw/scripts/normalize_dossier.py",
+	);
 	if (!fs.existsSync(scriptPath)) return run;
 
 	try {
@@ -87,7 +117,10 @@ function normalizeRun(run: PipelineRun): PipelineRun {
 		const normalized = JSON.parse(output);
 		return { ...run, dossier: normalized };
 	} catch (err) {
-		console.warn(`normalizeRun failed for ${run.runId}:`, err instanceof Error ? err.message : String(err));
+		console.warn(
+			`normalizeRun failed for ${run.runId}:`,
+			err instanceof Error ? err.message : String(err),
+		);
 		return run; // Fallback: return unnormalized
 	}
 }
@@ -107,7 +140,9 @@ function getPipelineRuns(): PipelineRun[] {
 		const isArchive = dir === archiveDir;
 		const files = fs.readdirSync(dir);
 		for (const f of files) {
-			const m = f.match(/^(scan-(?:metaculus-)?\d{4}-\d{2}-\d{2}(?:-\d{4})?)\.(dossier|verdict|decision)\.json$/);
+			const m = f.match(
+				/^(scan-(?:[A-Za-z0-9_-]+-)?\d{4}-\d{2}-\d{2}(?:-(?:\d{4}|[A-Za-z][A-Za-z0-9_-]*))?)\.(dossier|verdict|decision)\.json$/,
+			);
 			if (m) {
 				idSet.add(m[1]);
 				fileMap.set(`${m[1]}.${m[2]}`, path.join(dir, f));
@@ -164,6 +199,7 @@ interface SoftArbTrade {
 	trade_id: string;
 	pair: string;
 	signal_family: string;
+	signal_source: string;
 	direction: string;
 	entry_price: number;
 	position_size_usd: number;
@@ -183,6 +219,34 @@ interface SoftArbTrade {
 	exit_price: number | null;
 	resolved_outcome: string | null;
 	event_slug: string | null;
+	is_real: boolean;
+	shield_coin: string | null;
+	shield_state: string | null;
+	shield_reason: string | null;
+	shield_updated_at: string | null;
+}
+
+interface SoftArbShieldAlert {
+	trade_id: string;
+	polymarket_slug: string;
+	pair: string;
+	opened_at: string;
+	shield_coin: string | null;
+	shield_state: string | null;
+	shield_reason: string | null;
+	shield_updated_at: string | null;
+}
+
+interface SoftArbShieldState {
+	generated_at: string | null;
+	coverage_scope: string | null;
+	watcher_status: string;
+	ws_connected: boolean;
+	last_message_at: string | null;
+	tracked_coins: string[];
+	mapped_open_trade_count: number;
+	unmapped_open_trade_count: number;
+	open_trade_alerts: SoftArbShieldAlert[];
 }
 
 interface SoftArbOutcome {
@@ -209,9 +273,9 @@ interface SoftArbOutcome {
 	actual_outcome: string;
 	pnl_usd: number;
 	edge_was_real: boolean;
+	is_real: boolean;
 	notes: string;
 }
-
 interface SoftArbCalibrationFamily {
 	label: string;
 	status: string;
@@ -266,6 +330,39 @@ interface SoftArbCalibration {
 	families: Record<string, SoftArbCalibrationFamily>;
 }
 
+interface SoftArbDiscoverySummary {
+	latestRunId: string | null;
+	latestScanTimestamp: string | null;
+	latestMetricsRunId: string | null;
+	latestMetricsScanTimestamp: string | null;
+	knownPairsChecked: number;
+	reverseSeedsConsidered: number;
+	reverseSeedsRejectedBeforeSearch: number;
+	reverseSeedsScanned: number;
+	reverseMetaculusCandidatesConsidered: number;
+	reverseVerifiedMatches: number;
+	reverseSeedsSuppressedByFeedback: number;
+	forwardQuestionsScanned: number;
+	autoPromotedPairs: string[];
+	skippedByReason: Record<string, number>;
+	discoveryMethodCounts: Record<string, number>;
+	topRejectionReasons: Record<string, number>;
+	topFeedbackSuppressionReasons: Record<string, number>;
+	rejectedReverseSeeds: Array<{
+		slug: string;
+		seedScore: number;
+		reason: string;
+	}>;
+}
+
+type LatestSoftArbDossierCache = {
+	fingerprint: string;
+	dossier: Record<string, unknown> | null;
+};
+
+let latestSoftArbDossierCache: LatestSoftArbDossierCache | null = null;
+let latestMetaculusDossierCache: LatestSoftArbDossierCache | null = null;
+
 function normalizeSoftArbPct(value: unknown): number {
 	const n = Number(value ?? 0);
 	if (!Number.isFinite(n)) return 0;
@@ -275,9 +372,258 @@ function normalizeSoftArbPct(value: unknown): number {
 function getSignalFamily(row: Record<string, unknown>): string {
 	const explicit = String(row.signal_family ?? "").toLowerCase();
 	if (explicit === "metaculus" || explicit === "sportsbook") return explicit;
-	if (String(row.signal_source ?? "").toLowerCase().includes("metaculus")) return "metaculus";
-	if (row.metaculus_id != null && Number(row.metaculus_id) > 0) return "metaculus";
+	if (
+		String(row.signal_source ?? "")
+			.toLowerCase()
+			.includes("metaculus")
+	)
+		return "metaculus";
+	if (row.metaculus_id != null && Number(row.metaculus_id) > 0)
+		return "metaculus";
 	return "sportsbook";
+}
+
+function getSignalSource(row: Record<string, unknown>): string {
+	const explicit = String(row.signal_source ?? "").trim();
+	if (explicit) return explicit;
+	if (String(row.signal_family ?? "").toLowerCase() === "metaculus")
+		return "Metaculus";
+	if (String(row.azuro_condition_id ?? "").trim()) return "Azuro";
+	if (row.metaculus_id != null && Number(row.metaculus_id) > 0)
+		return "Metaculus";
+	return "Sportsbook";
+}
+
+function toFiniteNumber(value: unknown): number {
+	const n = Number(value ?? 0);
+	return Number.isFinite(n) ? n : 0;
+}
+
+function resolveLatestDossier(
+	pattern: RegExp,
+	cache: LatestSoftArbDossierCache | null,
+): LatestSoftArbDossierCache {
+	const dirs = [ARB_PIPELINE_DIR, path.join(ARB_PIPELINE_DIR, "archive")];
+	const fingerprintParts = dirs.map((dir) => {
+		if (!fs.existsSync(dir)) return `${dir}:missing`;
+		const stat = fs.statSync(dir);
+		const count = fs
+			.readdirSync(dir)
+			.filter((name) => pattern.test(name)).length;
+		return `${dir}:${stat.mtimeMs}:${count}`;
+	});
+	const fingerprint = fingerprintParts.join("|");
+	if (cache?.fingerprint === fingerprint) {
+		return cache;
+	}
+
+	const dossierPaths: string[] = [];
+	for (const dir of dirs) {
+		if (!fs.existsSync(dir)) continue;
+		for (const name of fs.readdirSync(dir)) {
+			if (pattern.test(name)) {
+				dossierPaths.push(path.join(dir, name));
+			}
+		}
+	}
+	if (dossierPaths.length === 0) {
+		return {
+			fingerprint,
+			dossier: null,
+		};
+	}
+
+	let latest: {
+		timestamp: number;
+		dossier: Record<string, unknown> | null;
+	} | null = null;
+	for (const dossierPath of dossierPaths) {
+		const dossier = readJsonSafe(dossierPath);
+		if (!dossier) continue;
+		const scanTimestamp = Date.parse(String(dossier.scan_timestamp ?? ""));
+		const statTime = fs.statSync(dossierPath).mtimeMs;
+		const ts = Number.isFinite(scanTimestamp) ? scanTimestamp : statTime;
+		if (!latest || ts > latest.timestamp) latest = { timestamp: ts, dossier };
+	}
+
+	return {
+		fingerprint,
+		dossier: latest?.dossier ?? null,
+	};
+}
+
+function getLatestSoftArbDossier(): Record<string, unknown> | null {
+	latestSoftArbDossierCache = resolveLatestDossier(
+		/^scan-.*\.dossier\.json$/,
+		latestSoftArbDossierCache,
+	);
+	return latestSoftArbDossierCache.dossier;
+}
+
+function getLatestMetaculusDossier(): Record<string, unknown> | null {
+	latestMetaculusDossierCache = resolveLatestDossier(
+		/^scan-metaculus-.*\.dossier\.json$/,
+		latestMetaculusDossierCache,
+	);
+	return latestMetaculusDossierCache.dossier;
+}
+
+function getSoftArbDiscoverySummary(): SoftArbDiscoverySummary {
+	const latestDossier = getLatestSoftArbDossier();
+	const discoveryDossier = getLatestMetaculusDossier();
+	if (!latestDossier && !discoveryDossier) {
+		return {
+			latestRunId: null,
+			latestScanTimestamp: null,
+			latestMetricsRunId: null,
+			latestMetricsScanTimestamp: null,
+			knownPairsChecked: 0,
+			reverseSeedsConsidered: 0,
+			reverseSeedsRejectedBeforeSearch: 0,
+			reverseSeedsScanned: 0,
+			reverseMetaculusCandidatesConsidered: 0,
+			reverseVerifiedMatches: 0,
+			reverseSeedsSuppressedByFeedback: 0,
+			forwardQuestionsScanned: 0,
+			autoPromotedPairs: [],
+			skippedByReason: {},
+			discoveryMethodCounts: {
+				known_pair: 0,
+				reverse_seed: 0,
+				keyword_search: 0,
+			},
+			topRejectionReasons: {},
+			topFeedbackSuppressionReasons: {},
+			rejectedReverseSeeds: [],
+		};
+	}
+
+	const summary = ((discoveryDossier ?? {}).discovery_summary ?? {}) as Record<
+		string,
+		unknown
+	>;
+	const matchedPairs = Array.isArray(discoveryDossier?.matched_pairs)
+		? (discoveryDossier.matched_pairs as Array<Record<string, unknown>>)
+		: [];
+
+	const discoveryMethodCounts = {
+		known_pair: 0,
+		reverse_seed: 0,
+		keyword_search: 0,
+	};
+	for (const pair of matchedPairs) {
+		const method = String(
+			pair.discovery_method ??
+				(pair.match_quality as Record<string, unknown> | undefined)?.method ??
+				"",
+		).toLowerCase();
+		if (
+			method === "known_pair" ||
+			method === "reverse_seed" ||
+			method === "keyword_search"
+		) {
+			discoveryMethodCounts[method] += 1;
+		}
+	}
+	if (Object.values(discoveryMethodCounts).every((count) => count === 0)) {
+		const topLevelMethod = String(
+			(discoveryDossier?.match_quality as Record<string, unknown> | undefined)
+				?.method ?? "",
+		).toLowerCase();
+		if (
+			topLevelMethod === "known_pair" ||
+			topLevelMethod === "reverse_seed" ||
+			topLevelMethod === "keyword_search"
+		) {
+			discoveryMethodCounts[topLevelMethod] =
+				matchedPairs.length > 0 ? matchedPairs.length : 1;
+		}
+	}
+
+	const skippedByReason: Record<string, number> = {};
+	const skippedRaw = summary.skipped_by_reason;
+	if (skippedRaw && typeof skippedRaw === "object") {
+		for (const [key, value] of Object.entries(
+			skippedRaw as Record<string, unknown>,
+		)) {
+			skippedByReason[key] = toFiniteNumber(value);
+		}
+	}
+
+	const topRejectionReasons: Record<string, number> = {};
+	const topRejectionRaw = summary.top_rejection_reasons;
+	if (topRejectionRaw && typeof topRejectionRaw === "object") {
+		for (const [key, value] of Object.entries(
+			topRejectionRaw as Record<string, unknown>,
+		)) {
+			topRejectionReasons[key] = toFiniteNumber(value);
+		}
+	}
+
+	const topFeedbackSuppressionReasons: Record<string, number> = {};
+	const topFeedbackRaw = summary.top_feedback_suppression_reasons;
+	if (topFeedbackRaw && typeof topFeedbackRaw === "object") {
+		for (const [key, value] of Object.entries(
+			topFeedbackRaw as Record<string, unknown>,
+		)) {
+			topFeedbackSuppressionReasons[key] = toFiniteNumber(value);
+		}
+	}
+
+	const autoPromotedPairs = Array.isArray(summary.auto_promoted_pairs)
+		? (summary.auto_promoted_pairs as unknown[]).map((value) => String(value))
+		: [];
+
+	const rejectedSeedRows = Array.isArray(summary.rejected_reverse_seeds)
+		? (summary.rejected_reverse_seeds as Array<Record<string, unknown>>)
+		: Array.isArray(summary.top_rejected_seeds)
+			? (summary.top_rejected_seeds as Array<Record<string, unknown>>)
+			: [];
+
+	const rejectedReverseSeeds = rejectedSeedRows.map((row) => ({
+		slug: String(row.slug ?? ""),
+		seedScore: toFiniteNumber(row.seed_score),
+		reason: String(row.reason ?? ""),
+	}));
+
+	return {
+		latestRunId:
+			latestDossier?.opportunity_id != null
+				? String(latestDossier.opportunity_id)
+				: null,
+		latestScanTimestamp:
+			latestDossier?.scan_timestamp != null
+				? String(latestDossier.scan_timestamp)
+				: null,
+		latestMetricsRunId:
+			discoveryDossier?.opportunity_id != null
+				? String(discoveryDossier.opportunity_id)
+				: null,
+		latestMetricsScanTimestamp:
+			discoveryDossier?.scan_timestamp != null
+				? String(discoveryDossier.scan_timestamp)
+				: null,
+		knownPairsChecked: toFiniteNumber(summary.known_pairs_checked),
+		reverseSeedsConsidered: toFiniteNumber(summary.reverse_seeds_considered),
+		reverseSeedsRejectedBeforeSearch: toFiniteNumber(
+			summary.reverse_seeds_rejected_before_search,
+		),
+		reverseSeedsScanned: toFiniteNumber(summary.reverse_seeds_scanned),
+		reverseMetaculusCandidatesConsidered: toFiniteNumber(
+			summary.reverse_metaculus_candidates_considered,
+		),
+		reverseVerifiedMatches: toFiniteNumber(summary.reverse_verified_matches),
+		reverseSeedsSuppressedByFeedback: toFiniteNumber(
+			summary.reverse_seeds_suppressed_by_feedback,
+		),
+		forwardQuestionsScanned: toFiniteNumber(summary.forward_questions_scanned),
+		autoPromotedPairs,
+		skippedByReason,
+		discoveryMethodCounts,
+		topRejectionReasons,
+		topFeedbackSuppressionReasons,
+		rejectedReverseSeeds,
+	};
 }
 
 function getSoftArbTrades(): {
@@ -286,14 +632,77 @@ function getSoftArbTrades(): {
 	outcomes: SoftArbOutcome[];
 	outcomeSummary: Record<string, unknown>;
 	calibration: SoftArbCalibration | null;
+	shield: SoftArbShieldState | null;
+	discovery: SoftArbDiscoverySummary;
 	lastUpdated: string | null;
 } {
-	const rawTrades = readJsonlSafe(SOFT_ARB_TRADES_PATH);
+	const rawTradesAll = readJsonlSafe(SOFT_ARB_TRADES_PATH);
+	// Deduplicate by trade_id (last-write-wins for append-only JSONL updates)
+	const tradeDedup = new Map<string, Record<string, unknown>>();
+	for (const t of rawTradesAll) {
+		const id = String(t.trade_id ?? "");
+		if (id) tradeDedup.set(id, t);
+	}
+	const rawTrades = Array.from(tradeDedup.values());
 	const rawOutcomes = readJsonlSafe(SOFT_ARB_OUTCOMES_PATH);
-	const calibration = readJsonSafe(SOFT_ARB_CALIBRATION_PATH) as SoftArbCalibration | null;
+	const calibration = readJsonSafe(
+		SOFT_ARB_CALIBRATION_PATH,
+	) as SoftArbCalibration | null;
+	const shieldRaw = readJsonSafe(SOFT_ARB_SHIELD_STATE_PATH);
+	const shieldTradeState = (shieldRaw?.trade_status ?? {}) as Record<
+		string,
+		Record<string, unknown>
+	>;
+	const shieldAlertsRaw = Array.isArray(shieldRaw?.open_trade_alerts)
+		? (shieldRaw?.open_trade_alerts as Array<Record<string, unknown>>)
+		: [];
+	const shield: SoftArbShieldState | null = shieldRaw
+		? {
+				generated_at:
+					shieldRaw.generated_at != null
+						? String(shieldRaw.generated_at)
+						: null,
+				coverage_scope:
+					shieldRaw.coverage_scope != null
+						? String(shieldRaw.coverage_scope)
+						: null,
+				watcher_status: String(shieldRaw.watcher_status ?? "down"),
+				ws_connected: Boolean(shieldRaw.ws_connected),
+				last_message_at:
+					shieldRaw.last_message_at != null
+						? String(shieldRaw.last_message_at)
+						: null,
+				tracked_coins: Array.isArray(shieldRaw.tracked_coins)
+					? (shieldRaw.tracked_coins as unknown[]).map((value) => String(value))
+					: [],
+				mapped_open_trade_count: Number(shieldRaw.mapped_open_trade_count ?? 0),
+				unmapped_open_trade_count: Number(
+					shieldRaw.unmapped_open_trade_count ?? 0,
+				),
+				open_trade_alerts: shieldAlertsRaw.map((row) => ({
+					trade_id: String(row.trade_id ?? ""),
+					polymarket_slug: String(row.polymarket_slug ?? ""),
+					pair: String(row.pair ?? ""),
+					opened_at: String(row.opened_at ?? ""),
+					shield_coin: row.shield_coin != null ? String(row.shield_coin) : null,
+					shield_state:
+						row.shield_state != null ? String(row.shield_state) : null,
+					shield_reason:
+						row.shield_reason != null ? String(row.shield_reason) : null,
+					shield_updated_at:
+						row.shield_updated_at != null
+							? String(row.shield_updated_at)
+							: null,
+				})),
+			}
+		: null;
 
 	// Read MTM sidecar if it exists
-	let mtm: { trades: Record<string, Record<string, unknown>>; summary: Record<string, unknown>; last_updated: string } | null = null;
+	let mtm: {
+		trades: Record<string, Record<string, unknown>>;
+		summary: Record<string, unknown>;
+		last_updated: string;
+	} | null = null;
 	if (fs.existsSync(SOFT_ARB_MTM_PATH)) {
 		try {
 			mtm = JSON.parse(fs.readFileSync(SOFT_ARB_MTM_PATH, "utf-8"));
@@ -306,10 +715,12 @@ function getSoftArbTrades(): {
 	const trades: SoftArbTrade[] = rawTrades.map((t) => {
 		const tradeId = String(t.trade_id ?? "");
 		const mtmData = mtm?.trades?.[tradeId];
+		const shieldData = shieldTradeState[tradeId];
 		return {
 			trade_id: tradeId,
 			pair: String(t.pair ?? ""),
 			signal_family: String(mtmData?.signal_family ?? getSignalFamily(t)),
+			signal_source: getSignalSource(t),
 			direction: String(t.direction ?? ""),
 			entry_price: Number(t.entry_price ?? 0),
 			position_size_usd: Number(t.position_size_usd ?? 0),
@@ -320,15 +731,40 @@ function getSoftArbTrades(): {
 			polymarket_slug: String(t.polymarket_slug ?? ""),
 			metaculus_id: Number(t.metaculus_id ?? 0),
 			status: String(mtmData?.status ?? t.status ?? "OPEN"),
-			current_price: mtmData?.current_price != null ? Number(mtmData.current_price) : null,
-			unrealized_pnl: mtmData?.unrealized_pnl != null ? Number(mtmData.unrealized_pnl) : null,
-			realized_pnl: mtmData?.realized_pnl != null ? Number(mtmData.realized_pnl) : null,
-			shadow_pnl: mtmData?.shadow_pnl != null ? Number(mtmData.shadow_pnl) : null,
+			current_price:
+				mtmData?.current_price != null ? Number(mtmData.current_price) : null,
+			unrealized_pnl:
+				mtmData?.unrealized_pnl != null ? Number(mtmData.unrealized_pnl) : null,
+			realized_pnl:
+				mtmData?.realized_pnl != null ? Number(mtmData.realized_pnl) : null,
+			shadow_pnl:
+				mtmData?.shadow_pnl != null ? Number(mtmData.shadow_pnl) : null,
 			ready_to_close: Boolean(mtmData?.ready_to_close),
-			fair_value: mtmData?.fair_value != null ? Number(mtmData.fair_value) : null,
-			exit_price: mtmData?.exit_price != null ? Number(mtmData.exit_price) : null,
-			resolved_outcome: mtmData?.resolved_outcome != null ? String(mtmData.resolved_outcome) : null,
-			event_slug: mtmData?.event_slug != null ? String(mtmData.event_slug) : null,
+			fair_value:
+				mtmData?.fair_value != null ? Number(mtmData.fair_value) : null,
+			exit_price:
+				mtmData?.exit_price != null ? Number(mtmData.exit_price) : null,
+			resolved_outcome:
+				mtmData?.resolved_outcome != null
+					? String(mtmData.resolved_outcome)
+					: null,
+			event_slug:
+				mtmData?.event_slug != null ? String(mtmData.event_slug) : null,
+			is_real: !!t.real_trade,
+			shield_coin:
+				shieldData?.shield_coin != null ? String(shieldData.shield_coin) : null,
+			shield_state:
+				shieldData?.shield_state != null
+					? String(shieldData.shield_state)
+					: null,
+			shield_reason:
+				shieldData?.shield_reason != null
+					? String(shieldData.shield_reason)
+					: null,
+			shield_updated_at:
+				shieldData?.shield_updated_at != null
+					? String(shieldData.shield_updated_at)
+					: null,
 		};
 	});
 
@@ -343,23 +779,39 @@ function getSoftArbTrades(): {
 			signal_source: String(row.signal_source ?? ""),
 			direction: String(row.direction ?? ""),
 			sample_key: String(row.sample_key ?? ""),
-			raw_edge_pct: row.raw_edge_pct != null ? normalizeSoftArbPct(row.raw_edge_pct) : null,
-			adjusted_edge_pct: row.adjusted_edge_pct != null ? normalizeSoftArbPct(row.adjusted_edge_pct) : null,
+			raw_edge_pct:
+				row.raw_edge_pct != null ? normalizeSoftArbPct(row.raw_edge_pct) : null,
+			adjusted_edge_pct:
+				row.adjusted_edge_pct != null
+					? normalizeSoftArbPct(row.adjusted_edge_pct)
+					: null,
 			entry_price: row.entry_price != null ? Number(row.entry_price) : null,
-			market_prob_side_at_entry: row.market_prob_side_at_entry != null ? Number(row.market_prob_side_at_entry) : null,
-			polymarket_price: row.polymarket_price != null ? Number(row.polymarket_price) : null,
-			signal_prob_yes: row.signal_prob_yes != null ? Number(row.signal_prob_yes) : null,
-			signal_prob_no: row.signal_prob_no != null ? Number(row.signal_prob_no) : null,
-			signal_prob_side: row.signal_prob_side != null ? Number(row.signal_prob_side) : null,
+			market_prob_side_at_entry:
+				row.market_prob_side_at_entry != null
+					? Number(row.market_prob_side_at_entry)
+					: null,
+			polymarket_price:
+				row.polymarket_price != null ? Number(row.polymarket_price) : null,
+			signal_prob_yes:
+				row.signal_prob_yes != null ? Number(row.signal_prob_yes) : null,
+			signal_prob_no:
+				row.signal_prob_no != null ? Number(row.signal_prob_no) : null,
+			signal_prob_side:
+				row.signal_prob_side != null ? Number(row.signal_prob_side) : null,
 			resolves_by: String(row.resolves_by ?? ""),
-			position_size_usd: row.position_size_usd != null ? Number(row.position_size_usd) : null,
+			position_size_usd:
+				row.position_size_usd != null ? Number(row.position_size_usd) : null,
 			shares: row.shares != null ? Number(row.shares) : null,
 			actual_outcome: String(row.actual_outcome ?? ""),
 			pnl_usd: Number(row.pnl_usd ?? 0),
 			edge_was_real: Boolean(row.edge_was_real),
+			is_real: !!row.real_trade,
 			notes: String(row.notes ?? ""),
 		}))
-		.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+		.sort(
+			(a, b) =>
+				new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+		);
 
 	// Summary: use MTM summary if available, else compute basic stats
 	const summary = mtm?.summary ?? {
@@ -379,7 +831,8 @@ function getSoftArbTrades(): {
 			acc.totalPnl += outcome.pnl_usd;
 			if (outcome.actual_outcome === "WIN") acc.wins += 1;
 			if (outcome.actual_outcome === "LOSS") acc.losses += 1;
-			if (outcome.adjusted_edge_pct != null) acc.totalAdjustedEdgePct += outcome.adjusted_edge_pct;
+			if (outcome.adjusted_edge_pct != null)
+				acc.totalAdjustedEdgePct += outcome.adjusted_edge_pct;
 			return acc;
 		},
 		{
@@ -412,6 +865,8 @@ function getSoftArbTrades(): {
 			avgAdjustedEdgePct: Math.round(avgAdjustedEdgePct * 100) / 100,
 		},
 		calibration,
+		shield,
+		discovery: getSoftArbDiscoverySummary(),
 		lastUpdated: mtm?.last_updated ?? null,
 	};
 }
@@ -536,9 +991,7 @@ function einsteinTodosPlugin() {
 							res.setHeader("Content-Type", "application/json");
 							res.end(JSON.stringify({ todos }));
 						} catch (err: unknown) {
-							if (
-								(err as NodeJS.ErrnoException).code === "ENOENT"
-							) {
+							if ((err as NodeJS.ErrnoException).code === "ENOENT") {
 								res.setHeader("Content-Type", "application/json");
 								res.end(
 									JSON.stringify({
@@ -555,20 +1008,13 @@ function einsteinTodosPlugin() {
 					}
 
 					// POST /api/todos/:blockId/complete
-					const completeMatch = url.match(
-						/^\/api\/todos\/([^/]+)\/complete$/,
-					);
+					const completeMatch = url.match(/^\/api\/todos\/([^/]+)\/complete$/);
 					if (method === "POST" && completeMatch) {
 						const blockId = completeMatch[1];
 						try {
-							const content = fs.readFileSync(
-								TASKS_PATH,
-								"utf-8",
-							);
+							const content = fs.readFileSync(TASKS_PATH, "utf-8");
 							const lines = content.split("\n");
-							const idx = lines.findIndex((l) =>
-								l.includes(`^${blockId}`),
-							);
+							const idx = lines.findIndex((l) => l.includes(`^${blockId}`));
 							if (idx === -1) {
 								res.statusCode = 404;
 								res.end("Block ID not found");
@@ -577,20 +1023,14 @@ function einsteinTodosPlugin() {
 							let line = lines[idx];
 							line = line.replace("- [ ]", "- [x]");
 							if (!line.includes("completed:")) {
-								const today = new Date()
-									.toISOString()
-									.slice(0, 10);
+								const today = new Date().toISOString().slice(0, 10);
 								line = line.replace(
 									/([ \t]*\^task-\S+)$/,
 									` | completed:${today}$1`,
 								);
 							}
 							lines[idx] = line;
-							fs.writeFileSync(
-								TASKS_PATH,
-								lines.join("\n"),
-								"utf-8",
-							);
+							fs.writeFileSync(TASKS_PATH, lines.join("\n"), "utf-8");
 							res.setHeader("Content-Type", "application/json");
 							res.end(JSON.stringify({ ok: true }));
 						} catch {
@@ -605,25 +1045,16 @@ function einsteinTodosPlugin() {
 					if (method === "DELETE" && deleteMatch) {
 						const blockId = deleteMatch[1];
 						try {
-							const content = fs.readFileSync(
-								TASKS_PATH,
-								"utf-8",
-							);
+							const content = fs.readFileSync(TASKS_PATH, "utf-8");
 							const lines = content.split("\n");
-							const idx = lines.findIndex((l) =>
-								l.includes(`^${blockId}`),
-							);
+							const idx = lines.findIndex((l) => l.includes(`^${blockId}`));
 							if (idx === -1) {
 								res.statusCode = 404;
 								res.end("Block ID not found");
 								return;
 							}
 							lines.splice(idx, 1);
-							fs.writeFileSync(
-								TASKS_PATH,
-								lines.join("\n"),
-								"utf-8",
-							);
+							fs.writeFileSync(TASKS_PATH, lines.join("\n"), "utf-8");
 							res.setHeader("Content-Type", "application/json");
 							res.end(JSON.stringify({ ok: true }));
 						} catch {

@@ -1,4 +1,10 @@
-import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
+import {
+	useState,
+	useRef,
+	useCallback,
+	useEffect,
+	type ReactNode,
+} from "react";
 
 interface PanZoomCanvasProps {
 	children: ReactNode;
@@ -25,7 +31,10 @@ export default function PanZoomCanvas({
 	// Measure the union bounding rect of all visible descendants (handles absolute positioning)
 	const measureFullBounds = useCallback((root: HTMLElement) => {
 		const elements = root.querySelectorAll("button, .org-layout-canvas");
-		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		let minX = Infinity,
+			minY = Infinity,
+			maxX = -Infinity,
+			maxY = -Infinity;
 		for (const el of elements) {
 			const r = el.getBoundingClientRect();
 			if (r.width === 0 && r.height === 0) continue;
@@ -107,7 +116,12 @@ export default function PanZoomCanvas({
 		(e: React.MouseEvent) => {
 			if (e.button !== 0) return;
 			setIsPointerDown(true);
-			dragStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
+			dragStart.current = {
+				x: e.clientX,
+				y: e.clientY,
+				panX: pan.x,
+				panY: pan.y,
+			};
 		},
 		[pan],
 	);
@@ -119,7 +133,10 @@ export default function PanZoomCanvas({
 			const dy = e.clientY - dragStart.current.y;
 			if (!isDragging && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
 			if (!isDragging) setIsDragging(true);
-			setPan({ x: dragStart.current.panX + dx, y: dragStart.current.panY + dy });
+			setPan({
+				x: dragStart.current.panX + dx,
+				y: dragStart.current.panY + dy,
+			});
 		},
 		[isPointerDown, isDragging],
 	);
@@ -130,14 +147,21 @@ export default function PanZoomCanvas({
 	}, []);
 
 	// Touch drag + pinch zoom
-	const lastTouches = useRef<{ x: number; y: number; dist?: number } | null>(null);
+	const lastTouches = useRef<{ x: number; y: number; dist?: number } | null>(
+		null,
+	);
 
 	const handleTouchStart = useCallback(
 		(e: React.TouchEvent) => {
 			if (e.touches.length === 1) {
 				const t = e.touches[0];
 				lastTouches.current = { x: t.clientX, y: t.clientY };
-				dragStart.current = { x: t.clientX, y: t.clientY, panX: pan.x, panY: pan.y };
+				dragStart.current = {
+					x: t.clientX,
+					y: t.clientY,
+					panX: pan.x,
+					panY: pan.y,
+				};
 			} else if (e.touches.length === 2) {
 				const dx = e.touches[0].clientX - e.touches[1].clientX;
 				const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -158,7 +182,10 @@ export default function PanZoomCanvas({
 				const t = e.touches[0];
 				const dx = t.clientX - dragStart.current.x;
 				const dy = t.clientY - dragStart.current.y;
-				setPan({ x: dragStart.current.panX + dx, y: dragStart.current.panY + dy });
+				setPan({
+					x: dragStart.current.panX + dx,
+					y: dragStart.current.panY + dy,
+				});
 			} else if (e.touches.length === 2 && lastTouches.current?.dist) {
 				const dx = e.touches[0].clientX - e.touches[1].clientX;
 				const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -233,7 +260,16 @@ export default function PanZoomCanvas({
 					className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-muted text-foreground/70 hover:text-foreground transition-colors"
 					title="Fit to view"
 				>
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+					<svg
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+					>
 						<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
 					</svg>
 				</button>

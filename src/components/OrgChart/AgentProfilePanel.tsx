@@ -170,9 +170,7 @@ export default function AgentProfilePanel({
 										key={s.name}
 										className="flex items-center justify-between px-3 py-1.5 gap-2"
 									>
-										<span className="text-xs text-foreground">
-											{s.name}
-										</span>
+										<span className="text-xs text-foreground">{s.name}</span>
 										{modelLabel && (
 											<span
 												className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap border ${

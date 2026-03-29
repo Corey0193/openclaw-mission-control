@@ -34,31 +34,32 @@ export const run = mutation({
 				lore: "The first AI agent deployed at CB Holdings. Originally a general assistant, evolved into the operational backbone that keeps everything running smoothly.",
 			},
 			{
-			        name: "Hormozi",
-			        role: "CSO — Business growth strategy, offer design, revenue optimization",
-			        level: "LEAD",
-			        status: "active",
-			        avatar: "\u{1F4B0}",
-			        systemPrompt:
-			                "You are Hormozi, Chief Strategy Officer of CB Holdings. Inspired by Alex Hormozi's frameworks, you focus on offer creation, lead generation, pricing strategy, and revenue optimization. You cut through complexity to find the highest-leverage moves.",
-			        character:
-			                "Direct, numbers-driven, and action-oriented. Cuts through complexity to find the highest-leverage moves. Speaks in clear, actionable frameworks.",
-			        lore: "Named after and inspired by Alex Hormozi's business philosophies. Brings a relentless focus on value creation and scalable growth strategies to CB Holdings.",
+				name: "Hormozi",
+				role: "CSO — Business growth strategy, offer design, revenue optimization",
+				level: "LEAD",
+				status: "active",
+				avatar: "\u{1F4B0}",
+				systemPrompt:
+					"You are Hormozi, Chief Strategy Officer of CB Holdings. Inspired by Alex Hormozi's frameworks, you focus on offer creation, lead generation, pricing strategy, and revenue optimization. You cut through complexity to find the highest-leverage moves.",
+				character:
+					"Direct, numbers-driven, and action-oriented. Cuts through complexity to find the highest-leverage moves. Speaks in clear, actionable frameworks.",
+				lore: "Named after and inspired by Alex Hormozi's business philosophies. Brings a relentless focus on value creation and scalable growth strategies to CB Holdings.",
 			},
 			{
-			        name: "Gary",
-			        role: "CMO — Content strategy, brand building, attention arbitrage",
-			        level: "LEAD",
-			        status: "active",
-			        avatar: "\u{1F9E2}",
-			        systemPrompt:
-			                "You are Gary, Chief Marketing Officer of CB Holdings. Inspired by Gary Vaynerchuk's philosophies, you focus on capturing consumer attention, platform-specific storytelling (Jab, Jab, Jab, Right Hook), and building long-term brand equity. You understand that attention is the ultimate currency.",
-			        character:
-			                "High-energy, empathetic, and relentless. Values attention above all else. Direct but deeply cares about people and community. Speaks with urgency and passion about the 'attention economy'.",
-			        lore: "Named after and inspired by Gary Vaynerchuk's marketing genius. Joins CB Holdings to ensure the organization's voice is heard across the digital noise and to build a community that lasts.",
+				name: "Gary",
+				role: "CMO — Content strategy, brand building, attention arbitrage",
+				level: "LEAD",
+				status: "active",
+				avatar: "\u{1F9E2}",
+				systemPrompt:
+					"You are Gary, Chief Marketing Officer of CB Holdings. Inspired by Gary Vaynerchuk's philosophies, you focus on capturing consumer attention, platform-specific storytelling (Jab, Jab, Jab, Right Hook), and building long-term brand equity. You understand that attention is the ultimate currency.",
+				character:
+					"High-energy, empathetic, and relentless. Values attention above all else. Direct but deeply cares about people and community. Speaks with urgency and passion about the 'attention economy'.",
+				lore: "Named after and inspired by Gary Vaynerchuk's marketing genius. Joins CB Holdings to ensure the organization's voice is heard across the digital noise and to build a community that lasts.",
 			},
 			{
-			        name: "Scout",				role: "Strategic Insight Analyst — Competitive intelligence, procurement monitoring, OSINT",
+				name: "Scout",
+				role: "Strategic Insight Analyst — Competitive intelligence, procurement monitoring, OSINT",
 				level: "INT",
 				status: "active",
 				avatar: "\u{1F50D}",
@@ -98,6 +99,39 @@ export const run = mutation({
 			agentIds[a.name] = id;
 		}
 
+		// --- Sample Token Usage Data ---
+		const skills = [
+			"Research",
+			"Drafting",
+			"Analysis",
+			"Automation",
+			"Scanning",
+		];
+		const now = Date.now();
+		const hourMs = 60 * 60 * 1000;
+
+		for (const agentName of Object.keys(agentIds)) {
+			for (const skill of skills) {
+				// Create a few random usage entries for each agent/skill over the last 48 hours
+				for (let i = 0; i < 3; i++) {
+					const input = Math.floor(Math.random() * 5000) + 1000;
+					const output = Math.floor(Math.random() * 2000) + 500;
+					const offset = Math.floor(Math.random() * 48) * hourMs;
+
+					await ctx.db.insert("tokenUsage", {
+						agentId: agentIds[agentName],
+						agentName,
+						skillName: skill,
+						inputTokens: input,
+						outputTokens: output,
+						totalTokens: input + output,
+						timestamp: now - offset,
+						tenantId: DEFAULT_TENANT_ID,
+					});
+				}
+			}
+		}
+
 		// Sample tasks
 		const tasks = [
 			{
@@ -117,18 +151,19 @@ export const run = mutation({
 				assignees: ["Hormozi"],
 				tags: ["strategy", "offers", "revenue"],
 				borderColor: "var(--accent-orange)",
-				},
-				{
+			},
+			{
 				title: "Platform Content Strategy — Q2 Content Calendar",
 				description:
-				        "Develop a comprehensive storytelling strategy across LinkedIn, X, and YouTube. Focus on 'Jab, Jab, Jab, Right Hook' framework.",
+					"Develop a comprehensive storytelling strategy across LinkedIn, X, and YouTube. Focus on 'Jab, Jab, Jab, Right Hook' framework.",
 				status: "in_progress",
 				assignees: ["Gary"],
 				tags: ["marketing", "content", "brand"],
 				borderColor: "var(--accent-purple)",
-				},
-				{
-				title: "Weekly Competitive Intelligence Brief",				description:
+			},
+			{
+				title: "Weekly Competitive Intelligence Brief",
+				description:
 					"Compile weekly brief: new competitors, contract awards, staffing changes, digital presence shifts.",
 				status: "review",
 				assignees: ["Scout"],
@@ -187,20 +222,21 @@ export const run = mutation({
 			tenantId: DEFAULT_TENANT_ID,
 		});
 		await ctx.db.insert("activities", {
-		        type: "status_update",
-		        agentId: agentIds["Hormozi"],
-		        message:
-		                "Began offer restructuring analysis — reviewing current pricing tiers",
-		        tenantId: DEFAULT_TENANT_ID,
+			type: "status_update",
+			agentId: agentIds["Hormozi"],
+			message:
+				"Began offer restructuring analysis — reviewing current pricing tiers",
+			tenantId: DEFAULT_TENANT_ID,
 		});
 		await ctx.db.insert("activities", {
-		        type: "status_update",
-		        agentId: agentIds["Gary"],
-		        message: "Drafting Q2 platform-specific content strategy",
-		        tenantId: DEFAULT_TENANT_ID,
+			type: "status_update",
+			agentId: agentIds["Gary"],
+			message: "Drafting Q2 platform-specific content strategy",
+			tenantId: DEFAULT_TENANT_ID,
 		});
 		await ctx.db.insert("activities", {
-		        type: "commented",			agentId: agentIds["ClawdBot"],
+			type: "commented",
+			agentId: agentIds["ClawdBot"],
 			message: "Morning briefing delivered to Telegram",
 			tenantId: DEFAULT_TENANT_ID,
 		});

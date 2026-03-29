@@ -25,7 +25,7 @@ export const updateStatus = mutation({
 		const agent = await ctx.db.get("agents", args.id);
 		assertTenant(agent, args.tenantId, "Agent");
 
-		await ctx.db.patch(args.id, { status: args.status });
+		await ctx.db.patch("agents", args.id, { status: args.status });
 	},
 });
 
@@ -89,7 +89,7 @@ export const updateAgent = mutation({
 			}
 		}
 
-		await ctx.db.patch(id, filteredUpdates);
+		await ctx.db.patch("agents", id, filteredUpdates);
 	},
 });
 
@@ -98,6 +98,6 @@ export const deleteAgent = mutation({
 	handler: async (ctx, args) => {
 		const agent = await ctx.db.get("agents", args.id);
 		assertTenant(agent, args.tenantId, "Agent");
-		await ctx.db.delete(args.id);
+		await ctx.db.delete("agents", args.id);
 	},
 });

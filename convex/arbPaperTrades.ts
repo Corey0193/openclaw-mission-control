@@ -11,8 +11,15 @@ const bookLevelValidator = v.object({
 	size: v.string(),
 });
 
+const tradeTypeValidator = v.union(
+	v.literal("spread"),
+	v.literal("complement_lock"),
+	v.literal("market_making"),
+);
+
 export const insertPaperTrade = mutation({
 	args: {
+		tradeType: v.optional(tradeTypeValidator),
 		pairName: v.string(),
 		makerExchange: v.string(),
 		takerExchange: v.string(),
@@ -31,17 +38,22 @@ export const insertPaperTrade = mutation({
 		epochMs: v.number(),
 		confidence: v.optional(v.union(v.literal("HIGH"), v.literal("LOW"))),
 		tenantId: v.optional(v.string()),
-		status: v.optional(v.union(
-			v.literal("PAPER_FILL"),
-			v.literal("PAPER_TIMEOUT"),
-			v.literal("PAPER_FOK_FAILED"),
-		)),
+		status: v.optional(
+			v.union(
+				v.literal("PAPER_FILL"),
+				v.literal("PAPER_TIMEOUT"),
+				v.literal("PAPER_FOK_FAILED"),
+				v.literal("RESOLVED_WIN"),
+				v.literal("RESOLVED_LOSS"),
+			),
+		),
 		simulation: v.optional(v.any()),
 	},
 	returns: v.null(),
 	handler: async (ctx, args) => {
 		await ctx.db.insert("arbPaperTrades", {
 			...args,
+			tradeType: args.tradeType ?? "spread",
 			tenantId: args.tenantId ?? "default",
 			confidence: args.confidence ?? "HIGH",
 			status: args.status ?? "PAPER_FILL",
@@ -87,6 +99,11 @@ export const getPaperTradeSummary = query({
 		let lowConfPnl = 0;
 
 		for (const t of trades) {
+			const tradeType = t.tradeType ?? "spread";
+			if (tradeType === "market_making") {
+				continue;
+			}
+
 			totalTrades++;
 			projectedPnl += t.netProfit;
 
@@ -116,9 +133,8 @@ export const getPaperTradeSummary = query({
 
 		const resolved = wins + losses;
 		const winRate = resolved > 0 ? wins / resolved : 0;
-		const fillRate = totalTrades > 0
-			? (totalTrades - timeouts - fokFails) / totalTrades
-			: 0;
+		const fillRate =
+			totalTrades > 0 ? (totalTrades - timeouts - fokFails) / totalTrades : 0;
 
 		return {
 			totalTrades,
@@ -162,7 +178,7 @@ export const clearAllPaperTrades = mutation({
 			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
 			.collect();
 		for (const t of trades) {
-			await ctx.db.delete(t._id);
+			await ctx.db.delete("arbPaperTrades", t._id);
 		}
 		return trades.length;
 	},
@@ -177,7 +193,7 @@ export const resolvePaperTrade = internalMutation({
 	},
 	returns: v.null(),
 	handler: async (ctx, args) => {
-		await ctx.db.patch(args.id, {
+		await ctx.db.patch("arbPaperTrades", args.id, {
 			status: args.status,
 			resolvedAt: args.resolvedAt,
 			actualPnl: args.actualPnl,

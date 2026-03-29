@@ -28,7 +28,7 @@ export const upsertDaemonStatus = mutation({
 		};
 
 		if (existing) {
-			await ctx.db.patch(existing._id, {
+			await ctx.db.patch("arbDaemonStatus", existing._id, {
 				...base,
 				// Only overwrite startedAt on explicit "started" event
 				...(args.event === "started" ? { startedAt: now } : {}),

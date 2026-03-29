@@ -39,10 +39,9 @@ export const refreshPrices = internalAction({
 	args: {},
 	returns: v.null(),
 	handler: async (ctx) => {
-		const data = await ctx.runQuery(
-			internal.polymarket.getPositionsInternal,
-			{ tenantId: "default" },
-		);
+		const data = await ctx.runQuery(internal.polymarket.getPositionsInternal, {
+			tenantId: "default",
+		});
 		if (!data) return null;
 
 		const walletAddress = data.walletAddress;
@@ -52,9 +51,7 @@ export const refreshPrices = internalAction({
 			fetch(
 				`${DATA_API}/positions?user=${walletAddress}&sizeThreshold=0&limit=500`,
 			),
-			fetch(
-				`${DATA_API}/trades?user=${walletAddress}&limit=10000`,
-			),
+			fetch(`${DATA_API}/trades?user=${walletAddress}&limit=10000`),
 			fetchUsdcBalance(walletAddress),
 		]);
 
@@ -96,8 +93,7 @@ export const refreshPrices = internalAction({
 		let totalCurrentValue = 0;
 
 		const positions = rawPositions.map((p) => {
-			const resolved =
-				p.redeemable || p.curPrice >= 0.99 || p.curPrice <= 0.01;
+			const resolved = p.redeemable || p.curPrice >= 0.99 || p.curPrice <= 0.01;
 			const currentValue = p.size * p.curPrice;
 			const costBasis = p.initialValue;
 			const payout = p.size;
@@ -147,9 +143,7 @@ export const refreshPrices = internalAction({
 		const trades = rawTrades
 			.filter((t) => t.timestamp * 1000 >= TRADE_CUTOFF_MS)
 			.map((t) => ({
-				id:
-					t.transactionHash ||
-					`${t.conditionId}-${t.timestamp}`,
+				id: t.transactionHash || `${t.conditionId}-${t.timestamp}`,
 				market: t.conditionId,
 				marketQuestion: t.title,
 				side: t.side,

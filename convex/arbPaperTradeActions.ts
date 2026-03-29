@@ -26,9 +26,7 @@ export const checkResolutions = internalAction({
 			try {
 				const resp = await fetch(`${LIMITLESS_API}/markets/${slug}`);
 				if (!resp.ok) {
-					console.warn(
-						`Limitless API returned ${resp.status} for ${slug}`,
-					);
+					console.warn(`Limitless API returned ${resp.status} for ${slug}`);
 					continue;
 				}
 				const market = await resp.json();

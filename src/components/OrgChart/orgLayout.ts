@@ -143,7 +143,12 @@ function placeSubtree(
 export function computeLayout(): OrgLayout {
 	const root = ORG_MEMBERS.find((m) => m.reportsTo === null && !m.assistantTo);
 	if (!root) {
-		return { nodes: new Map(), canvasWidth: 0, canvasHeight: 0, connectors: [] };
+		return {
+			nodes: new Map(),
+			canvasWidth: 0,
+			canvasHeight: 0,
+			connectors: [],
+		};
 	}
 
 	const leftAsstList = getAssistants(root.id).filter(

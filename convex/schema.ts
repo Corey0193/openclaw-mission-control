@@ -115,6 +115,13 @@ export default defineSchema({
 		count: v.number(),
 	}).index("by_tenant", ["tenantId"]),
 	arbPaperTrades: defineTable({
+		tradeType: v.optional(
+			v.union(
+				v.literal("spread"),
+				v.literal("complement_lock"),
+				v.literal("market_making"),
+			),
+		),
 		pairName: v.string(),
 		makerExchange: v.string(),
 		takerExchange: v.string(),
@@ -124,8 +131,12 @@ export default defineSchema({
 		takerPrice: v.number(),
 		viableSize: v.number(),
 		netProfit: v.number(),
-		polyBookSnapshot: v.array(v.object({ price: v.string(), size: v.string() })),
-		lmtsBookSnapshot: v.array(v.object({ price: v.string(), size: v.string() })),
+		polyBookSnapshot: v.array(
+			v.object({ price: v.string(), size: v.string() }),
+		),
+		lmtsBookSnapshot: v.array(
+			v.object({ price: v.string(), size: v.string() }),
+		),
 		tokenId: v.string(),
 		lmtsSlug: v.string(),
 		lmtsOutcomeIndex: v.number(),
@@ -148,17 +159,25 @@ export default defineSchema({
 		.index("by_tenant_status", ["tenantId", "status"])
 		.index("by_tenant_epochMs", ["tenantId", "epochMs"]),
 	arbDaemonStatus: defineTable({
-		tenantId: v.string(),
-		running: v.boolean(),
-		mode: v.string(),
-		processCount: v.number(),
-		pid: v.optional(v.number()),
-		startedAt: v.optional(v.number()),
-		lastHeartbeatAt: v.number(),
-		event: v.string(),
+	        tenantId: v.string(),
+	        running: v.boolean(),
+	        mode: v.string(),
+	        processCount: v.number(),
+	        pid: v.optional(v.number()),
+	        startedAt: v.optional(v.number()),
+	        lastHeartbeatAt: v.number(),
+	        event: v.string(),
 	}).index("by_tenant", ["tenantId"]),
-	polymarketPositions: defineTable({
-		walletAddress: v.string(),
+	walletIngestorStatus: defineTable({
+	        tenantId: v.string(),
+	        running: v.boolean(),
+	        pid: v.optional(v.number()),
+	        walletCount: v.number(),
+	        tradeCount: v.number(),
+	        lastHeartbeatAt: v.number(),
+	        status: v.string(), -- "active", "idle", "error"
+	}).index("by_tenant", ["tenantId"]),
+	polymarketPositions: defineTable({		walletAddress: v.string(),
 		balanceUsdc: v.number(),
 		positions: v.array(
 			v.object({
@@ -200,4 +219,18 @@ export default defineSchema({
 		lastSyncedAt: v.number(),
 		tenantId: v.optional(v.string()),
 	}).index("by_tenant", ["tenantId"]),
+	tokenUsage: defineTable({
+		agentId: v.optional(v.id("agents")),
+		agentName: v.string(),
+		skillName: v.string(),
+		inputTokens: v.number(),
+		outputTokens: v.number(),
+		totalTokens: v.number(),
+		timestamp: v.number(),
+		runId: v.optional(v.string()),
+		tenantId: v.optional(v.string()),
+	})
+		.index("by_tenant_timestamp", ["tenantId", "timestamp"])
+		.index("by_agent_timestamp", ["agentId", "timestamp"])
+		.index("by_agent_skill", ["agentName", "skillName"]),
 });

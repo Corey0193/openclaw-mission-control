@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import Header from "../components/Header";
-import { IconRefresh, IconTrash, IconUser, IconAlertCircle } from "@tabler/icons-react";
+import {
+	IconRefresh,
+	IconTrash,
+	IconUser,
+	IconAlertCircle,
+} from "@tabler/icons-react";
 
 interface Todo {
 	blockId: string;
@@ -125,7 +130,8 @@ function SectionHeader({
 				className="w-[3px] h-[14px] rounded-full shrink-0"
 				style={{ backgroundColor: meta.color }}
 			/>
-			<span className="text-[11px] font-bold tracking-widest uppercase"
+			<span
+				className="text-[11px] font-bold tracking-widest uppercase"
 				style={{ color: meta.color }}
 			>
 				{meta.label}
@@ -149,6 +155,7 @@ interface TodoItemProps {
 	isStaleDelegate: boolean;
 	onComplete: () => void;
 	onDelete: () => void;
+	compact?: boolean;
 }
 
 function TodoItem({
@@ -157,6 +164,7 @@ function TodoItem({
 	isStaleDelegate,
 	onComplete,
 	onDelete,
+	compact = false,
 }: TodoItemProps) {
 	const priority = PRIORITY_CONFIG[todo.priority] ?? PRIORITY_CONFIG.P3;
 	const dueBadge = todo.due ? getDueBadge(todo.due) : null;
@@ -164,9 +172,11 @@ function TodoItem({
 
 	return (
 		<div
-			className={`group flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all duration-150 ${
-				isPending ? "opacity-40 pointer-events-none" : ""
-			} ${
+			className={`group flex items-center gap-2.5 rounded-lg border transition-all duration-150 ${
+				compact
+					? "px-2 py-1.5 opacity-60 text-[13px] scale-[0.99] origin-left bg-muted/20"
+					: "px-3 py-2"
+			} ${isPending ? "opacity-40 pointer-events-none" : ""} ${
 				isStaleDelegate
 					? "bg-orange-50/60 border-orange-200/70"
 					: "border-transparent hover:bg-muted/50 hover:border-border/50"
@@ -186,9 +196,7 @@ function TodoItem({
 			<span
 				className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 leading-none"
 				style={{
-					backgroundColor: isCompleted
-						? "var(--muted)"
-						: priority.bg,
+					backgroundColor: isCompleted ? "var(--muted)" : priority.bg,
 					color: isCompleted ? "var(--muted-foreground)" : priority.text,
 				}}
 			>
@@ -198,9 +206,7 @@ function TodoItem({
 			{/* Description */}
 			<span
 				className={`text-sm flex-1 leading-snug ${
-					isCompleted
-						? "line-through text-muted-foreground"
-						: "text-foreground"
+					isCompleted ? "line-through text-muted-foreground" : "text-foreground"
 				}`}
 			>
 				{todo.description}
@@ -243,6 +249,108 @@ function TodoItem({
 			>
 				<IconTrash size={13} />
 			</button>
+		</div>
+	);
+}
+
+function TodoSection({
+	sectionKey,
+	todos,
+	pendingActions,
+	onComplete,
+	onDelete,
+}: {
+	sectionKey: SectionKey;
+	todos: Todo[];
+	pendingActions: Set<string>;
+	onComplete: (id: string) => void;
+	onDelete: (id: string) => void;
+}) {
+	const [showChecked, setShowChecked] = useState(false);
+	// eslint-disable-next-line react-hooks/purity
+	const now = Date.now();
+	const meta = SECTION_META[sectionKey];
+
+	// Ensure main completed section behaves fully transparently
+	const isCompletedSection = sectionKey === "completed";
+	const activeTasks = isCompletedSection ? [] : todos.filter((t) => !t.checked);
+	const checkedTasks = isCompletedSection
+		? todos
+		: todos.filter((t) => t.checked);
+
+	return (
+		<div>
+			<SectionHeader sectionKey={sectionKey} count={todos.length} />
+			<div
+				className="mb-2 h-px"
+				style={{
+					background: `linear-gradient(to right, ${meta.color}30, transparent)`,
+				}}
+			/>
+
+			{todos.length === 0 ? (
+				<p className="text-xs text-muted-foreground pl-5 py-1">
+					{meta.emptyText}
+				</p>
+			) : (
+				<div className="space-y-0.5">
+					{/* Active tasks */}
+					{activeTasks.map((todo) => {
+						const isPending = pendingActions.has(todo.blockId);
+						const isStaleDelegate =
+							sectionKey === "waiting" &&
+							!!todo.delegatedAt &&
+							(now - new Date(todo.delegatedAt).getTime()) / 86400000 >= 5;
+
+						return (
+							<TodoItem
+								key={todo.blockId}
+								todo={todo}
+								isPending={isPending}
+								isStaleDelegate={isStaleDelegate}
+								onComplete={() => onComplete(todo.blockId)}
+								onDelete={() => onDelete(todo.blockId)}
+							/>
+						);
+					})}
+
+					{/* Checked tasks toggle & list */}
+					{checkedTasks.length > 0 && !isCompletedSection && (
+						<div className="pt-2 pb-1 pl-2">
+							<button
+								type="button"
+								onClick={() => setShowChecked(!showChecked)}
+								className="text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 px-2 py-1 rounded transition-colors flex items-center gap-1.5"
+							>
+								<span className="opacity-70">{showChecked ? "▼" : "▶"}</span>
+								{showChecked ? "Hide" : "Show"} {checkedTasks.length} completed{" "}
+								{checkedTasks.length === 1 ? "task" : "tasks"}
+							</button>
+						</div>
+					)}
+
+					{(!isCompletedSection ? showChecked : true) &&
+						checkedTasks.map((todo) => {
+							const isPending = pendingActions.has(todo.blockId);
+							const isStaleDelegate =
+								sectionKey === "waiting" &&
+								!!todo.delegatedAt &&
+								(now - new Date(todo.delegatedAt).getTime()) / 86400000 >= 5;
+
+							return (
+								<TodoItem
+									key={todo.blockId}
+									todo={todo}
+									isPending={isPending}
+									isStaleDelegate={isStaleDelegate}
+									onComplete={() => onComplete(todo.blockId)}
+									onDelete={() => onDelete(todo.blockId)}
+									compact={!isCompletedSection}
+								/>
+							);
+						})}
+				</div>
+			)}
 		</div>
 	);
 }
@@ -417,9 +525,11 @@ export default function EinsteinTodosPage() {
 										<div className="w-5 h-3 rounded-full bg-muted animate-pulse" />
 									</div>
 									<div className="space-y-0.5">
-										{[55, 75, 45].slice(0, sk === "active" ? 3 : sk === "waiting" ? 2 : 1).map((w, i) => (
-											<SkeletonRow key={i} width={`${w}%`} />
-										))}
+										{[55, 75, 45]
+											.slice(0, sk === "active" ? 3 : sk === "waiting" ? 2 : 1)
+											.map((w, i) => (
+												<SkeletonRow key={i} width={`${w}%`} />
+											))}
 									</div>
 								</div>
 							))}
@@ -452,53 +562,16 @@ export default function EinsteinTodosPage() {
 								const sectionTodos = todos.filter(
 									(t) => t.section === sectionKey,
 								);
-								const meta = SECTION_META[sectionKey];
 
 								return (
-									<div key={sectionKey}>
-										<SectionHeader
-											sectionKey={sectionKey}
-											count={sectionTodos.length}
-										/>
-
-										{/* Thin rule under header */}
-										<div
-											className="mb-2 h-px"
-											style={{
-												background: `linear-gradient(to right, ${meta.color}30, transparent)`,
-											}}
-										/>
-
-										{sectionTodos.length === 0 ? (
-											<p className="text-xs text-muted-foreground pl-5 py-1">
-												{meta.emptyText}
-											</p>
-										) : (
-											<div className="space-y-0.5">
-												{sectionTodos.map((todo) => {
-													const isPending = pendingActions.has(todo.blockId);
-													const isStaleDelegate =
-														sectionKey === "waiting" &&
-														!!todo.delegatedAt &&
-														(Date.now() -
-															new Date(todo.delegatedAt).getTime()) /
-															86400000 >=
-															5;
-
-													return (
-														<TodoItem
-															key={todo.blockId}
-															todo={todo}
-															isPending={isPending}
-															isStaleDelegate={isStaleDelegate}
-															onComplete={() => void handleComplete(todo.blockId)}
-															onDelete={() => void handleDelete(todo.blockId)}
-														/>
-													);
-												})}
-											</div>
-										)}
-									</div>
+									<TodoSection
+										key={sectionKey}
+										sectionKey={sectionKey}
+										todos={sectionTodos}
+										pendingActions={pendingActions}
+										onComplete={(id) => void handleComplete(id)}
+										onDelete={(id) => void handleDelete(id)}
+									/>
 								);
 							})}
 
@@ -510,7 +583,12 @@ export default function EinsteinTodosPage() {
 										{waitingTodos.length} waiting
 									</span>
 									<span className="text-[11px] text-muted-foreground">
-										{todos.filter((t) => t.checked || t.section === "completed").length} done
+										{
+											todos.filter(
+												(t) => t.checked || t.section === "completed",
+											).length
+										}{" "}
+										done
 									</span>
 								</div>
 							)}
