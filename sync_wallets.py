@@ -4,7 +4,7 @@ import httpx
 import json
 
 DB_PATH = os.path.expanduser('~/.openclaw/workspace-radar/wallet-intel/radar-intel.db')
-UPSERT_URL = "http://127.0.0.1:3211/wallet/upsert" # Mission Control endpoint (via local proxy if needed)
+UPSERT_URL = "http://127.0.0.1:3211/wallet/upsert" # Mission Control endpoint
 
 def sync():
     if not os.path.exists(DB_PATH):
@@ -22,8 +22,8 @@ def sync():
 
     synced = 0
     for w in wallets:
-        # Use address as fallback if username column is missing (which it is)
-        username = w['address'][:8] + "..." # Fallback for display
+        # Use full address if username is missing to ensure valid URLs
+        username = w['address']
         
         payload = {
             "address": w['address'],

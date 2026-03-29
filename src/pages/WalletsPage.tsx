@@ -201,14 +201,21 @@ export default function WalletsPage() {
 												className="hover:bg-muted/20 transition-colors group"
 											>
 												<td className="px-6 py-4">
-													<div className="flex flex-col">
+													<a
+														href={`https://polymarket.com/@${w.username || w.address}`}
+														target="_blank"
+														rel="noopener noreferrer"
+														className="flex flex-col hover:opacity-70 transition-opacity"
+													>
 														<span className="font-bold text-foreground">
-															{w.username || "Anonymous"}
+															{w.username === w.address
+																? w.address.slice(0, 8) + "..."
+																: w.username || "Anonymous"}
 														</span>
 														<code className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded w-fit mt-1 group-hover:bg-muted group-hover:text-foreground transition-colors">
-															{w.address}
+															{w.address.slice(0, 6)}...{w.address.slice(-4)}
 														</code>
-													</div>
+													</a>
 												</td>
 												<td className="px-6 py-4">
 													<div className="flex flex-wrap gap-2">
