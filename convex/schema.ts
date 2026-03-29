@@ -237,12 +237,14 @@ export default defineSchema({
 	        username: v.optional(v.string()),
 	        totalPnl: v.number(),
 	        performanceScore: v.number(),
+	        winRate: v.optional(v.union(v.number(), v.null())),
+	        tradeCount: v.optional(v.union(v.number(), v.null())),
+	        firstTradeAt: v.optional(v.union(v.string(), v.null())),
 	        isInsider: v.boolean(),
 	        lastSyncedAt: v.number(),
 	        tags: v.array(v.string()),
 	        tenantId: v.optional(v.string()),
-	})
-	        .index("by_tenant", ["tenantId"])
+	})	        .index("by_tenant", ["tenantId"])
 	        .index("by_address", ["address"])
 	        .index("by_pnl", ["totalPnl"])
 	        .index("by_score", ["performanceScore"]),

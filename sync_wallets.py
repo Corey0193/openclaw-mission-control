@@ -30,6 +30,9 @@ def sync():
             "username": username,
             "totalPnl": w['pnl'] or 0,
             "performanceScore": w['insider_confidence_score'] or 0,
+            "winRate": w['win_rate'],
+            "tradeCount": w['trade_count'],
+            "firstTradeAt": w['first_trade_at'],
             "isInsider": True if w['classification'] == 'insider_suspect' else False,
             "tags": [w['classification']] if w['classification'] else [],
             "tenantId": "default"
