@@ -717,7 +717,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 											{String(scanStatsScanned)} scanned, {String(scanStatsMatched)} matched, {String(scanStatsAboveThresh)} above threshold
 										</div>
 									)}
-									{dossier.raymond_note && (
+									{dossier.raymond_note && String(dossier.raymond_note) && (
 										<div className="text-muted-foreground text-[11px] mt-1 leading-relaxed">
 											{safeStr(dossier.raymond_note)}
 										</div>
