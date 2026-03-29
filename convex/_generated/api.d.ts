@@ -26,6 +26,7 @@ import type * as seed from "../seed.js";
 import type * as tasks from "../tasks.js";
 import type * as tokens from "../tokens.js";
 import type * as walletIngestor from "../walletIngestor.js";
+import type * as wallets from "../wallets.js";
 
 import type {
   ApiFromModules,
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   tasks: typeof tasks;
   tokens: typeof tokens;
   walletIngestor: typeof walletIngestor;
+  wallets: typeof wallets;
 }>;
 
 /**
