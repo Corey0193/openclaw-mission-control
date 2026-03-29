@@ -375,11 +375,11 @@ export default function WalletsPage() {
 												</td>
 												<td className="px-6 py-4 text-right">
 													<span className={`font-bold ${w.winRate && w.winRate >= 0.6 ? 'text-emerald-600' : 'text-foreground'}`}>
-														{w.winRate ? (w.winRate * 100).toFixed(0) + "%" : "0%"}
+														{w.winRate ? (w.winRate * 100).toFixed(0) + "%" : "N/A"}
 													</span>
 												</td>
 												<td className="px-6 py-4 text-right">
-													<span className="font-bold">{w.tradeCount || 0}</span>
+													<span className="font-bold">{w.tradeCount ? w.tradeCount : "N/A"}</span>
 												</td>
 												<td className="px-6 py-4 text-right text-muted-foreground font-medium">
 													{timeAgo(w.firstTradeAt)}
