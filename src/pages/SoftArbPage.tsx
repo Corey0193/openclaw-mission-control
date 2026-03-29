@@ -341,10 +341,16 @@ function useSoftArbTrades() {
 	const refresh = useCallback(async () => {
 		try {
 			const res = await fetch("/api/soft-arb/trades");
-			if (res.ok) {
-				const json = await res.json();
-				setData(json);
+			const contentType = res.headers.get("content-type") ?? "";
+			if (!res.ok) {
+				throw new Error(`soft arb trades request failed (${res.status})`);
 			}
+			if (!contentType.includes("application/json")) {
+				const body = (await res.text()).slice(0, 120);
+				throw new Error(`soft arb trades returned non-JSON: ${body}`);
+			}
+			const json = await res.json();
+			setData(json);
 		} catch (err) {
 			console.error("Failed to fetch soft arb trades:", err);
 		}
@@ -364,10 +370,16 @@ function usePipelineRuns() {
 	const refresh = useCallback(async () => {
 		try {
 			const res = await fetch("/api/soft-arb/pipeline-runs");
-			if (res.ok) {
-				const json = await res.json();
-				setRuns(json.runs);
+			const contentType = res.headers.get("content-type") ?? "";
+			if (!res.ok) {
+				throw new Error(`pipeline runs request failed (${res.status})`);
 			}
+			if (!contentType.includes("application/json")) {
+				const body = (await res.text()).slice(0, 120);
+				throw new Error(`pipeline runs returned non-JSON: ${body}`);
+			}
+			const json = await res.json();
+			setRuns(json.runs);
 		} catch (err) {
 			console.error("Failed to fetch pipeline runs:", err);
 		}
@@ -447,13 +459,66 @@ function executionVenueBadge(trade: SoftArbTrade) {
 	);
 }
 
+function getPipelineRunEventName(dossier: Record<string, unknown> | null, runId: string) {
+	if (!dossier) return runId;
+
+	const bestOpportunity =
+		typeof dossier.best_opportunity === "object" && dossier.best_opportunity
+			? (dossier.best_opportunity as Record<string, unknown>)
+			: null;
+	const marketA =
+		typeof dossier.market_a === "object" && dossier.market_a
+			? (dossier.market_a as Record<string, unknown>)
+			: null;
+	const signalSource =
+		typeof dossier.signal_source === "object" && dossier.signal_source
+			? (dossier.signal_source as Record<string, unknown>)
+			: null;
+	const firstMatchedPair =
+		Array.isArray(dossier.matched_pairs) &&
+		dossier.matched_pairs.length > 0 &&
+		typeof dossier.matched_pairs[0] === "object" &&
+		dossier.matched_pairs[0]
+			? (dossier.matched_pairs[0] as Record<string, unknown>)
+			: null;
+
+	const candidates = [
+		dossier.event_name,
+		dossier.target_event,
+		dossier.pair,
+		dossier.title,
+		dossier.question,
+		dossier.polymarket_question,
+		dossier.metaculus_question,
+		marketA?.question,
+		signalSource?.question_title,
+		bestOpportunity?.title,
+		bestOpportunity?.game,
+		bestOpportunity?.polymarket_question,
+		bestOpportunity?.metaculus_question,
+		firstMatchedPair?.polymarket_question,
+		firstMatchedPair?.metaculus_title,
+	];
+
+	for (const candidate of candidates) {
+		if (typeof candidate === "string") {
+			const normalized = candidate.trim();
+			if (normalized && normalized !== "—" && normalized.toLowerCase() !== "unknown event") {
+				return normalized;
+			}
+		}
+	}
+
+	return runId;
+}
+
 function PipelineRunCard({ run }: { run: PipelineRun }) {
 	const [expanded, setExpanded] = useState(false);
 	const dossier = run.dossier as Record<string, unknown> | null;
 	const verdict = run.verdict as Record<string, unknown> | null;
 	const decision = run.decision as Record<string, unknown> | null;
 
-	const eventName = (dossier?.target_event as string) || (dossier?.pair as string) || "Unknown Event";
+	const eventName = getPipelineRunEventName(dossier, run.runId);
 	const thorpVerdict = (verdict?.verdict as string) || "UNKNOWN";
 	const hustleDecision = (decision?.decision as string) || "PENDING";
 

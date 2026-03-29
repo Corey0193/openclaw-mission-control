@@ -177,7 +177,11 @@ function arbPipelinePlugin() {
 					next: () => void,
 				) => {
 					const url = (req.url ?? "/").split("?")[0];
-					if (req.method === "GET" && url === "/api/pipeline-runs") {
+					if (
+						req.method === "GET" &&
+						(url === "/api/pipeline-runs" ||
+							url === "/api/soft-arb/pipeline-runs")
+					) {
 						try {
 							const runs = getPipelineRuns();
 							res.setHeader("Content-Type", "application/json");
@@ -882,7 +886,11 @@ function softArbTradesPlugin() {
 					next: () => void,
 				) => {
 					const url = (req.url ?? "/").split("?")[0];
-					if (req.method === "GET" && url === "/api/soft-arb-trades") {
+					if (
+						req.method === "GET" &&
+						(url === "/api/soft-arb-trades" ||
+							url === "/api/soft-arb/trades")
+					) {
 						try {
 							const data = getSoftArbTrades();
 							res.setHeader("Content-Type", "application/json");
