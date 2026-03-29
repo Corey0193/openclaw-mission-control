@@ -601,6 +601,39 @@ export default function SoftArbPage() {
 		return softArbData?.calibration?.families ? Object.entries(softArbData.calibration.families) : [];
 	}, [softArbData]);
 
+	const dailyStats = useMemo(() => {
+		if (!softArbData?.outcomes) return { today: 0, yesterday: 0, avg: 0 };
+		
+		const now = new Date();
+		const todayStr = now.toISOString().split("T")[0];
+		const yesterday = new Date(now);
+		yesterday.setDate(yesterday.getDate() - 1);
+		const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+		let todayPnl = 0;
+		let yesterdayPnl = 0;
+		const dailyMap: Record<string, number> = {};
+
+		for (const o of softArbData.outcomes) {
+			const dateStr = new Date(o.timestamp).toISOString().split("T")[0];
+			dailyMap[dateStr] = (dailyMap[dateStr] || 0) + o.pnl_usd;
+			
+			if (dateStr === todayStr) todayPnl += o.pnl_usd;
+			if (dateStr === yesterdayStr) yesterdayPnl += o.pnl_usd;
+		}
+
+		const dailyValues = Object.values(dailyMap);
+		const avgPnl = dailyValues.length > 0 
+			? dailyValues.reduce((a, b) => a + b, 0) / dailyValues.length 
+			: 0;
+
+		return {
+			today: todayPnl,
+			yesterday: yesterdayPnl,
+			avg: avgPnl
+		};
+	}, [softArbData?.outcomes]);
+
 	return (
 		<div className="h-screen overflow-y-auto bg-[#f8f9fa] text-slate-800">
 			<Header />
@@ -641,7 +674,7 @@ export default function SoftArbPage() {
 					{sectionsOpen.positions && (
 						<div className="space-y-6">
 							{/* Summary stats */}
-							<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+							<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
 								<SummaryCard
 									label="Paper Trades"
 									value={softArbData?.trades.length ?? 0}
@@ -657,6 +690,24 @@ export default function SoftArbPage() {
 									label="Realized P&L"
 									value={Number(softArbData?.summary.total_realized_pnl ?? 0)}
 									icon={<IconPercentage size={20} />}
+									isPnl
+								/>
+								<SummaryCard
+									label="Daily P&L"
+									value={dailyStats.today}
+									icon={<IconChartBar size={20} />}
+									isPnl
+								/>
+								<SummaryCard
+									label="Yesterday P&L"
+									value={dailyStats.yesterday}
+									icon={<IconRefresh size={20} />}
+									isPnl
+								/>
+								<SummaryCard
+									label="Avg Daily P&L"
+									value={dailyStats.avg}
+									icon={<IconTarget size={20} />}
 									isPnl
 								/>
 								<SummaryCard
