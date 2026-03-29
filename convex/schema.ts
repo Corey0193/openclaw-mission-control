@@ -175,9 +175,8 @@ export default defineSchema({
 	        walletCount: v.number(),
 	        tradeCount: v.number(),
 	        lastHeartbeatAt: v.number(),
-	        status: v.string(), -- "active", "idle", "error"
-	}).index("by_tenant", ["tenantId"]),
-	polymarketPositions: defineTable({		walletAddress: v.string(),
+	        status: v.string(), // "active", "idle", "error"
+	        }).index("by_tenant", ["tenantId"]),	polymarketPositions: defineTable({		walletAddress: v.string(),
 		balanceUsdc: v.number(),
 		positions: v.array(
 			v.object({
