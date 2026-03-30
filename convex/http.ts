@@ -183,6 +183,16 @@ http.route({
                         isInsider: body.isInsider ?? false,
                         tags: body.tags ?? [],
                         tenantId: body.tenantId ?? "default",
+                        // CTS fields
+                        copyTradingScore: body.copyTradingScore,
+                        ctsConsistency: body.ctsConsistency,
+                        ctsWinRate: body.ctsWinRate,
+                        pnl7d: body.pnl7d,
+                        pnl30d: body.pnl30d,
+                        pnl90d: body.pnl90d,
+                        maxDrawdownPct: body.maxDrawdownPct,
+                        profitableWeeksRatio: body.profitableWeeksRatio,
+                        computedWinRate: body.computedWinRate,
                 });
                 return new Response(JSON.stringify({ ok: true }), {
                         status: 200,

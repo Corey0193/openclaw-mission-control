@@ -17,6 +17,7 @@ import {
 	IconSortAscending,
 	IconSortDescending,
 	IconTag,
+	IconTarget,
 } from "@tabler/icons-react";
 
 function formatUsd(n: number): string {
@@ -50,6 +51,17 @@ function PnlBadge({ value }: { value: number }) {
 	);
 }
 
+function CtsBadge({ score }: { score: number | undefined | null }) {
+	if (score === undefined || score === null) return <span className="text-muted-foreground text-xs">N/A</span>;
+	const color = score >= 70 ? "text-emerald-700" : score >= 40 ? "text-amber-700" : "text-red-600";
+	const bg = score >= 70 ? "bg-emerald-50 border-emerald-200" : score >= 40 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200";
+	return (
+		<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full border ${bg} ${color} text-xs font-black`}>
+			{score}
+		</span>
+	);
+}
+
 function timeAgo(dateStr: string | undefined | null): string {
 	if (!dateStr) return "N/A";
 	try {
@@ -66,7 +78,7 @@ function timeAgo(dateStr: string | undefined | null): string {
 	}
 }
 
-type SortKey = "address" | "isInsider" | "totalPnl" | "winRate" | "tradeCount" | "firstTradeAt" | "tags";
+type SortKey = "address" | "isInsider" | "totalPnl" | "copyTradingScore" | "computedWinRate" | "pnl7d" | "pnl30d" | "tradeCount" | "firstTradeAt" | "tags";
 type SortDirection = "asc" | "desc" | null;
 
 export default function WalletsPage() {
@@ -77,9 +89,10 @@ export default function WalletsPage() {
 	const [searchQuery, setSearchQuery] = useState("");
 	const [showOnlyInsiders, setShowOnlyInsiders] = useState(false);
 	const [minPnl, setMinPnl] = useState<number | "">("");
+	const [minCts, setMinCts] = useState<number | "">("");
 	const [tagFilter, setTagFilter] = useState("");
-	
-	const [sortKey, setSortKey] = useState<SortKey>("totalPnl");
+
+	const [sortKey, setSortKey] = useState<SortKey>("copyTradingScore");
 	const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
 	const allTags = useMemo(() => {
@@ -93,7 +106,7 @@ export default function WalletsPage() {
 		if (sortKey === key) {
 			if (sortDirection === "desc") setSortDirection("asc");
 			else if (sortDirection === "asc") {
-				setSortKey("totalPnl");
+				setSortKey("copyTradingScore");
 				setSortDirection("desc");
 			}
 		} else {
@@ -114,9 +127,10 @@ export default function WalletsPage() {
 			
 			const matchesInsider = !showOnlyInsiders || w.isInsider;
 			const matchesPnl = minPnl === "" || w.totalPnl >= minPnl;
+			const matchesCts = minCts === "" || (w.copyTradingScore ?? 0) >= minCts;
 			const matchesTag = !tagFilter || w.tags.includes(tagFilter);
-			
-			return matchesSearch && matchesInsider && matchesPnl && matchesTag;
+
+			return matchesSearch && matchesInsider && matchesPnl && matchesCts && matchesTag;
 		});
 
 		// 2. Sort
@@ -147,7 +161,7 @@ export default function WalletsPage() {
 		}
 
 		return result;
-	}, [wallets, searchQuery, showOnlyInsiders, minPnl, tagFilter, sortKey, sortDirection]);
+	}, [wallets, searchQuery, showOnlyInsiders, minPnl, minCts, tagFilter, sortKey, sortDirection]);
 
 	const SortIcon = ({ k }: { k: SortKey }) => {
 		if (sortKey !== k) return <IconSelector size={14} className="opacity-30 group-hover:opacity-100" />;
@@ -233,6 +247,22 @@ export default function WalletsPage() {
 									className="w-20 bg-transparent border-none text-sm font-bold focus:outline-none"
 								/>
 							</div>
+
+							<div className="flex items-center gap-2 bg-white border border-border rounded-xl px-3 py-1.5 shadow-sm">
+								<IconTarget size={16} className="text-emerald-500" />
+								<span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+									Min CTS:
+								</span>
+								<input
+									type="number"
+									placeholder="0"
+									value={minCts}
+									onChange={(e) =>
+										setMinCts(e.target.value === "" ? "" : Number(e.target.value))
+									}
+									className="w-16 bg-transparent border-none text-sm font-bold focus:outline-none"
+								/>
+							</div>
 						</div>
 					</div>
 
@@ -242,68 +272,35 @@ export default function WalletsPage() {
 							<table className="w-full text-sm">
 								<thead>
 									<tr className="bg-muted/30 border-b border-border text-[11px] font-bold text-muted-foreground tracking-widest uppercase select-none">
-										<th 
-											className="text-left px-6 py-4 cursor-pointer hover:bg-muted/50 transition-colors group"
-											onClick={() => handleSort("address")}
-										>
-											<div className="flex items-center gap-1">
-												Wallet / User
-												<SortIcon k="address" />
-											</div>
+										<th className="text-left px-6 py-4 cursor-pointer hover:bg-muted/50 transition-colors group" onClick={() => handleSort("address")}>
+											<div className="flex items-center gap-1">Wallet / User <SortIcon k="address" /></div>
 										</th>
-										<th 
-											className="text-left px-6 py-4 cursor-pointer hover:bg-muted/50 transition-colors group"
-											onClick={() => handleSort("isInsider")}
-										>
-											<div className="flex items-center gap-1">
-												Status
-												<SortIcon k="isInsider" />
-											</div>
+										<th className="text-left px-4 py-4 cursor-pointer hover:bg-muted/50 transition-colors group" onClick={() => handleSort("isInsider")}>
+											<div className="flex items-center gap-1">Status <SortIcon k="isInsider" /></div>
 										</th>
-										<th 
-											className="text-right px-6 py-4 cursor-pointer hover:bg-muted/50 transition-colors group"
-											onClick={() => handleSort("totalPnl")}
-										>
-											<div className="flex items-center justify-end gap-1">
-												P&L
-												<SortIcon k="totalPnl" />
-											</div>
+										<th className="text-right px-4 py-4 cursor-pointer hover:bg-muted/50 transition-colors group" onClick={() => handleSort("copyTradingScore")}>
+											<div className="flex items-center justify-end gap-1">CTS <SortIcon k="copyTradingScore" /></div>
 										</th>
-										<th 
-											className="text-right px-6 py-4 cursor-pointer hover:bg-muted/50 transition-colors group"
-											onClick={() => handleSort("winRate")}
-										>
-											<div className="flex items-center justify-end gap-1">
-												Win Rate
-												<SortIcon k="winRate" />
-											</div>
+										<th className="text-right px-4 py-4 cursor-pointer hover:bg-muted/50 transition-colors group" onClick={() => handleSort("totalPnl")}>
+											<div className="flex items-center justify-end gap-1">P&L <SortIcon k="totalPnl" /></div>
 										</th>
-										<th 
-											className="text-right px-6 py-4 cursor-pointer hover:bg-muted/50 transition-colors group"
-											onClick={() => handleSort("tradeCount")}
-										>
-											<div className="flex items-center justify-end gap-1">
-												Trades
-												<SortIcon k="tradeCount" />
-											</div>
+										<th className="text-right px-4 py-4 cursor-pointer hover:bg-muted/50 transition-colors group" onClick={() => handleSort("pnl7d")}>
+											<div className="flex items-center justify-end gap-1">7d P&L <SortIcon k="pnl7d" /></div>
 										</th>
-										<th 
-											className="text-right px-6 py-4 cursor-pointer hover:bg-muted/50 transition-colors group"
-											onClick={() => handleSort("firstTradeAt")}
-										>
-											<div className="flex items-center justify-end gap-1">
-												Age
-												<SortIcon k="firstTradeAt" />
-											</div>
+										<th className="text-right px-4 py-4 cursor-pointer hover:bg-muted/50 transition-colors group" onClick={() => handleSort("pnl30d")}>
+											<div className="flex items-center justify-end gap-1">30d P&L <SortIcon k="pnl30d" /></div>
 										</th>
-										<th 
-											className="text-left px-6 py-4 cursor-pointer hover:bg-muted/50 transition-colors group"
-											onClick={() => handleSort("tags")}
-										>
-											<div className="flex items-center gap-1">
-												Tags
-												<SortIcon k="tags" />
-											</div>
+										<th className="text-right px-4 py-4 cursor-pointer hover:bg-muted/50 transition-colors group" onClick={() => handleSort("computedWinRate")}>
+											<div className="flex items-center justify-end gap-1">Win Rate <SortIcon k="computedWinRate" /></div>
+										</th>
+										<th className="text-right px-4 py-4 cursor-pointer hover:bg-muted/50 transition-colors group" onClick={() => handleSort("tradeCount")}>
+											<div className="flex items-center justify-end gap-1">Trades <SortIcon k="tradeCount" /></div>
+										</th>
+										<th className="text-right px-4 py-4 cursor-pointer hover:bg-muted/50 transition-colors group" onClick={() => handleSort("firstTradeAt")}>
+											<div className="flex items-center justify-end gap-1">Age <SortIcon k="firstTradeAt" /></div>
+										</th>
+										<th className="text-left px-4 py-4 cursor-pointer hover:bg-muted/50 transition-colors group" onClick={() => handleSort("tags")}>
+											<div className="flex items-center gap-1">Tags <SortIcon k="tags" /></div>
 										</th>
 									</tr>
 								</thead>
@@ -311,7 +308,7 @@ export default function WalletsPage() {
 									{!wallets ? (
 										[...Array(5)].map((_, i) => (
 											<tr key={i} className="animate-pulse">
-												<td colSpan={7} className="px-6 py-8">
+												<td colSpan={10} className="px-6 py-8">
 													<div className="h-4 bg-muted rounded w-3/4" />
 												</td>
 											</tr>
@@ -319,7 +316,7 @@ export default function WalletsPage() {
 									) : filteredAndSortedWallets.length === 0 ? (
 										<tr>
 											<td
-												colSpan={7}
+												colSpan={10}
 												className="px-6 py-20 text-center text-muted-foreground"
 											>
 												<div className="flex flex-col items-center">
@@ -356,7 +353,7 @@ export default function WalletsPage() {
 														</code>
 													</a>
 												</td>
-												<td className="px-6 py-4">
+												<td className="px-4 py-4">
 													<div className="flex flex-wrap gap-2">
 														{w.isInsider && (
 															<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-black uppercase tracking-tighter">
@@ -370,22 +367,32 @@ export default function WalletsPage() {
 														</span>
 													</div>
 												</td>
-												<td className="px-6 py-4 text-right">
+												<td className="px-4 py-4 text-right">
+													<CtsBadge score={w.copyTradingScore} />
+												</td>
+												<td className="px-4 py-4 text-right">
 													<PnlBadge value={w.totalPnl} />
 												</td>
-												<td className="px-6 py-4 text-right">
-												<span className={`font-bold ${(w.winRate !== null && w.winRate !== undefined) && w.winRate >= 0.6 ? 'text-emerald-600' : 'text-foreground'}`}>
-												{(w.winRate !== null && w.winRate !== undefined) ? (w.winRate * 100).toFixed(0) + "%" : "N/A"}
-												</span>
+												<td className="px-4 py-4 text-right">
+													<PnlBadge value={w.pnl7d ?? 0} />
 												</td>
-												<td className="px-6 py-4 text-right">
-												<span className="font-bold">{(w.tradeCount !== null && w.tradeCount !== undefined) ? w.tradeCount : "N/A"}</span>
+												<td className="px-4 py-4 text-right">
+													<PnlBadge value={w.pnl30d ?? 0} />
 												</td>
-
-												<td className="px-6 py-4 text-right text-muted-foreground font-medium">
+												<td className="px-4 py-4 text-right">
+													{(() => {
+														const wr = w.computedWinRate ?? w.winRate;
+														if (wr === null || wr === undefined) return <span className="font-bold text-foreground">N/A</span>;
+														return <span className={`font-bold ${wr >= 0.6 ? 'text-emerald-600' : 'text-foreground'}`}>{(wr * 100).toFixed(0)}%</span>;
+													})()}
+												</td>
+												<td className="px-4 py-4 text-right">
+													<span className="font-bold">{(w.tradeCount !== null && w.tradeCount !== undefined) ? w.tradeCount : "N/A"}</span>
+												</td>
+												<td className="px-4 py-4 text-right text-muted-foreground font-medium">
 													{timeAgo(w.firstTradeAt)}
 												</td>
-												<td className="px-6 py-4">
+												<td className="px-4 py-4">
 													<div className="flex flex-wrap gap-1">
 														{w.tags.map((tag) => (
 															<span

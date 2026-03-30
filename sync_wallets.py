@@ -25,6 +25,7 @@ def sync():
         # Use full address if username is missing to ensure valid URLs
         username = w['address']
         
+        wd = dict(w)
         payload = {
             "address": w['address'],
             "username": username,
@@ -35,7 +36,17 @@ def sync():
             "firstTradeAt": w['first_trade_at'],
             "isInsider": True if w['classification'] == 'insider_suspect' else False,
             "tags": [w['classification']] if w['classification'] else [],
-            "tenantId": "default"
+            "tenantId": "default",
+            # CTS fields
+            "copyTradingScore": wd.get('copy_trading_score') or 0,
+            "ctsConsistency": wd.get('cts_consistency') or 0,
+            "ctsWinRate": wd.get('cts_win_rate') or 0,
+            "pnl7d": wd.get('pnl_7d') or 0,
+            "pnl30d": wd.get('pnl_30d') or 0,
+            "pnl90d": wd.get('pnl_90d') or 0,
+            "maxDrawdownPct": wd.get('max_drawdown_pct') or 0,
+            "profitableWeeksRatio": wd.get('profitable_weeks_ratio') or 0,
+            "computedWinRate": (wd.get('cts_win_rate') or 0) / 100,
         }
         
         try:

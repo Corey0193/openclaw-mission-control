@@ -244,8 +244,19 @@ export default defineSchema({
 	        lastSyncedAt: v.number(),
 	        tags: v.array(v.string()),
 	        tenantId: v.optional(v.string()),
+	        // Copy-Trading Score (CTS) fields
+	        copyTradingScore: v.optional(v.number()),
+	        ctsConsistency: v.optional(v.number()),
+	        ctsWinRate: v.optional(v.number()),
+	        pnl7d: v.optional(v.number()),
+	        pnl30d: v.optional(v.number()),
+	        pnl90d: v.optional(v.number()),
+	        maxDrawdownPct: v.optional(v.number()),
+	        profitableWeeksRatio: v.optional(v.number()),
+	        computedWinRate: v.optional(v.number()),
 	})	        .index("by_tenant", ["tenantId"])
 	        .index("by_address", ["address"])
 	        .index("by_pnl", ["totalPnl"])
-	        .index("by_score", ["performanceScore"]),
+	        .index("by_score", ["performanceScore"])
+	        .index("by_cts", ["copyTradingScore"]),
 	});
