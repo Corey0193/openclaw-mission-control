@@ -2,18 +2,30 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 export const list = query({
-	args: {
-		tenantId: v.string(),
-	},
-	handler: async (ctx, args) => {
-		return await ctx.db
-			.query("wallets")
-			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
-			.order("desc")
-			.collect();
-	},
+        args: {
+                tenantId: v.string(),
+        },
+        handler: async (ctx, args) => {
+                return await ctx.db
+                        .query("wallets")
+                        .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+                        .order("desc")
+                        .collect();
+        },
 });
 
+export const count = query({
+        args: {
+                tenantId: v.string(),
+        },
+        handler: async (ctx, args) => {
+                const wallets = await ctx.db
+                        .query("wallets")
+                        .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+                        .collect();
+                return wallets.length;
+        },
+});
 export const upsert = mutation({
 	args: {
 		address: v.string(),
