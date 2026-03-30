@@ -374,13 +374,14 @@ export default function WalletsPage() {
 													<PnlBadge value={w.totalPnl} />
 												</td>
 												<td className="px-6 py-4 text-right">
-													<span className={`font-bold ${w.winRate && w.winRate >= 0.6 ? 'text-emerald-600' : 'text-foreground'}`}>
-														{w.winRate ? (w.winRate * 100).toFixed(0) + "%" : "N/A"}
-													</span>
+												<span className={`font-bold ${(w.winRate !== null && w.winRate !== undefined) && w.winRate >= 0.6 ? 'text-emerald-600' : 'text-foreground'}`}>
+												{(w.winRate !== null && w.winRate !== undefined) ? (w.winRate * 100).toFixed(0) + "%" : "N/A"}
+												</span>
 												</td>
 												<td className="px-6 py-4 text-right">
-													<span className="font-bold">{w.tradeCount ? w.tradeCount : "N/A"}</span>
+												<span className="font-bold">{(w.tradeCount !== null && w.tradeCount !== undefined) ? w.tradeCount : "N/A"}</span>
 												</td>
+
 												<td className="px-6 py-4 text-right text-muted-foreground font-medium">
 													{timeAgo(w.firstTradeAt)}
 												</td>

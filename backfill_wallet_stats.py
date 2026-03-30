@@ -45,7 +45,7 @@ def backfill():
             from datetime import datetime
             first_trade_iso = datetime.fromtimestamp(first_trade_ts).isoformat()
             
-        win_rate = 0
+        win_rate = None
         if stats['scored_trades'] > 0:
             win_rate = stats['wins'] / stats['scored_trades']
             
