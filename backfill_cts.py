@@ -14,18 +14,21 @@ CONFIG_PATH = os.path.expanduser('~/.openclaw/workspace-radar/wallet-intel/confi
 DEFAULT_CTS_CONFIG = {
     "lookback_weeks": 12,
     "min_weeks_active": 4,
-    "min_trades": 10,
+    "min_trades": 50,
+    "min_active_recency_days": 14,
     "weights": {
-        "consistency": 0.30,
-        "risk_adjusted": 0.25,
-        "recency_weighted": 0.20,
+        "consistency": 0.20,
+        "risk_adjusted": 0.20,
+        "recency_weighted": 0.15,
         "win_rate": 0.15,
-        "drawdown": 0.10
+        "drawdown": 0.10,
+        "absolute_return": 0.20
     },
     "sharpe_cap": 3.0,
     "decay_half_life_weeks": 4,
     "drawdown_severe_threshold": 0.50,
-    "drawdown_moderate_threshold": 0.25
+    "drawdown_moderate_threshold": 0.25,
+    "absolute_return_cap": 50000
 }
 
 try:
@@ -44,6 +47,7 @@ def migrate_cts_columns(conn):
         ("cts_recency_pnl", "REAL DEFAULT 0"),
         ("cts_win_rate", "REAL DEFAULT 0"),
         ("cts_drawdown_score", "REAL DEFAULT 0"),
+        ("cts_absolute_return", "REAL DEFAULT 0"),
         ("pnl_7d", "REAL DEFAULT 0"),
         ("pnl_30d", "REAL DEFAULT 0"),
         ("pnl_90d", "REAL DEFAULT 0"),
@@ -84,6 +88,11 @@ def calculate_cts(conn, address):
     if (max_ts - min_ts) / (7 * 86400) < min_weeks:
         return None
 
+    # Gate 3: Must have traded recently (no coasting on stale scores)
+    recency_days = CTS_CONF.get('min_active_recency_days', 14)
+    if max_ts < now_ts - (recency_days * 86400):
+        return None
+
     cursor.execute('''
         SELECT (timestamp - ?) / (7 * 86400) as week_num,
                SUM(CASE WHEN side IN ('SELL','sell') THEN size ELSE -size END) as weekly_pnl,
@@ -99,11 +108,15 @@ def calculate_cts(conn, address):
     weekly_pnls = [(r[0], r[1]) for r in weekly_rows]
     pnl_values = [p for _, p in weekly_pnls]
 
-    # Consistency
-    profitable_weeks = sum(1 for p in pnl_values if p > 0)
-    total_active_weeks = len(pnl_values)
-    consistency_ratio = profitable_weeks / total_active_weeks
+    # Magnitude-Weighted Consistency (profit factor)
+    gross_profit = sum(p for p in pnl_values if p > 0)
+    gross_loss = sum(abs(p) for p in pnl_values if p < 0)
+    if gross_profit + gross_loss > 0:
+        consistency_ratio = gross_profit / (gross_profit + gross_loss)
+    else:
+        consistency_ratio = 0.5
     consistency_score = consistency_ratio * 100
+    profitable_weeks_ratio = sum(1 for p in pnl_values if p > 0) / len(pnl_values)
 
     # Risk-Adjusted (Sharpe)
     mean_pnl = sum(pnl_values) / len(pnl_values)
@@ -130,7 +143,7 @@ def calculate_cts(conn, address):
     else:
         recency_score = 50
 
-    # Win Rate
+    # Size-Weighted Win Rate
     cursor.execute('''
         SELECT market_id,
                SUM(CASE WHEN side IN ('BUY','buy') THEN size ELSE 0 END) as bought,
@@ -139,9 +152,12 @@ def calculate_cts(conn, address):
         GROUP BY market_id HAVING sold > 0
     ''', (address, lookback_start))
     markets = cursor.fetchall()
-    wins = sum(1 for _, bought, sold in markets if sold > bought)
-    total_markets = len(markets)
-    computed_win_rate = wins / total_markets if total_markets > 0 else 0
+    total_market_profit = sum(max(0, sold - bought) for _, bought, sold in markets)
+    total_market_loss = sum(max(0, bought - sold) for _, bought, sold in markets)
+    if total_market_profit + total_market_loss > 0:
+        computed_win_rate = total_market_profit / (total_market_profit + total_market_loss)
+    else:
+        computed_win_rate = 0
     win_rate_score = computed_win_rate * 100
 
     # Max Drawdown
@@ -172,17 +188,7 @@ def calculate_cts(conn, address):
     else:
         drawdown_score = max(0, 20 - ((drawdown_pct - severe_thresh) / severe_thresh) * 20)
 
-    # Composite
-    composite = (
-        consistency_score * weights.get('consistency', 0.30) +
-        risk_adjusted_score * weights.get('risk_adjusted', 0.25) +
-        recency_score * weights.get('recency_weighted', 0.20) +
-        win_rate_score * weights.get('win_rate', 0.15) +
-        drawdown_score * weights.get('drawdown', 0.10)
-    )
-    cts = max(0, min(100, round(composite)))
-
-    # Period P&L
+    # Period P&L (computed before composite — absolute return needs pnl_90d)
     period_pnls = {}
     for label, days in [('pnl_7d', 7), ('pnl_30d', 30), ('pnl_90d', 90)]:
         cutoff = now_ts - (days * 86400)
@@ -193,6 +199,24 @@ def calculate_cts(conn, address):
         val = cursor.fetchone()[0]
         period_pnls[label] = val or 0
 
+    # Absolute Return (log-scaled 90d P&L)
+    abs_return_cap = CTS_CONF.get('absolute_return_cap', 50000)
+    if period_pnls['pnl_90d'] > 0:
+        absolute_return_score = min(100, math.log10(1 + period_pnls['pnl_90d']) / math.log10(1 + abs_return_cap) * 100)
+    else:
+        absolute_return_score = 0
+
+    # Composite
+    composite = (
+        consistency_score * weights.get('consistency', 0.20) +
+        risk_adjusted_score * weights.get('risk_adjusted', 0.20) +
+        recency_score * weights.get('recency_weighted', 0.15) +
+        win_rate_score * weights.get('win_rate', 0.15) +
+        drawdown_score * weights.get('drawdown', 0.10) +
+        absolute_return_score * weights.get('absolute_return', 0.20)
+    )
+    cts = max(0, min(100, round(composite)))
+
     return {
         'copy_trading_score': cts,
         'cts_consistency': round(consistency_score, 2),
@@ -200,11 +224,12 @@ def calculate_cts(conn, address):
         'cts_recency_pnl': round(recency_score, 2),
         'cts_win_rate': round(win_rate_score, 2),
         'cts_drawdown_score': round(drawdown_score, 2),
+        'cts_absolute_return': round(absolute_return_score, 2),
         'pnl_7d': round(period_pnls['pnl_7d'], 2),
         'pnl_30d': round(period_pnls['pnl_30d'], 2),
         'pnl_90d': round(period_pnls['pnl_90d'], 2),
         'max_drawdown_pct': round(drawdown_pct, 4),
-        'profitable_weeks_ratio': round(consistency_ratio, 4),
+        'profitable_weeks_ratio': round(profitable_weeks_ratio, 4),
         'computed_win_rate': round(computed_win_rate, 4),
     }
 
@@ -219,6 +244,22 @@ def backfill():
     migrate_cts_columns(conn)
 
     cursor = conn.cursor()
+
+    # Reset all existing CTS scores before recalculating.
+    # Wallets that no longer pass the stricter v2 gates must not keep stale v1 scores.
+    cursor.execute('''
+        UPDATE wallets SET
+            copy_trading_score = 0, cts_consistency = 0, cts_risk_adjusted = 0,
+            cts_recency_pnl = 0, cts_win_rate = 0, cts_drawdown_score = 0,
+            cts_absolute_return = 0, pnl_7d = 0, pnl_30d = 0, pnl_90d = 0,
+            max_drawdown_pct = 0, profitable_weeks_ratio = 0,
+            cts_last_calculated_at = NULL
+        WHERE copy_trading_score > 0
+    ''')
+    reset_count = cursor.rowcount
+    conn.commit()
+    print(f"Reset {reset_count} stale CTS scores.")
+
     cursor.execute("SELECT DISTINCT address FROM trades")
     addresses = [row[0] for row in cursor.fetchall()]
     print(f"Found {len(addresses)} wallets with trades. Computing CTS...")
@@ -232,6 +273,7 @@ def backfill():
                 UPDATE wallets SET
                     copy_trading_score = ?, cts_consistency = ?, cts_risk_adjusted = ?,
                     cts_recency_pnl = ?, cts_win_rate = ?, cts_drawdown_score = ?,
+                    cts_absolute_return = ?,
                     pnl_7d = ?, pnl_30d = ?, pnl_90d = ?,
                     max_drawdown_pct = ?, profitable_weeks_ratio = ?,
                     cts_last_calculated_at = CURRENT_TIMESTAMP
@@ -239,6 +281,7 @@ def backfill():
             ''', (
                 result['copy_trading_score'], result['cts_consistency'], result['cts_risk_adjusted'],
                 result['cts_recency_pnl'], result['cts_win_rate'], result['cts_drawdown_score'],
+                result['cts_absolute_return'],
                 result['pnl_7d'], result['pnl_30d'], result['pnl_90d'],
                 result['max_drawdown_pct'], result['profitable_weeks_ratio'],
                 addr

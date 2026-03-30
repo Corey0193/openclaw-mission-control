@@ -198,12 +198,13 @@ export default function WalletsPage() {
 									className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
 								/>
 								<input
-									type="text"
-									placeholder="Search address, user, or tag..."
-									value={searchQuery}
-									onChange={(e) => setSearchQuery(e.target.value)}
-									className="pl-9 pr-4 py-2 bg-white border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent-orange)]/20 w-full md:w-64 transition-all"
+								        type="text"
+								        placeholder="Search address, username, or tag..."
+								        value={searchQuery}
+								        onChange={(e) => setSearchQuery(e.target.value)}
+								        className="pl-9 pr-4 py-2 bg-white border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent-orange)]/20 w-full md:w-64 transition-all"
 								/>
+
 							</div>
 
 							<button
