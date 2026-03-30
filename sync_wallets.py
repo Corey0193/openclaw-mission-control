@@ -21,7 +21,7 @@ def sync():
     print(f"Found {len(wallets)} classified wallets. Syncing...")
 
     synced = 0
-    for w in wallets:
+    for i, w in enumerate(wallets):
         # Use full address if username is missing to ensure valid URLs
         username = w['address']
         
@@ -48,6 +48,9 @@ def sync():
         except Exception as e:
             print(f"Error syncing {w['address']}: {e}")
             break
+            
+        if (i + 1) % 100 == 0:
+            print(f"Synced {i + 1}/{len(wallets)} wallets...")
 
     print(f"Done! Synced {synced} wallets.")
     conn.close()
