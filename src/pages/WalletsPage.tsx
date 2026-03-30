@@ -1,25 +1,26 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, usePaginatedQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import Header from "../components/Header";
 import {
-	IconWallet,
-	IconExternalLink,
-	IconSearch,
-	IconFilter,
-	IconTrendingUp,
-	IconTrendingDown,
-	IconAlertTriangle,
-	IconUserCheck,
-	IconTrophy,
-	IconSelector,
-	IconSortAscending,
-	IconSortDescending,
-	IconTag,
-	IconTarget,
+        IconWallet,
+        IconExternalLink,
+        IconSearch,
+        IconFilter,
+        IconTrendingUp,
+        IconTrendingDown,
+        IconAlertTriangle,
+        IconUserCheck,
+        IconTrophy,
+        IconSelector,
+        IconSortAscending,
+        IconSortDescending,
+        IconTag,
+        IconTarget,
+        IconChevronDown,
+        IconLoader2,
 } from "@tabler/icons-react";
-
 function formatUsd(n: number): string {
 	return n.toLocaleString("en-US", {
 		style: "currency",
@@ -82,12 +83,13 @@ type SortKey = "address" | "isInsider" | "totalPnl" | "copyTradingScore" | "comp
 type SortDirection = "asc" | "desc" | null;
 
 export default function WalletsPage() {
-	const wallets = useQuery(api.wallets.list, {
-		tenantId: DEFAULT_TENANT_ID,
-	});
+        const { results: wallets, status, loadMore } = usePaginatedQuery(
+                api.wallets.paginatedList,
+                { tenantId: DEFAULT_TENANT_ID },
+                { initialNumItems: 200 }
+        );
 
-	const [searchQuery, setSearchQuery] = useState("");
-	const [showOnlyInsiders, setShowOnlyInsiders] = useState(false);
+        const [searchQuery, setSearchQuery] = useState("");	const [showOnlyInsiders, setShowOnlyInsiders] = useState(false);
 	const [minPnl, setMinPnl] = useState<number | "">("");
 	const [minCts, setMinCts] = useState<number | "">("");
 	const [tagFilter, setTagFilter] = useState("");
@@ -412,19 +414,36 @@ export default function WalletsPage() {
 							</table>
 						</div>
 						{wallets && (
-							<div className="bg-muted/20 px-6 py-3 border-t border-border flex items-center justify-between">
-								<span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
-									Showing {filteredAndSortedWallets.length} of {wallets.length} wallets
-								</span>
-								<div className="flex items-center gap-2">
-									<IconTrophy size={16} className="text-amber-500" />
-									<span className="text-[11px] font-black text-foreground uppercase italic">
-										Alpha Intelligence v2.1
-									</span>
-								</div>
-							</div>
-						)}
-					</div>
+						        <div className="bg-muted/20 px-6 py-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
+						                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
+						                        Loaded {wallets.length} wallets (filtered: {filteredAndSortedWallets.length})
+						                </span>
+
+						                {status === "CanLoadMore" && (
+						                        <button
+						                                onClick={() => loadMore(100)}
+						                                className="flex items-center gap-2 px-6 py-2 bg-white border border-border rounded-xl text-sm font-bold hover:bg-muted/30 transition-all shadow-sm"
+						                        >
+						                                Load More Wallets
+						                                <IconChevronDown size={16} />
+						                        </button>
+						                )}
+
+						                {status === "LoadingMore" && (
+						                        <div className="flex items-center gap-2 text-muted-foreground text-sm font-bold uppercase tracking-widest">
+						                                <IconLoader2 size={16} className="animate-spin text-[var(--accent-orange)]" />
+						                                Syncing...
+						                        </div>
+						                )}
+
+						                <div className="flex items-center gap-2">
+						                        <IconTrophy size={16} className="text-amber-500" />
+						                        <span className="text-[11px] font-black text-foreground uppercase italic text-right">
+						                                Alpha Intelligence v2.1
+						                        </span>
+						                </div>
+						        </div>
+						)}					</div>
 				</div>
 			</main>
 		</div>

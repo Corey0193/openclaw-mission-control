@@ -1,6 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+import { paginationOptsValidator } from "convex/server";
+
 export const list = query({
         args: {
                 tenantId: v.string(),
@@ -11,6 +13,36 @@ export const list = query({
                         .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
                         .order("desc")
                         .collect();
+        },
+});
+
+export const paginatedList = query({
+        args: {
+                tenantId: v.string(),
+                paginationOpts: paginationOptsValidator,
+                showOnlyInsiders: v.optional(v.boolean()),
+                tag: v.optional(v.string()),
+                minPnl: v.optional(v.number()),
+                minCts: v.optional(v.number()),
+                search: v.optional(v.string()),
+        },
+        handler: async (ctx, args) => {
+                let q = ctx.db.query("wallets");
+
+                // By default we sort by copyTradingScore (desc)
+                const results = await q
+                        .withIndex("by_tenant_cts", (q) => q.eq("tenantId", args.tenantId))
+                        .order("desc")
+                        .paginate(args.paginationOpts);
+
+                // Note: Filtering after pagination will cause the page size to be smaller than requested.
+                // For a small dataset (~5k), we can either filter on the server OR keep filtering on the client.
+                // If we want to keep the UI fast, we should ideally keep the full list in memory IF it's not too big.
+                // 5k wallets * ~1kb each = 5MB. This should be okay for modern browsers.
+                
+                // The current "slowness" might be from the initial .collect() taking too long to transfer.
+                // Let's refine the list query to be more efficient.
+                return results;
         },
 });
 
