@@ -26,18 +26,24 @@ def sync():
         username = w['address']
         
         wd = dict(w)
+        # Use inferred win rate from CTS if the primary win_rate (from API) is empty
+        # cts_win_rate is 0-100, we need 0.0-1.0
+        win_rate = wd.get('win_rate')
+        if (win_rate is None or win_rate == 0) and (wd.get('cts_win_rate') or 0) > 0:
+            win_rate = wd['cts_win_rate'] / 100.0
+
         payload = {
-            "address": w['address'],
+            "address": wd['address'],
             "username": username,
-            "totalPnl": w['pnl'] or 0,
-            "performanceScore": w['insider_confidence_score'] or 0,
-            "winRate": w['win_rate'],
-            "tradeCount": w['trade_count'],
-            "firstTradeAt": w['first_trade_at'],
-            "isInsider": True if w['classification'] == 'insider_suspect' else False,
-            "tags": [w['classification']] if w['classification'] else [],
+            "totalPnl": wd['pnl'] or 0,
+            "performanceScore": wd.get('copy_trading_score') or wd.get('insider_confidence_score') or 0,
+            "winRate": win_rate,
+            "tradeCount": wd['trade_count'],
+            "firstTradeAt": wd['first_trade_at'],
+            "isInsider": True if wd['classification'] == 'insider_suspect' else False,
+            "tags": [wd['classification']] if wd['classification'] else [],
             "tenantId": "default",
-            # CTS fields
+            # Extra stats for detail view
             "copyTradingScore": wd.get('copy_trading_score') or 0,
             "ctsConsistency": wd.get('cts_consistency') or 0,
             "ctsWinRate": wd.get('cts_win_rate') or 0,
@@ -54,10 +60,10 @@ def sync():
             if resp.status_code == 200:
                 synced += 1
             else:
-                print(f"Failed to sync {w['address']}: {resp.status_code}")
+                print(f"Failed to sync {wd['address']}: {resp.status_code}")
                 print(f"Response: {resp.text}")
         except Exception as e:
-            print(f"Error syncing {w['address']}: {e}")
+            print(f"Error syncing {wd['address']}: {e}")
             break
             
         if (i + 1) % 100 == 0:
