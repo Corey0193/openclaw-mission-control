@@ -9,44 +9,46 @@ import PolymarketPage from "./pages/PolymarketPage";
 import TokenUsagePage from "./pages/TokenUsagePage";
 import ArbPipelinePage from "./pages/ArbPipelinePage";
 import WalletsPage from "./pages/WalletsPage";
+import BacktestingPage from "./pages/BacktestingPage";
 
 const SoftArbPage = lazy(() => import("./pages/SoftArbPage"));
 const HardArbPage = lazy(() => import("./pages/HardArbPage"));
 
 export default function App() {
-	return (
-		<Routes>
-			<Route path="/" element={<DashboardPage />} />
-			<Route path="/org" element={<OrgChartPage />} />
-			<Route path="/todos" element={<EinsteinTodosPage />} />
-			<Route path="/token-usage" element={<TokenUsagePage />} />
+        return (
+                <Routes>
+                        <Route path="/" element={<DashboardPage />} />
+                        <Route path="/org" element={<OrgChartPage />} />
+                        <Route path="/todos" element={<EinsteinTodosPage />} />
+                        <Route path="/token-usage" element={<TokenUsagePage />} />
 
-			{/* Arbitrage routes */}
-			<Route path="/arb" element={<Navigate to="/arb/hard" replace />} />
-			<Route
-				path="/polymarket"
-				element={<Navigate to="/arb/polymarket" replace />}
-			/>
+                        {/* Arbitrage routes */}
+                        <Route path="/arb" element={<Navigate to="/arb/hard" replace />} />
+                        <Route
+                                path="/polymarket"
+                                element={<Navigate to="/arb/polymarket" replace />}
+                        />
 
-			<Route path="/arb/polymarket" element={<PolymarketPage />} />
-			<Route path="/arb/pipeline" element={<ArbPipelinePage />} />
-			<Route path="/arb/wallets" element={<WalletsPage />} />
+                        <Route path="/arb/polymarket" element={<PolymarketPage />} />
+                        <Route path="/arb/backtesting" element={<BacktestingPage />} />
+                        <Route path="/arb/pipeline" element={<ArbPipelinePage />} />
+                        <Route path="/arb/wallets" element={<WalletsPage />} />
 
-			<Route
-			        path="/arb/soft"				element={
-					<Suspense fallback={<div className="min-h-screen bg-[#f8f9fa]" />}>
-						<SoftArbPage />
-					</Suspense>
-				}
-			/>
-			<Route
-				path="/arb/hard"
-				element={
-					<Suspense fallback={<div className="min-h-screen bg-[#f8f9fa]" />}>
-						<HardArbPage />
-					</Suspense>
-				}
-			/>
-		</Routes>
-	);
+                        <Route
+                                path="/arb/soft"                                element={
+                                        <Suspense fallback={<div className="min-h-screen bg-[#f8f9fa]" />}>
+                                                <SoftArbPage />
+                                        </Suspense>
+                                }
+                        />
+                        <Route
+                                path="/arb/hard"
+                                element={
+                                        <Suspense fallback={<div className="min-h-screen bg-[#f8f9fa]" />}>
+                                                <HardArbPage />
+                                        </Suspense>
+                                }
+                        />
+                </Routes>
+        );
 }
