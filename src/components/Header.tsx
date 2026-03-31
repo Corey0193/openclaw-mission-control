@@ -167,14 +167,14 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 									Polymarket
 								</Link>
 								<Link
-									to="/arb/backtesting"
-									onClick={() => setIsArbDropdownOpen(false)}
-									className={`
+								        to="/arb/experiments"
+								        onClick={() => setIsArbDropdownOpen(false)}
+								        className={`
 								                block px-4 py-2 text-[12px] font-semibold hover:bg-muted transition-colors
-								                ${location.pathname === "/arb/backtesting" ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
+								                ${location.pathname === "/arb/experiments" ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
 								        `}
 								>
-									Backtesting
+								        Experiments
 								</Link>{" "}
 								<Link
 									to="/arb/soft"

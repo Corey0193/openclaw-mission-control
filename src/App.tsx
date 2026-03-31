@@ -9,7 +9,7 @@ import PolymarketPage from "./pages/PolymarketPage";
 import TokenUsagePage from "./pages/TokenUsagePage";
 import ArbPipelinePage from "./pages/ArbPipelinePage";
 import WalletsPage from "./pages/WalletsPage";
-import BacktestingPage from "./pages/BacktestingPage";
+import ArbExperimentsPage from "./pages/ArbExperimentsPage";
 
 const SoftArbPage = lazy(() => import("./pages/SoftArbPage"));
 const HardArbPage = lazy(() => import("./pages/HardArbPage"));
@@ -30,9 +30,12 @@ export default function App() {
 			/>
 
 			<Route path="/arb/polymarket" element={<PolymarketPage />} />
-			<Route path="/arb/backtesting" element={<BacktestingPage />} />
-			<Route path="/arb/pipeline" element={<ArbPipelinePage />} />
-			<Route path="/arb/wallets" element={<WalletsPage />} />
+			<Route path="/arb/experiments" element={<ArbExperimentsPage />} />
+			<Route
+			        path="/arb/backtesting"
+			        element={<Navigate to="/arb/experiments" replace />}
+			/>
+			<Route path="/arb/pipeline" element={<ArbPipelinePage />} />			<Route path="/arb/wallets" element={<WalletsPage />} />
 
 			<Route
 				path="/arb/soft"
