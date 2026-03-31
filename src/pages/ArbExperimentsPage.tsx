@@ -8,7 +8,7 @@ import {
   IconClock,
   IconCpu,
   IconFlask,
-  IconMilestone,
+  IconTarget,
   IconTrophy,
   IconCircleFilled,
   IconStarFilled,
@@ -153,7 +153,7 @@ export default function ArbExperimentsPage() {
             label="Milestones"
             value={`${stats.milestones} found`}
             subValue="(Sharpe > 0, trades > 20)"
-            icon={<IconMilestone size={20} />}
+            icon={<IconTarget size={20} />}
           />
           <SummaryCard
             label="Compute Loop"
