@@ -11,10 +11,17 @@ crons.interval(
 );
 
 crons.interval(
-	"check arb paper trade resolutions",
-	{ minutes: 30 },
-	internal.arbPaperTradeActions.checkResolutions,
-	{},
+        "check arb paper trade resolutions",
+        { minutes: 30 },
+        internal.arbPaperTradeActions.checkResolutions,
+        {},
+);
+
+crons.interval(
+        "sync arb experiments",
+        { minutes: 5 },
+        internal.experimentActions.syncExperiments,
+        {},
 );
 
 export default crons;

@@ -256,7 +256,7 @@ export default defineSchema({
 		maxDrawdownPct: v.optional(v.number()),
 		profitableWeeksRatio: v.optional(v.number()),
 		computedWinRate: v.optional(v.number()),
-	})
+		})
 		.index("by_tenant", ["tenantId"])
 		.index("by_address", ["address"])
 		.index("by_pnl", ["totalPnl"])
@@ -264,4 +264,18 @@ export default defineSchema({
 		.index("by_cts", ["copyTradingScore"])
 		.index("by_tenant_cts", ["tenantId", "copyTradingScore"])
 		.index("by_tenant_insider", ["tenantId", "isInsider"]),
-});
+		experiments: defineTable({
+		tenantId: v.string(),
+		experimentId: v.string(), // "seed_04_pnl_hold_resolution"
+		hypothesis: v.string(),
+		status: v.string(), // "pending" | "completed" | "error" | "milestone"
+		completedAt: v.optional(v.string()),
+		durationSeconds: v.optional(v.number()),
+		frozenParams: v.optional(v.any()),
+		bestTrial: v.optional(v.any()), // the whole train/val/test object
+		summary: v.optional(v.any()),
+		error: v.optional(v.string()),
+		})
+		.index("by_tenant", ["tenantId"])
+		.index("by_tenant_status", ["tenantId", "status"]),
+		});
