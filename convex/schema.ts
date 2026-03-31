@@ -265,17 +265,32 @@ export default defineSchema({
 		.index("by_tenant_cts", ["tenantId", "copyTradingScore"])
 		.index("by_tenant_insider", ["tenantId", "isInsider"]),
 		experiments: defineTable({
-		tenantId: v.string(),
-		experimentId: v.string(), // "seed_04_pnl_hold_resolution"
-		hypothesis: v.string(),
-		status: v.string(), // "pending" | "completed" | "error" | "milestone"
-		completedAt: v.optional(v.string()),
-		durationSeconds: v.optional(v.number()),
-		frozenParams: v.optional(v.any()),
-		bestTrial: v.optional(v.any()), // the whole train/val/test object
-		summary: v.optional(v.any()),
-		error: v.optional(v.string()),
+		        tenantId: v.string(),
+		        experimentId: v.string(), // "seed_04_pnl_hold_resolution"
+		        hypothesis: v.string(),
+		        status: v.string(), // "pending" | "completed" | "error" | "milestone"
+		        completedAt: v.optional(v.string()),
+		        durationSeconds: v.optional(v.number()),
+		        frozenParams: v.optional(v.any()),
+		        bestTrial: v.optional(
+		                v.object({
+		                        number: v.number(),
+		                        params: v.any(),
+		                        train: v.any(),
+		                        validate: v.any(),
+		                        test: v.any(),
+		                }),
+		        ),
+		        summary: v.optional(
+		                v.object({
+		                        total_trials: v.number(),
+		                        completed_trials: v.number(),
+		                        pruned_trials: v.number(),
+		                }),
+		        ),
+		        error: v.optional(v.string()),
+		        lastSyncedAt: v.number(),
 		})
-		.index("by_tenant", ["tenantId"])
-		.index("by_tenant_status", ["tenantId", "status"]),
+		        .index("by_tenant", ["tenantId"])
+		        .index("by_tenant_status", ["tenantId", "status"]),
 		});

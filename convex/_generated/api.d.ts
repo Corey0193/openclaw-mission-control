@@ -16,6 +16,7 @@ import type * as auth from "../auth.js";
 import type * as backtesting from "../backtesting.js";
 import type * as crons from "../crons.js";
 import type * as documents from "../documents.js";
+import type * as experiments from "../experiments.js";
 import type * as fix_loki from "../fix_loki.js";
 import type * as http from "../http.js";
 import type * as messages from "../messages.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   backtesting: typeof backtesting;
   crons: typeof crons;
   documents: typeof documents;
+  experiments: typeof experiments;
   fix_loki: typeof fix_loki;
   http: typeof http;
   messages: typeof messages;

@@ -33,8 +33,15 @@ export const syncExperiment = internalMutation({
     durationSeconds: v.optional(v.number()),
     frozenParams: v.optional(v.any()),
     bestTrial: v.optional(v.any()),
-    summary: v.optional(v.any()),
+    summary: v.optional(
+      v.object({
+        total_trials: v.number(),
+        completed_trials: v.number(),
+        pruned_trials: v.number(),
+      })
+    ),
     error: v.optional(v.string()),
+    lastSyncedAt: v.number(),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -43,29 +50,25 @@ export const syncExperiment = internalMutation({
       .filter((q) => q.eq(q.field("experimentId"), args.experimentId))
       .first();
 
+    const data = {
+      hypothesis: args.hypothesis,
+      status: args.status,
+      completedAt: args.completedAt,
+      durationSeconds: args.durationSeconds,
+      frozenParams: args.frozenParams,
+      bestTrial: args.bestTrial,
+      summary: args.summary,
+      error: args.error,
+      lastSyncedAt: args.lastSyncedAt,
+    };
+
     if (existing) {
-      await ctx.db.patch(existing._id, {
-        hypothesis: args.hypothesis,
-        status: args.status,
-        completedAt: args.completedAt,
-        durationSeconds: args.durationSeconds,
-        frozenParams: args.frozenParams,
-        bestTrial: args.bestTrial,
-        summary: args.summary,
-        error: args.error,
-      });
+      await ctx.db.patch(existing._id, data);
     } else {
       await ctx.db.insert("experiments", {
         tenantId: args.tenantId,
         experimentId: args.experimentId,
-        hypothesis: args.hypothesis,
-        status: args.status,
-        completedAt: args.completedAt,
-        durationSeconds: args.durationSeconds,
-        frozenParams: args.frozenParams,
-        bestTrial: args.bestTrial,
-        summary: args.summary,
-        error: args.error,
+        ...data,
       });
     }
   },

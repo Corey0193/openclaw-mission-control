@@ -17,11 +17,4 @@ crons.interval(
         {},
 );
 
-crons.interval(
-        "sync arb experiments",
-        { minutes: 5 },
-        internal.experimentActions.syncExperiments,
-        {},
-);
-
 export default crons;
