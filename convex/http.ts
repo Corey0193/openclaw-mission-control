@@ -223,4 +223,18 @@ http.route({
 	}),
 });
 
+// Experiment sync endpoint
+http.route({
+        path: "/experiments/sync",
+        method: "POST",
+        handler: httpAction(async (ctx, request) => {
+                const body = await request.json();
+                await ctx.runMutation(api.experiments.syncExperiment, body);
+                return new Response(JSON.stringify({ ok: true }), {
+                        status: 200,
+                        headers: { "Content-Type": "application/json" },
+                });
+        }),
+});
+
 export default http;
