@@ -254,10 +254,10 @@ export default defineSchema({
 	        maxDrawdownPct: v.optional(v.number()),
 	        profitableWeeksRatio: v.optional(v.number()),
 	        computedWinRate: v.optional(v.number()),
+	})
 	.index("by_tenant", ["tenantId"])
 	.index("by_address", ["address"])
 	.index("by_pnl", ["totalPnl"])
 	.index("by_score", ["performanceScore"])
 	.index("by_cts", ["copyTradingScore"])
 	.index("by_tenant_cts", ["tenantId", "copyTradingScore"]),
-	});

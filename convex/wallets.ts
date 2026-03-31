@@ -27,22 +27,26 @@ export const paginatedList = query({
                 search: v.optional(v.string()),
         },
         handler: async (ctx, args) => {
-                let q = ctx.db.query("wallets");
-
-                // By default we sort by copyTradingScore (desc)
-                const results = await q
+                const results = await ctx.db
+                        .query("wallets")
                         .withIndex("by_tenant_cts", (q) => q.eq("tenantId", args.tenantId))
                         .order("desc")
                         .paginate(args.paginationOpts);
 
-                // Note: Filtering after pagination will cause the page size to be smaller than requested.
-                // For a small dataset (~5k), we can either filter on the server OR keep filtering on the client.
-                // If we want to keep the UI fast, we should ideally keep the full list in memory IF it's not too big.
-                // 5k wallets * ~1kb each = 5MB. This should be okay for modern browsers.
-                
-                // The current "slowness" might be from the initial .collect() taking too long to transfer.
-                // Let's refine the list query to be more efficient.
                 return results;
+        },
+});
+
+// Separate query for insider wallets — ensures they're always loadable
+// regardless of CTS sort position.
+export const listInsiders = query({
+        args: { tenantId: v.string() },
+        handler: async (ctx, args) => {
+                const all = await ctx.db
+                        .query("wallets")
+                        .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+                        .collect();
+                return all.filter((w) => w.isInsider);
         },
 });
 

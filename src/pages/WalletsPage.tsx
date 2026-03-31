@@ -83,13 +83,29 @@ type SortKey = "address" | "isInsider" | "totalPnl" | "copyTradingScore" | "comp
 type SortDirection = "asc" | "desc" | null;
 
 export default function WalletsPage() {
-        const { results: wallets, status, loadMore } = usePaginatedQuery(
+        const { results: paginatedWallets, status, loadMore } = usePaginatedQuery(
                 api.wallets.paginatedList,
                 { tenantId: DEFAULT_TENANT_ID },
                 { initialNumItems: 200 }
         );
 
+        const insiderWallets = useQuery(api.wallets.listInsiders, { tenantId: DEFAULT_TENANT_ID });
+
         const [searchQuery, setSearchQuery] = useState("");	const [showOnlyInsiders, setShowOnlyInsiders] = useState(false);
+
+        // When showing insiders, use the dedicated insider query.
+        // Otherwise use paginated results, but merge any insiders to the top.
+        const wallets = useMemo(() => {
+                if (showOnlyInsiders) {
+                        return insiderWallets ?? [];
+                }
+                const paginated = paginatedWallets ?? [];
+                const insiders = insiderWallets ?? [];
+                // Merge insiders at the top, deduplicating by address
+                const paginatedAddrs = new Set(paginated.map((w) => w.address));
+                const extraInsiders = insiders.filter((w) => !paginatedAddrs.has(w.address));
+                return [...extraInsiders, ...paginated];
+        }, [showOnlyInsiders, paginatedWallets, insiderWallets]);
 	const [minPnl, setMinPnl] = useState<number | "">("");
 	const [minCts, setMinCts] = useState<number | "">("");
 	const [tagFilter, setTagFilter] = useState("");
