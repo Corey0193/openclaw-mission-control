@@ -13,6 +13,7 @@ import type * as arbDaemon from "../arbDaemon.js";
 import type * as arbPaperTradeActions from "../arbPaperTradeActions.js";
 import type * as arbPaperTrades from "../arbPaperTrades.js";
 import type * as auth from "../auth.js";
+import type * as backtesting from "../backtesting.js";
 import type * as crons from "../crons.js";
 import type * as documents from "../documents.js";
 import type * as fix_loki from "../fix_loki.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   arbPaperTradeActions: typeof arbPaperTradeActions;
   arbPaperTrades: typeof arbPaperTrades;
   auth: typeof auth;
+  backtesting: typeof backtesting;
   crons: typeof crons;
   documents: typeof documents;
   fix_loki: typeof fix_loki;
