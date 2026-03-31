@@ -74,7 +74,7 @@ def calculate_cts(conn, address, as_of_ts=None):
     weights = CTS_CONF.get('weights', DEFAULT_CTS_CONFIG['weights'])
     lookback_weeks = CTS_CONF.get('lookback_weeks', 12)
     min_weeks = CTS_CONF.get('min_weeks_active', 4)
-    min_trades = CTS_CONF.get('min_trades', 10)
+    min_trades = CTS_CONF.get('min_trades', DEFAULT_CTS_CONFIG['min_trades'])
 
     cursor = conn.cursor()
     now_ts = as_of_ts if as_of_ts is not None else int(time.time())

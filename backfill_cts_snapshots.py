@@ -20,7 +20,7 @@ import os
 from datetime import datetime, timedelta, timezone
 
 # Reuse the parameterized calculate_cts and config from backfill_cts.py
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from backfill_cts import calculate_cts, CTS_CONF, DB_PATH
 
 
@@ -90,117 +90,120 @@ def backfill_snapshots(
         sys.exit(1)
 
     conn = sqlite3.connect(db_path, timeout=30.0)
-    conn.execute('PRAGMA journal_mode=WAL')
-    migrate(conn)
+    try:
+        conn.execute('PRAGMA journal_mode=WAL')
+        migrate(conn)
 
-    cursor = conn.cursor()
-    lookback_weeks = CTS_CONF.get('lookback_weeks', 12)
+        cursor = conn.cursor()
+        lookback_weeks = CTS_CONF.get('lookback_weeks', 12)
 
-    # ── Determine date range ──────────────────────────────────────────────────
-    cursor.execute('SELECT MIN(timestamp), MAX(timestamp) FROM trades')
-    min_ts, max_ts = cursor.fetchone()
-    if not min_ts:
-        print("[cts_snapshots] No trades found. Aborting.")
+        # ── Determine date range ──────────────────────────────────────────────
+        cursor.execute('SELECT MIN(timestamp), MAX(timestamp) FROM trades')
+        min_ts, max_ts = cursor.fetchone()
+        if not min_ts:
+            print("[cts_snapshots] No trades found. Aborting.")
+            return
+
+        if start_date is None:
+            first_snap_ts = min_ts + (lookback_weeks * 7 * 86400)
+            start_dt = datetime.fromtimestamp(first_snap_ts, tz=timezone.utc).date()
+        else:
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+
+        if end_date is None:
+            end_dt = datetime.fromtimestamp(max_ts, tz=timezone.utc).date()
+        else:
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+        # ── Build snapshot date list ──────────────────────────────────────────
+        snapshot_dates: list[str] = []
+        current = start_dt
+        while current <= end_dt:
+            snapshot_dates.append(current.strftime('%Y-%m-%d'))
+            current += timedelta(days=interval_days)
+
+        if not snapshot_dates:
+            print("[cts_snapshots] No snapshot dates in range. Aborting.")
+            return
+
+        print(f"[cts_snapshots] {len(snapshot_dates)} snapshots: {snapshot_dates[0]} → {snapshot_dates[-1]}")
+
+        # ── Skip already-computed dates ───────────────────────────────────────
+        if not force:
+            cursor.execute('SELECT DISTINCT snapshot_date FROM cts_snapshots')
+            existing = {row[0] for row in cursor.fetchall()}
+            todo = [d for d in snapshot_dates if d not in existing]
+            skipped = len(snapshot_dates) - len(todo)
+            if skipped:
+                print(f"[cts_snapshots] Skipping {skipped} already-computed dates. {len(todo)} remaining.")
+            snapshot_dates = todo
+
+        if not snapshot_dates:
+            print("[cts_snapshots] All dates already computed. Use --force to recompute.")
+            return
+
+        # ── Process each snapshot date ────────────────────────────────────────
+        total_scored = 0
+        for i, snap_date in enumerate(snapshot_dates):
+            # End-of-day timestamp for the snapshot date (exclusive upper bound)
+            as_of_ts = int(
+                datetime.strptime(snap_date, '%Y-%m-%d')
+                .replace(tzinfo=timezone.utc)
+                .timestamp()
+            ) + 86400  # midnight of the next day
+
+            lookback_start = as_of_ts - (lookback_weeks * 7 * 86400)
+
+            # Find candidate addresses: any wallet with trades in the lookback window
+            cursor.execute(
+                'SELECT DISTINCT address FROM trades WHERE timestamp >= ? AND timestamp < ?',
+                (lookback_start, as_of_ts),
+            )
+            addresses = [row[0] for row in cursor.fetchall()]
+
+            if force:
+                cursor.execute('DELETE FROM cts_snapshots WHERE snapshot_date = ?', (snap_date,))
+
+            scored = 0
+            for addr in addresses:
+                try:
+                    result = calculate_cts(conn, addr, as_of_ts=as_of_ts)
+                except Exception as exc:
+                    print(f"    [warn] calculate_cts failed for {addr}: {exc} — skipping")
+                    continue
+                if result:
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO cts_snapshots
+                        (snapshot_date, address, copy_trading_score,
+                         cts_consistency, cts_risk_adjusted, cts_recency_pnl,
+                         cts_win_rate, cts_drawdown_score, cts_absolute_return,
+                         pnl_7d, pnl_30d, pnl_90d,
+                         max_drawdown_pct, profitable_weeks_ratio)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        snap_date, addr,
+                        result['copy_trading_score'],
+                        result['cts_consistency'],
+                        result['cts_risk_adjusted'],
+                        result['cts_recency_pnl'],
+                        result['cts_win_rate'],
+                        result['cts_drawdown_score'],
+                        result['cts_absolute_return'],
+                        result['pnl_7d'],
+                        result['pnl_30d'],
+                        result['pnl_90d'],
+                        result['max_drawdown_pct'],
+                        result['profitable_weeks_ratio'],
+                    ))
+                    scored += 1
+
+            conn.commit()
+            total_scored += scored
+            print(f"  [{i+1:>3}/{len(snapshot_dates)}] {snap_date}: {scored:>4} scored / {len(addresses):>5} candidates")
+
+        print(f"\n[cts_snapshots] Done. {total_scored} total wallet-snapshots written.")
+    finally:
         conn.close()
-        return
-
-    if start_date is None:
-        first_snap_ts = min_ts + (lookback_weeks * 7 * 86400)
-        start_dt = datetime.fromtimestamp(first_snap_ts, tz=timezone.utc).date()
-    else:
-        start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
-
-    if end_date is None:
-        end_dt = datetime.fromtimestamp(max_ts, tz=timezone.utc).date()
-    else:
-        end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
-
-    # ── Build snapshot date list ──────────────────────────────────────────────
-    snapshot_dates: list[str] = []
-    current = start_dt
-    while current <= end_dt:
-        snapshot_dates.append(current.strftime('%Y-%m-%d'))
-        current += timedelta(days=interval_days)
-
-    if not snapshot_dates:
-        print("[cts_snapshots] No snapshot dates in range. Aborting.")
-        conn.close()
-        return
-
-    print(f"[cts_snapshots] {len(snapshot_dates)} snapshots: {snapshot_dates[0]} → {snapshot_dates[-1]}")
-
-    # ── Skip already-computed dates ───────────────────────────────────────────
-    if not force:
-        cursor.execute('SELECT DISTINCT snapshot_date FROM cts_snapshots')
-        existing = {row[0] for row in cursor.fetchall()}
-        todo = [d for d in snapshot_dates if d not in existing]
-        skipped = len(snapshot_dates) - len(todo)
-        if skipped:
-            print(f"[cts_snapshots] Skipping {skipped} already-computed dates. {len(todo)} remaining.")
-        snapshot_dates = todo
-
-    if not snapshot_dates:
-        print("[cts_snapshots] All dates already computed. Use --force to recompute.")
-        conn.close()
-        return
-
-    # ── Process each snapshot date ────────────────────────────────────────────
-    total_scored = 0
-    for i, snap_date in enumerate(snapshot_dates):
-        # End-of-day timestamp for the snapshot date (exclusive upper bound)
-        as_of_ts = int(
-            datetime.strptime(snap_date, '%Y-%m-%d')
-            .replace(tzinfo=timezone.utc)
-            .timestamp()
-        ) + 86400  # midnight of the next day
-
-        lookback_start = as_of_ts - (lookback_weeks * 7 * 86400)
-
-        # Find candidate addresses: any wallet with trades in the lookback window
-        cursor.execute(
-            'SELECT DISTINCT address FROM trades WHERE timestamp >= ? AND timestamp < ?',
-            (lookback_start, as_of_ts),
-        )
-        addresses = [row[0] for row in cursor.fetchall()]
-
-        if force:
-            cursor.execute('DELETE FROM cts_snapshots WHERE snapshot_date = ?', (snap_date,))
-
-        scored = 0
-        for addr in addresses:
-            result = calculate_cts(conn, addr, as_of_ts=as_of_ts)
-            if result:
-                cursor.execute('''
-                    INSERT OR REPLACE INTO cts_snapshots
-                    (snapshot_date, address, copy_trading_score,
-                     cts_consistency, cts_risk_adjusted, cts_recency_pnl,
-                     cts_win_rate, cts_drawdown_score, cts_absolute_return,
-                     pnl_7d, pnl_30d, pnl_90d,
-                     max_drawdown_pct, profitable_weeks_ratio)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    snap_date, addr,
-                    result['copy_trading_score'],
-                    result['cts_consistency'],
-                    result['cts_risk_adjusted'],
-                    result['cts_recency_pnl'],
-                    result['cts_win_rate'],
-                    result['cts_drawdown_score'],
-                    result['cts_absolute_return'],
-                    result['pnl_7d'],
-                    result['pnl_30d'],
-                    result['pnl_90d'],
-                    result['max_drawdown_pct'],
-                    result['profitable_weeks_ratio'],
-                ))
-                scored += 1
-
-        conn.commit()
-        total_scored += scored
-        print(f"  [{i+1:>3}/{len(snapshot_dates)}] {snap_date}: {scored:>4} scored / {len(addresses):>5} candidates")
-
-    conn.close()
-    print(f"\n[cts_snapshots] Done. {total_scored} total wallet-snapshots written.")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -213,7 +216,7 @@ def daily_snapshot(db_path: str = DB_PATH) -> None:
     Idempotent — safe to run multiple times on the same day.
     Called by the daily OpenClaw cron job.
     """
-    today = datetime.utcnow().strftime('%Y-%m-%d')
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     print(f"[cts_snapshots] Daily snapshot for {today}")
     backfill_snapshots(
         db_path=db_path,
