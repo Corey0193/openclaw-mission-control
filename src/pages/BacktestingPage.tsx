@@ -1,13 +1,10 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
-	IconSettings,
-	IconChartBar,
-	IconPlayerPlay,
-	IconDatabase,
-	IconCheck,
-	IconX,
+        IconSettings,
+        IconChartBar,
+        IconPlayerPlay,
+        IconDatabase,
 } from "@tabler/icons-react";
-
 export default function BacktestingPage() {
 	const [isOptimizing, setIsOptimizing] = useState(false);
 
