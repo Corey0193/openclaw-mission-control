@@ -4,64 +4,64 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 
 export const list = query({
-        args: {
-                tenantId: v.string(),
-        },
-        handler: async (ctx, args) => {
-                return await ctx.db
-                        .query("wallets")
-                        .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
-                        .order("desc")
-                        .collect();
-        },
+	args: {
+		tenantId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		return await ctx.db
+			.query("wallets")
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.order("desc")
+			.collect();
+	},
 });
 
 export const paginatedList = query({
-        args: {
-                tenantId: v.string(),
-                paginationOpts: paginationOptsValidator,
-                showOnlyInsiders: v.optional(v.boolean()),
-                tag: v.optional(v.string()),
-                minPnl: v.optional(v.number()),
-                minCts: v.optional(v.number()),
-                search: v.optional(v.string()),
-        },
-        handler: async (ctx, args) => {
-                const results = await ctx.db
-                        .query("wallets")
-                        .withIndex("by_tenant_cts", (q) => q.eq("tenantId", args.tenantId))
-                        .order("desc")
-                        .paginate(args.paginationOpts);
+	args: {
+		tenantId: v.string(),
+		paginationOpts: paginationOptsValidator,
+		showOnlyInsiders: v.optional(v.boolean()),
+		tag: v.optional(v.string()),
+		minPnl: v.optional(v.number()),
+		minCts: v.optional(v.number()),
+		search: v.optional(v.string()),
+	},
+	handler: async (ctx, args) => {
+		const results = await ctx.db
+			.query("wallets")
+			.withIndex("by_tenant_cts", (q) => q.eq("tenantId", args.tenantId))
+			.order("desc")
+			.paginate(args.paginationOpts);
 
-                return results;
-        },
+		return results;
+	},
 });
 
 // Separate query for insider wallets — uses dedicated index so it never
 // needs to scan the full wallets table.
 export const listInsiders = query({
-        args: { tenantId: v.string() },
-        handler: async (ctx, args) => {
-                return await ctx.db
-                        .query("wallets")
-                        .withIndex("by_tenant_insider", (q) =>
-                                q.eq("tenantId", args.tenantId).eq("isInsider", true),
-                        )
-                        .collect();
-        },
+	args: { tenantId: v.string() },
+	handler: async (ctx, args) => {
+		return await ctx.db
+			.query("wallets")
+			.withIndex("by_tenant_insider", (q) =>
+				q.eq("tenantId", args.tenantId).eq("isInsider", true),
+			)
+			.collect();
+	},
 });
 
 export const count = query({
-        args: {
-                tenantId: v.string(),
-        },
-        handler: async (ctx, args) => {
-                const wallets = await ctx.db
-                        .query("wallets")
-                        .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
-                        .collect();
-                return wallets.length;
-        },
+	args: {
+		tenantId: v.string(),
+	},
+	handler: async (ctx, args) => {
+		const wallets = await ctx.db
+			.query("wallets")
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.collect();
+		return wallets.length;
+	},
 });
 export const upsert = mutation({
 	args: {
@@ -94,15 +94,25 @@ export const upsert = mutation({
 
 		const now = Date.now();
 		const ctsFields = {
-			...(args.copyTradingScore !== undefined && { copyTradingScore: args.copyTradingScore }),
-			...(args.ctsConsistency !== undefined && { ctsConsistency: args.ctsConsistency }),
+			...(args.copyTradingScore !== undefined && {
+				copyTradingScore: args.copyTradingScore,
+			}),
+			...(args.ctsConsistency !== undefined && {
+				ctsConsistency: args.ctsConsistency,
+			}),
 			...(args.ctsWinRate !== undefined && { ctsWinRate: args.ctsWinRate }),
 			...(args.pnl7d !== undefined && { pnl7d: args.pnl7d }),
 			...(args.pnl30d !== undefined && { pnl30d: args.pnl30d }),
 			...(args.pnl90d !== undefined && { pnl90d: args.pnl90d }),
-			...(args.maxDrawdownPct !== undefined && { maxDrawdownPct: args.maxDrawdownPct }),
-			...(args.profitableWeeksRatio !== undefined && { profitableWeeksRatio: args.profitableWeeksRatio }),
-			...(args.computedWinRate !== undefined && { computedWinRate: args.computedWinRate }),
+			...(args.maxDrawdownPct !== undefined && {
+				maxDrawdownPct: args.maxDrawdownPct,
+			}),
+			...(args.profitableWeeksRatio !== undefined && {
+				profitableWeeksRatio: args.profitableWeeksRatio,
+			}),
+			...(args.computedWinRate !== undefined && {
+				computedWinRate: args.computedWinRate,
+			}),
 		};
 
 		if (existing) {

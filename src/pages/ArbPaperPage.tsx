@@ -50,7 +50,8 @@ function formatPnl(n: number): string {
 }
 
 function timeAgo(isoOrMs: string | number): string {
-	const ts = typeof isoOrMs === "string" ? new Date(isoOrMs).getTime() : isoOrMs;
+	const ts =
+		typeof isoOrMs === "string" ? new Date(isoOrMs).getTime() : isoOrMs;
 	const diffMs = Date.now() - ts;
 	const mins = Math.floor(diffMs / 60000);
 	if (mins < 1) return "just now";
@@ -68,7 +69,11 @@ function safeStr(v: unknown): string {
 	if (typeof v === "number" || typeof v === "boolean") return String(v);
 	if (Array.isArray(v)) return v.map(safeStr).join(", ");
 	if (typeof v === "object") {
-		try { return JSON.stringify(v); } catch { return "[object]"; }
+		try {
+			return JSON.stringify(v);
+		} catch {
+			return "[object]";
+		}
 	}
 	return String(v);
 }
@@ -76,14 +81,20 @@ function safeStr(v: unknown): string {
 /** Format an adjusted_edge value that may be a number, string, or object mapping names to numbers */
 function formatAdjustedEdge(v: unknown): string {
 	if (typeof v === "number") return `${(v * 100).toFixed(1)}%`;
-	if (typeof v === "string") { const n = Number(v); return Number.isNaN(n) ? v : `${(n * 100).toFixed(1)}%`; }
+	if (typeof v === "string") {
+		const n = Number(v);
+		return Number.isNaN(n) ? v : `${(n * 100).toFixed(1)}%`;
+	}
 	if (v != null && typeof v === "object" && !Array.isArray(v)) {
 		const entries = Object.entries(v as Record<string, unknown>);
-		return entries.map(([k, val]) => {
-			const label = k.replace(/_/g, " ");
-			const num = typeof val === "number" ? `${val.toFixed(1)}%` : String(val);
-			return `${label}: ${num}`;
-		}).join(", ");
+		return entries
+			.map(([k, val]) => {
+				const label = k.replace(/_/g, " ");
+				const num =
+					typeof val === "number" ? `${val.toFixed(1)}%` : String(val);
+				return `${label}: ${num}`;
+			})
+			.join(", ");
 	}
 	return String(v ?? "");
 }
@@ -129,13 +140,7 @@ function SummaryCard({
 					{label}
 				</div>
 				<div className="text-lg font-bold text-foreground">
-					{isPnl ? (
-						<PnlBadge value={value} />
-					) : isPercent ? (
-						`${value}%`
-					) : (
-						value
-					)}
+					{isPnl ? <PnlBadge value={value} /> : isPercent ? `${value}%` : value}
 				</div>
 			</div>
 		</div>
@@ -151,18 +156,26 @@ function PnlTooltip({ active, payload, label }: ChartTooltipProps) {
 	return (
 		<div className="bg-white border border-border rounded-lg px-3 py-2 shadow-sm text-xs">
 			<div className="text-muted-foreground mb-1">{label}</div>
-			<div className="font-semibold">{formatPnl(Number(payload[0].value ?? 0))}</div>
+			<div className="font-semibold">
+				{formatPnl(Number(payload[0].value ?? 0))}
+			</div>
 		</div>
 	);
 }
 
 function PairTooltip({ active, payload }: ChartTooltipProps) {
 	if (!active || !payload?.length) return null;
-	const d = payload[0].payload as { pair: string; profit: number; count: number };
+	const d = payload[0].payload as {
+		pair: string;
+		profit: number;
+		count: number;
+	};
 	return (
 		<div className="bg-white border border-border rounded-lg px-3 py-2 shadow-sm text-xs">
 			<div className="font-medium mb-1 max-w-[200px] truncate">{d.pair}</div>
-			<div className="text-muted-foreground">{d.count} trade{d.count !== 1 ? "s" : ""}</div>
+			<div className="text-muted-foreground">
+				{d.count} trade{d.count !== 1 ? "s" : ""}
+			</div>
 			<div className="font-semibold">{formatPnl(d.profit)}</div>
 		</div>
 	);
@@ -170,12 +183,21 @@ function PairTooltip({ active, payload }: ChartTooltipProps) {
 
 function ScatterTooltip({ active, payload }: ChartTooltipProps) {
 	if (!active || !payload?.length) return null;
-	const d = payload[0].payload as { viableSize: number; netProfit: number; makerExchange: string; pairName: string };
+	const d = payload[0].payload as {
+		viableSize: number;
+		netProfit: number;
+		makerExchange: string;
+		pairName: string;
+	};
 	return (
 		<div className="bg-white border border-border rounded-lg px-3 py-2 shadow-sm text-xs">
-			<div className="font-medium mb-1 max-w-[200px] truncate">{d.pairName}</div>
+			<div className="font-medium mb-1 max-w-[200px] truncate">
+				{d.pairName}
+			</div>
 			<div className="text-muted-foreground">Maker: {d.makerExchange}</div>
-			<div className="text-muted-foreground">Size: {(Number(d.viableSize) || 0).toFixed(1)} shares</div>
+			<div className="text-muted-foreground">
+				Size: {(Number(d.viableSize) || 0).toFixed(1)} shares
+			</div>
 			<div className="font-semibold">{formatPnl(d.netProfit)}</div>
 		</div>
 	);
@@ -191,7 +213,10 @@ function useCumulativePnlData(trades: PaperTrade[]) {
 		return sorted.reduce<Array<{ date: string; cumPnl: number }>>((acc, t) => {
 			const prev = acc.length > 0 ? acc[acc.length - 1].cumPnl : 0;
 			acc.push({
-				date: new Date(t.epochMs).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+				date: new Date(t.epochMs).toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+				}),
 				cumPnl: Math.round((prev + t.netProfit) * 100) / 100,
 			});
 			return acc;
@@ -240,7 +265,12 @@ interface PipelineRun {
 	dossier: Record<string, unknown> | null;
 	verdict: Record<string, unknown> | null;
 	decision: Record<string, unknown> | null;
-	status: "completed" | "dossier_only" | "verdict_pending" | "abandoned" | "no_files";
+	status:
+		| "completed"
+		| "dossier_only"
+		| "verdict_pending"
+		| "abandoned"
+		| "no_files";
 }
 
 function usePipelineRuns() {
@@ -300,7 +330,10 @@ function useSoftArbTrades() {
 
 function verdictBadge(verdict: string | undefined) {
 	if (!verdict) return null;
-	const map: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
+	const map: Record<
+		string,
+		{ bg: string; text: string; icon: React.ReactNode }
+	> = {
 		// Phase 6.6 vocabulary
 		TRADEABLE: {
 			bg: "bg-emerald-100",
@@ -334,7 +367,11 @@ function verdictBadge(verdict: string | undefined) {
 			icon: <IconCircleCheck size={12} />,
 		},
 	};
-	const style = map[verdict] ?? { bg: "bg-gray-100", text: "text-gray-700", icon: null };
+	const style = map[verdict] ?? {
+		bg: "bg-gray-100",
+		text: "text-gray-700",
+		icon: null,
+	};
 	return (
 		<span
 			className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${style.bg} ${style.text}`}
@@ -355,9 +392,14 @@ function mismatchBadge(mismatchClass: string | undefined) {
 		METADATA_CONFLICT: { bg: "bg-orange-50", text: "text-orange-600" },
 		DIFFERENT_EVENT: { bg: "bg-red-100", text: "text-red-700" },
 	};
-	const style = map[mismatchClass] ?? { bg: "bg-gray-50", text: "text-gray-600" };
+	const style = map[mismatchClass] ?? {
+		bg: "bg-gray-50",
+		text: "text-gray-600",
+	};
 	return (
-		<span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide ${style.bg} ${style.text}`}>
+		<span
+			className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide ${style.bg} ${style.text}`}
+		>
 			{mismatchClass.replace(/_/g, " ")}
 		</span>
 	);
@@ -383,18 +425,27 @@ function decisionBadge(decision: string | undefined) {
 function DirectionBadge({ direction }: { direction: string }) {
 	if (!direction) return null;
 	const isBuyNo = direction === "BUY_NO" || direction === "BUY_POLYMARKET_NO";
-	const isBuyYes = direction === "BUY_YES" || direction === "BUY_POLYMARKET_YES";
+	const isBuyYes =
+		direction === "BUY_YES" || direction === "BUY_POLYMARKET_YES";
 	if (!isBuyNo && !isBuyYes) {
 		return (
-			<span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-gray-100 text-gray-700" title={direction}>
+			<span
+				className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-gray-100 text-gray-700"
+				title={direction}
+			>
 				{direction.replace(/_/g, " ")}
 			</span>
 		);
 	}
 	const label = isBuyNo ? "Bet AGAINST" : "Bet FOR";
-	const colors = isBuyNo ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700";
+	const colors = isBuyNo
+		? "bg-red-100 text-red-700"
+		: "bg-emerald-100 text-emerald-700";
 	return (
-		<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${colors}`} title={direction.replace(/_/g, " ")}>
+		<span
+			className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${colors}`}
+			title={direction.replace(/_/g, " ")}
+		>
 			{label} {isBuyNo ? "\u2193" : "\u2191"}
 		</span>
 	);
@@ -404,14 +455,20 @@ function EdgeBar({ edge }: { edge: number }) {
 	edge = Number(edge) || 0;
 	const absEdge = Math.min(Math.abs(edge), 50);
 	const width = `${Math.max(absEdge * 2, 4)}%`;
-	const color = Math.abs(edge) >= 15 ? "bg-emerald-500" : Math.abs(edge) >= 5 ? "bg-amber-400" : "bg-gray-300";
+	const color =
+		Math.abs(edge) >= 15
+			? "bg-emerald-500"
+			: Math.abs(edge) >= 5
+				? "bg-amber-400"
+				: "bg-gray-300";
 	return (
 		<div className="flex items-center gap-2">
 			<div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
 				<div className={`h-full rounded-full ${color}`} style={{ width }} />
 			</div>
 			<span className="text-xs tabular-nums font-medium">
-				{edge >= 0 ? "+" : ""}{edge.toFixed(1)}%
+				{edge >= 0 ? "+" : ""}
+				{edge.toFixed(1)}%
 			</span>
 		</div>
 	);
@@ -429,53 +486,108 @@ function OpportunitySummary({
 	dossier: Record<string, unknown> | null;
 	verdict: Record<string, unknown> | null;
 	decision: Record<string, unknown> | null;
-	metaculusItems: Array<{ title: string; mcProb: number; pmPrice: number; edgePct: number; direction: string; matchNotes: string; matchQuality: string; status: string; polymarketUrl: string; polymarketSlug: string }>;
+	metaculusItems: Array<{
+		title: string;
+		mcProb: number;
+		pmPrice: number;
+		edgePct: number;
+		direction: string;
+		matchNotes: string;
+		matchQuality: string;
+		status: string;
+		polymarketUrl: string;
+		polymarketSlug: string;
+	}>;
 	edgePct: number;
 	direction: string;
 	eventName: string;
 }) {
-	const bestItem = metaculusItems.length > 0
-		? metaculusItems.reduce((a, b) => Math.abs(b.edgePct) > Math.abs(a.edgePct) ? b : a)
-		: undefined;
+	const bestItem =
+		metaculusItems.length > 0
+			? metaculusItems.reduce((a, b) =>
+					Math.abs(b.edgePct) > Math.abs(a.edgePct) ? b : a,
+				)
+			: undefined;
 	if (!bestItem || bestItem.mcProb === 0) return null;
 
 	const mcProb = bestItem.mcProb;
 	const pmPrice = bestItem.pmPrice;
-	const isBuyNo = bestItem.direction === "BUY_NO" || bestItem.direction === "BUY_POLYMARKET_NO";
-	const buyPrice = isBuyNo ? (1 - pmPrice) : pmPrice;
-	const returnPer1 = buyPrice > 0 ? (1 / buyPrice) : 0;
-	const likelihood = mcProb < 0.3 ? "unlikely" : mcProb > 0.7 ? "likely" : "uncertain";
+	const isBuyNo =
+		bestItem.direction === "BUY_NO" ||
+		bestItem.direction === "BUY_POLYMARKET_NO";
+	const buyPrice = isBuyNo ? 1 - pmPrice : pmPrice;
+	const returnPer1 = buyPrice > 0 ? 1 / buyPrice : 0;
+	const likelihood =
+		mcProb < 0.3 ? "unlikely" : mcProb > 0.7 ? "likely" : "uncertain";
 	const hustleDecision = safeStr(decision?.hustle_decision ?? "");
 	const hustleReasoning = safeStr(decision?.reasoning ?? "");
-	const thorpKelly = verdict?.kelly_check as Record<string, unknown> | undefined;
-	const thorpMaxRiskRaw = thorpKelly?.kelly_bet_usd ?? verdict?.max_risk_suggestion_usd ?? null;
-	const thorpMaxRisk = thorpMaxRiskRaw != null ? (typeof thorpMaxRiskRaw === "number" ? thorpMaxRiskRaw : safeStr(thorpMaxRiskRaw)) : null;
-	const pmUrl = bestItem.polymarketSlug ? `https://polymarket.com/market/${bestItem.polymarketSlug}` : "";
-	const truncatedTitle = bestItem.title.length > 60 ? bestItem.title.slice(0, 60) + "..." : bestItem.title;
+	const thorpKelly = verdict?.kelly_check as
+		| Record<string, unknown>
+		| undefined;
+	const thorpMaxRiskRaw =
+		thorpKelly?.kelly_bet_usd ?? verdict?.max_risk_suggestion_usd ?? null;
+	const thorpMaxRisk =
+		thorpMaxRiskRaw != null
+			? typeof thorpMaxRiskRaw === "number"
+				? thorpMaxRiskRaw
+				: safeStr(thorpMaxRiskRaw)
+			: null;
+	const pmUrl = bestItem.polymarketSlug
+		? `https://polymarket.com/market/${bestItem.polymarketSlug}`
+		: "";
+	const truncatedTitle =
+		bestItem.title.length > 60
+			? bestItem.title.slice(0, 60) + "..."
+			: bestItem.title;
 
 	return (
 		<div className="bg-gradient-to-r from-violet-50 to-blue-50 border border-violet-200 rounded-lg px-4 py-3 space-y-2">
-			<div className="text-[10px] font-bold tracking-wide text-violet-600 uppercase mb-1">Opportunity Summary</div>
+			<div className="text-[10px] font-bold tracking-wide text-violet-600 uppercase mb-1">
+				Opportunity Summary
+			</div>
 			<div className="text-sm text-gray-800 leading-relaxed">
-				<span className="font-medium">The disagreement:</span>{" "}
-				Metaculus forecasters say {pmUrl ? (
-					<a href={pmUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-700 underline decoration-blue-300 hover:decoration-blue-500 hover:text-blue-900 transition-colors" title={bestItem.title}>{truncatedTitle}</a>
+				<span className="font-medium">The disagreement:</span> Metaculus
+				forecasters say{" "}
+				{pmUrl ? (
+					<a
+						href={pmUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="font-semibold text-blue-700 underline decoration-blue-300 hover:decoration-blue-500 hover:text-blue-900 transition-colors"
+						title={bestItem.title}
+					>
+						{truncatedTitle}
+					</a>
 				) : (
 					<span className="font-semibold">{truncatedTitle}</span>
 				)}{" "}
-				is {likelihood} ({(mcProb * 100).toFixed(0)}%), but Polymarket prices it at{" "}
-				<span className="font-semibold">{(pmPrice * 100).toFixed(1)}%</span>.
+				is {likelihood} ({(mcProb * 100).toFixed(0)}%), but Polymarket prices it
+				at <span className="font-semibold">{(pmPrice * 100).toFixed(1)}%</span>.
 			</div>
 			<div className="text-sm text-gray-800 leading-relaxed flex items-center gap-1.5 flex-wrap">
 				<span className="font-medium">The trade:</span>
 				<DirectionBadge direction={bestItem.direction} />
-				<span>shares at <span className="font-semibold tabular-nums">${buyPrice.toFixed(2)}</span></span>
+				<span>
+					shares at{" "}
+					<span className="font-semibold tabular-nums">
+						${buyPrice.toFixed(2)}
+					</span>
+				</span>
 				{returnPer1 > 0 && (
-					<span>— potential <span className="font-semibold text-emerald-700 tabular-nums">${returnPer1.toFixed(2)}</span> return per $1 bet</span>
+					<span>
+						— potential{" "}
+						<span className="font-semibold text-emerald-700 tabular-nums">
+							${returnPer1.toFixed(2)}
+						</span>{" "}
+						return per $1 bet
+					</span>
 				)}
 				{thorpMaxRisk !== null && (
 					<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
-						Kelly: {typeof thorpMaxRisk === "number" ? `$${thorpMaxRisk}` : String(thorpMaxRisk)}
+						Kelly:{" "}
+						{typeof thorpMaxRisk === "number"
+							? `$${thorpMaxRisk}`
+							: String(thorpMaxRisk)}
 					</span>
 				)}
 			</div>
@@ -485,7 +597,10 @@ function OpportunitySummary({
 					{decisionBadge(hustleDecision)}
 					{hustleReasoning && (
 						<span className="text-gray-500 text-xs">
-							— {hustleReasoning.length > 120 ? hustleReasoning.slice(0, 120) + "..." : hustleReasoning}
+							—{" "}
+							{hustleReasoning.length > 120
+								? hustleReasoning.slice(0, 120) + "..."
+								: hustleReasoning}
 						</span>
 					)}
 				</div>
@@ -501,22 +616,45 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 	const decision = run.decision as Record<string, unknown> | null;
 
 	// Detect metaculus vs sports — after server-side normalization, canonical field is dossier_format_version
-	const isMetaculus = String(dossier?.dossier_format_version ?? "").includes("metaculus") || run.runId.startsWith("scan-metaculus-") || !!(dossier?.signal_source) || !!(dossier?.matched_pairs) || !!(dossier?.opportunities) || !!(dossier?.all_pairs_scanned);
-	const rawOpportunities = (dossier?.matched_pairs ?? dossier?.opportunities ?? dossier?.matches ?? dossier?.all_pairs_scanned ?? dossier?.all_scanned ?? dossier?.pairs ?? dossier?.items ?? []) as Array<Record<string, unknown>>;
-	const metaculusSummary = (typeof dossier?.summary === "object" ? dossier.summary : undefined) as Record<string, unknown> | undefined;
-	const bestOpportunity = dossier?.best_opportunity as Record<string, unknown> | undefined;
+	const isMetaculus =
+		String(dossier?.dossier_format_version ?? "").includes("metaculus") ||
+		run.runId.startsWith("scan-metaculus-") ||
+		!!dossier?.signal_source ||
+		!!dossier?.matched_pairs ||
+		!!dossier?.opportunities ||
+		!!dossier?.all_pairs_scanned;
+	const rawOpportunities = (dossier?.matched_pairs ??
+		dossier?.opportunities ??
+		dossier?.matches ??
+		dossier?.all_pairs_scanned ??
+		dossier?.all_scanned ??
+		dossier?.pairs ??
+		dossier?.items ??
+		[]) as Array<Record<string, unknown>>;
+	const metaculusSummary = (
+		typeof dossier?.summary === "object" ? dossier.summary : undefined
+	) as Record<string, unknown> | undefined;
+	const bestOpportunity = dossier?.best_opportunity as
+		| Record<string, unknown>
+		| undefined;
 
 	// Fallback slug from best_opportunity
-	const bestOppSlug = String(bestOpportunity?.polymarket_market_slug ?? bestOpportunity?.polymarket_slug ?? "");
+	const bestOppSlug = String(
+		bestOpportunity?.polymarket_market_slug ??
+			bestOpportunity?.polymarket_slug ??
+			"",
+	);
 
 	// Post-normalization: canonical field names from normalize_dossier.py
 	function normalizeItem(item: Record<string, unknown>) {
 		// Handle metaculus_title as string or nested object (pre-normalization fallback)
 		const rawTitle = item.metaculus_title ?? item.title ?? item.question;
-		const title = typeof rawTitle === "object" && rawTitle !== null
-			? String((rawTitle as Record<string, unknown>).title ?? rawTitle)
-			: String(rawTitle ?? "—");
-		const mcProb = Number(item.community_prediction ?? item.metaculus_prob ?? 0) || 0;
+		const title =
+			typeof rawTitle === "object" && rawTitle !== null
+				? String((rawTitle as Record<string, unknown>).title ?? rawTitle)
+				: String(rawTitle ?? "—");
+		const mcProb =
+			Number(item.community_prediction ?? item.metaculus_prob ?? 0) || 0;
 		const pmPrice = Number(item.yes_price ?? item.polymarket_price ?? 0) || 0;
 		let edgePct = Number(item.edge_pct ?? 0) || 0;
 		// Safety: if edge looks like decimal, convert (normalize_dossier.py handles this,
@@ -524,10 +662,11 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 		if (edgePct !== 0 && Math.abs(edgePct) < 1) edgePct *= 100;
 		const direction = String(item.direction ?? "");
 		const matchQuality = String(
-			typeof item.match_confidence === "string" ? item.match_confidence :
-			typeof item.match_quality === "object" && item.match_quality
-				? (item.match_quality as Record<string, unknown>).confidence
-				: item.match_confidence ?? ""
+			typeof item.match_confidence === "string"
+				? item.match_confidence
+				: typeof item.match_quality === "object" && item.match_quality
+					? (item.match_quality as Record<string, unknown>).confidence
+					: (item.match_confidence ?? ""),
 		);
 		const polymarketSlug = String(item.polymarket_slug ?? "");
 
@@ -551,8 +690,12 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 	const metaculusItems = isMetaculus ? rawOpportunities.map(normalizeItem) : [];
 
 	// Sports fields
-	const edgeAnalysis = dossier?.edge_analysis as Record<string, unknown> | undefined;
-	const allGames = (dossier?.all_games_scanned ?? []) as Array<Record<string, unknown>>;
+	const edgeAnalysis = dossier?.edge_analysis as
+		| Record<string, unknown>
+		| undefined;
+	const allGames = (dossier?.all_games_scanned ?? []) as Array<
+		Record<string, unknown>
+	>;
 
 	// Unified header fields
 	let edgePct: number;
@@ -563,61 +706,179 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 	let confidence: string;
 
 	if (isMetaculus) {
-		const bestItem = metaculusItems.length > 0
-			? metaculusItems.reduce((a, b) => Math.abs(b.edgePct) > Math.abs(a.edgePct) ? b : a)
-			: undefined;
+		const bestItem =
+			metaculusItems.length > 0
+				? metaculusItems.reduce((a, b) =>
+						Math.abs(b.edgePct) > Math.abs(a.edgePct) ? b : a,
+					)
+				: undefined;
 		// When no items were normalized but best_opportunity exists, extract header from it directly
 		const bestOppEdgeRaw = bestOpportunity?.edge;
-		const bestOppEdgePct = typeof bestOppEdgeRaw === "number" ? Number(bestOppEdgeRaw) * 100
-			: Number(bestOpportunity?.edge_percent ?? bestOpportunity?.edge_pct ?? 0) || undefined;
-		const bestOppTitle = String(bestOpportunity?.title ?? bestOpportunity?.metaculus_question ?? bestOpportunity?.polymarket_question ?? "");
-		edgePct = Number(metaculusSummary?.best_edge ?? metaculusSummary?.best_edge_pct ?? bestOppEdgePct ?? bestItem?.edgePct ?? 0) || 0;
-		direction = String(metaculusSummary?.best_edge_direction ?? bestOpportunity?.direction ?? bestItem?.direction ?? "");
-		targetOutcome = String(metaculusSummary?.best_edge_subject ?? bestOppTitle ?? bestItem?.title ?? "");
+		const bestOppEdgePct =
+			typeof bestOppEdgeRaw === "number"
+				? Number(bestOppEdgeRaw) * 100
+				: Number(
+						bestOpportunity?.edge_percent ?? bestOpportunity?.edge_pct ?? 0,
+					) || undefined;
+		const bestOppTitle = String(
+			bestOpportunity?.title ??
+				bestOpportunity?.metaculus_question ??
+				bestOpportunity?.polymarket_question ??
+				"",
+		);
+		edgePct =
+			Number(
+				metaculusSummary?.best_edge ??
+					metaculusSummary?.best_edge_pct ??
+					bestOppEdgePct ??
+					bestItem?.edgePct ??
+					0,
+			) || 0;
+		direction = String(
+			metaculusSummary?.best_edge_direction ??
+				bestOpportunity?.direction ??
+				bestItem?.direction ??
+				"",
+		);
+		targetOutcome = String(
+			metaculusSummary?.best_edge_subject ??
+				bestOppTitle ??
+				bestItem?.title ??
+				"",
+		);
 		eventName = bestOppTitle || bestItem?.title || "Metaculus Scan";
 		sourceBadge = "Metaculus";
-		confidence = String(bestOpportunity?.match_quality ?? bestOpportunity?.match_confidence ?? bestItem?.matchQuality ?? "");
+		confidence = String(
+			bestOpportunity?.match_quality ??
+				bestOpportunity?.match_confidence ??
+				bestItem?.matchQuality ??
+				"",
+		);
 	} else {
-		const bestOpp = dossier?.best_opportunity as Record<string, unknown> | undefined;
-		const bestOppEdge = typeof bestOpp?.edge === "object" && bestOpp?.edge !== null ? bestOpp.edge as Record<string, unknown> : undefined;
-		const bestOppAbsEdge = bestOppEdge?.absolute_edge ?? bestOppEdge?.home_edge ?? bestOppEdge?.away_edge;
-		edgePct = Number(edgeAnalysis?.edge_pct ?? edgeAnalysis?.edge_after_vig_pct ?? edgeAnalysis?.raw_edge_pct ?? (typeof bestOppAbsEdge === "number" ? bestOppAbsEdge * 100 : 0)) || 0;
-		direction = String(edgeAnalysis?.direction ?? (bestOppEdge?.direction as string | undefined) ?? "");
-		targetOutcome = String(edgeAnalysis?.target_outcome ?? (bestOppEdge?.team as string | undefined) ?? "");
-		eventName = String(dossier?.event_name ?? (bestOpp?.game as string | undefined) ?? "Unknown");
-		sourceBadge = String(dossier?.sport_league ?? dossier?.sport ?? (bestOpp?.sport as string | undefined) ?? "");
-		confidence = String(dossier?.raymond_confidence ?? (bestOpp?.confidence as string | undefined) ?? "");
+		const bestOpp = dossier?.best_opportunity as
+			| Record<string, unknown>
+			| undefined;
+		const bestOppEdge =
+			typeof bestOpp?.edge === "object" && bestOpp?.edge !== null
+				? (bestOpp.edge as Record<string, unknown>)
+				: undefined;
+		const bestOppAbsEdge =
+			bestOppEdge?.absolute_edge ??
+			bestOppEdge?.home_edge ??
+			bestOppEdge?.away_edge;
+		edgePct =
+			Number(
+				edgeAnalysis?.edge_pct ??
+					edgeAnalysis?.edge_after_vig_pct ??
+					edgeAnalysis?.raw_edge_pct ??
+					(typeof bestOppAbsEdge === "number" ? bestOppAbsEdge * 100 : 0),
+			) || 0;
+		direction = String(
+			edgeAnalysis?.direction ??
+				(bestOppEdge?.direction as string | undefined) ??
+				"",
+		);
+		targetOutcome = String(
+			edgeAnalysis?.target_outcome ??
+				(bestOppEdge?.team as string | undefined) ??
+				"",
+		);
+		eventName = String(
+			dossier?.event_name ?? (bestOpp?.game as string | undefined) ?? "Unknown",
+		);
+		sourceBadge = String(
+			dossier?.sport_league ??
+				dossier?.sport ??
+				(bestOpp?.sport as string | undefined) ??
+				"",
+		);
+		confidence = String(
+			dossier?.raymond_confidence ??
+				(bestOpp?.confidence as string | undefined) ??
+				"",
+		);
 	}
 
-	const thorpVerdict = safeStr(verdict?.verdict ?? verdict?.final_verdict ?? "");
+	const thorpVerdict = safeStr(
+		verdict?.verdict ?? verdict?.final_verdict ?? "",
+	);
 	const thorpSummary = safeStr(verdict?.thorp_note ?? verdict?.summary ?? "");
 	const thorpMismatchClass = safeStr(verdict?.mismatch_class ?? "");
-	const thorpRawEdge = typeof verdict?.raw_edge === "number" ? verdict.raw_edge : undefined;
+	const thorpRawEdge =
+		typeof verdict?.raw_edge === "number" ? verdict.raw_edge : undefined;
 	const thorpAdjustedEdge = verdict?.adjusted_edge;
-	const thorpAdjustments = (verdict?.adjustments ?? []) as Array<Record<string, unknown>>;
+	const thorpAdjustments = (verdict?.adjustments ?? []) as Array<
+		Record<string, unknown>
+	>;
 	// Phase 6.6: objections array with severity field; legacy: separate fatal_objections + concerns
-	const thorpObjArr = (verdict?.objections ?? []) as Array<Record<string, unknown>>;
-	const thorpFatalObjs = thorpObjArr.length > 0
-		? thorpObjArr.filter((o) => o.severity === "FATAL")
-		: (verdict?.fatal_objections ?? []) as Array<Record<string, unknown> | string>;
-	const thorpConcernsRaw = thorpObjArr.length > 0
-		? thorpObjArr.filter((o) => o.severity === "MAJOR" || o.severity === "MINOR")
-		: (verdict?.concerns ?? []) as Array<Record<string, unknown> | string>;
+	const thorpObjArr = (verdict?.objections ?? []) as Array<
+		Record<string, unknown>
+	>;
+	const thorpFatalObjs =
+		thorpObjArr.length > 0
+			? thorpObjArr.filter((o) => o.severity === "FATAL")
+			: ((verdict?.fatal_objections ?? []) as Array<
+					Record<string, unknown> | string
+				>);
+	const thorpConcernsRaw =
+		thorpObjArr.length > 0
+			? thorpObjArr.filter(
+					(o) => o.severity === "MAJOR" || o.severity === "MINOR",
+				)
+			: ((verdict?.concerns ?? []) as Array<Record<string, unknown> | string>);
 	const thorpConcerns = thorpConcernsRaw.map((c) =>
-		typeof c === "string" ? c : safeStr(c.argument ?? c.detail ?? c.reason ?? c.code ?? "")
+		typeof c === "string"
+			? c
+			: safeStr(c.argument ?? c.detail ?? c.reason ?? c.code ?? ""),
 	);
-	const thorpChecks = (verdict?.checks_performed ?? verdict?.checks ?? []) as Array<Record<string, unknown>>;
+	const thorpChecks = (verdict?.checks_performed ??
+		verdict?.checks ??
+		[]) as Array<Record<string, unknown>>;
 	// Phase 6.6: kelly_check object; legacy: max_risk_suggestion_usd
-	const thorpKellyCheck = verdict?.kelly_check as Record<string, unknown> | undefined;
-	const thorpMaxRiskRaw = thorpKellyCheck?.kelly_bet_usd ?? verdict?.max_risk_suggestion_usd ?? null;
-	const thorpMaxRisk = thorpMaxRiskRaw != null ? (typeof thorpMaxRiskRaw === "number" ? thorpMaxRiskRaw : safeStr(thorpMaxRiskRaw)) : null;
+	const thorpKellyCheck = verdict?.kelly_check as
+		| Record<string, unknown>
+		| undefined;
+	const thorpMaxRiskRaw =
+		thorpKellyCheck?.kelly_bet_usd ?? verdict?.max_risk_suggestion_usd ?? null;
+	const thorpMaxRisk =
+		thorpMaxRiskRaw != null
+			? typeof thorpMaxRiskRaw === "number"
+				? thorpMaxRiskRaw
+				: safeStr(thorpMaxRiskRaw)
+			: null;
 
 	// Scan stats (computed here to avoid IIFE in JSX)
-	const hasScanStats = isMetaculus && !!(metaculusSummary || dossier?.all_games_scanned || dossier?.all_pairs_scanned);
-	const scanStatsScanned = metaculusSummary?.scanned_metaculus_questions ?? (dossier?.all_pairs_scanned as unknown[] | undefined)?.length ?? dossier?.all_games_scanned ?? "?";
-	const scanStatsCandidates = metaculusItems.filter((m) => m.status !== "skipped_no_prediction_data" && m.status !== "skipped_low_forecaster_count" && m.matchQuality !== "N/A");
-	const scanStatsMatched = metaculusSummary?.matched_pairs ?? dossier?.matches_count ?? scanStatsCandidates.length;
-	const scanStatsAboveThresh = metaculusSummary?.meets_threshold ?? dossier?.opportunities_found ?? scanStatsCandidates.filter((m) => m.status === "candidate" || m.matchQuality === "HIGH" || m.matchQuality === "MEDIUM").length;
+	const hasScanStats =
+		isMetaculus &&
+		!!(
+			metaculusSummary ||
+			dossier?.all_games_scanned ||
+			dossier?.all_pairs_scanned
+		);
+	const scanStatsScanned =
+		metaculusSummary?.scanned_metaculus_questions ??
+		(dossier?.all_pairs_scanned as unknown[] | undefined)?.length ??
+		dossier?.all_games_scanned ??
+		"?";
+	const scanStatsCandidates = metaculusItems.filter(
+		(m) =>
+			m.status !== "skipped_no_prediction_data" &&
+			m.status !== "skipped_low_forecaster_count" &&
+			m.matchQuality !== "N/A",
+	);
+	const scanStatsMatched =
+		metaculusSummary?.matched_pairs ??
+		dossier?.matches_count ??
+		scanStatsCandidates.length;
+	const scanStatsAboveThresh =
+		metaculusSummary?.meets_threshold ??
+		dossier?.opportunities_found ??
+		scanStatsCandidates.filter(
+			(m) =>
+				m.status === "candidate" ||
+				m.matchQuality === "HIGH" ||
+				m.matchQuality === "MEDIUM",
+		).length;
 
 	const hustleDecision = safeStr(decision?.hustle_decision ?? "");
 	const hustleReasoning = safeStr(decision?.reasoning ?? "");
@@ -625,14 +886,20 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 	const hustleAdjustedEdge = decision?.adjusted_edge;
 
 	const isAbandoned = run.status === "abandoned";
-	const cardBorderClass = isAbandoned ? "border-l-4 border-l-red-200 opacity-60"
-		: hustleDecision === "EXECUTE" ? "border-l-4 border-l-emerald-400"
-		: hustleDecision === "PASS" ? "border-l-4 border-l-gray-300"
-		: hustleDecision === "ESCALATE_TO_CB" ? "border-l-4 border-l-amber-400"
-		: "";
+	const cardBorderClass = isAbandoned
+		? "border-l-4 border-l-red-200 opacity-60"
+		: hustleDecision === "EXECUTE"
+			? "border-l-4 border-l-emerald-400"
+			: hustleDecision === "PASS"
+				? "border-l-4 border-l-gray-300"
+				: hustleDecision === "ESCALATE_TO_CB"
+					? "border-l-4 border-l-amber-400"
+					: "";
 
 	return (
-		<div className={`bg-white border border-border rounded-xl overflow-hidden ${cardBorderClass}`}>
+		<div
+			className={`bg-white border border-border rounded-xl overflow-hidden ${cardBorderClass}`}
+		>
 			{/* Header row — always visible */}
 			<button
 				type="button"
@@ -640,7 +907,11 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 				className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
 			>
 				<div className="text-muted-foreground">
-					{expanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
+					{expanded ? (
+						<IconChevronDown size={16} />
+					) : (
+						<IconChevronRight size={16} />
+					)}
 				</div>
 				<div className="flex-1 min-w-0">
 					<div className="flex items-center gap-2 flex-wrap">
@@ -648,7 +919,9 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 							{run.runId}
 						</span>
 						{sourceBadge && (
-							<span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase ${isMetaculus ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
+							<span
+								className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase ${isMetaculus ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}
+							>
 								{sourceBadge}
 							</span>
 						)}
@@ -673,14 +946,26 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 			{expanded && (
 				<div className="border-t border-border px-4 py-4 space-y-4">
 					{/* Plain-English summary banner (Metaculus only) */}
-					{isMetaculus && <OpportunitySummary dossier={dossier} verdict={verdict} decision={decision} metaculusItems={metaculusItems} edgePct={edgePct} direction={direction} eventName={eventName} />}
+					{isMetaculus && (
+						<OpportunitySummary
+							dossier={dossier}
+							verdict={verdict}
+							decision={decision}
+							metaculusItems={metaculusItems}
+							edgePct={edgePct}
+							direction={direction}
+							eventName={eventName}
+						/>
+					)}
 
 					{/* Three-stage pipeline viz */}
 					<div className="flex items-stretch gap-0">
 						{/* Raymond */}
 						<div className="flex-1 min-w-0 rounded-lg border border-border p-3">
 							<div className="flex items-center gap-2 mb-2">
-								<span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">1</span>
+								<span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">
+									1
+								</span>
 								<IconScan size={14} className="text-blue-600" />
 								<span className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
 									Raymond — Scanner
@@ -691,30 +976,44 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 									<div>
 										<span className="text-muted-foreground">Edge: </span>
 										<span className="font-semibold">
-											{Number(edgePct) >= 0 ? "+" : ""}{(Number(edgePct) || 0).toFixed(1)}%
+											{Number(edgePct) >= 0 ? "+" : ""}
+											{(Number(edgePct) || 0).toFixed(1)}%
 										</span>
 									</div>
 									<div className="flex items-center gap-1.5">
 										<span className="text-muted-foreground">Direction: </span>
 										<DirectionBadge direction={direction} />
-										{targetOutcome && <span className="font-medium text-[11px]">on {targetOutcome}</span>}
+										{targetOutcome && (
+											<span className="font-medium text-[11px]">
+												on {targetOutcome}
+											</span>
+										)}
 									</div>
 									<div>
-										<span className="text-muted-foreground">{isMetaculus ? "Match: " : "Confidence: "}</span>
-										<span className={`font-bold ${confidence === "HIGH" ? "text-emerald-600" : confidence === "MEDIUM" ? "text-amber-600" : "text-red-500"}`}>
+										<span className="text-muted-foreground">
+											{isMetaculus ? "Match: " : "Confidence: "}
+										</span>
+										<span
+											className={`font-bold ${confidence === "HIGH" ? "text-emerald-600" : confidence === "MEDIUM" ? "text-amber-600" : "text-red-500"}`}
+										>
 											{confidence}
 										</span>
 									</div>
 									{thorpMaxRisk !== null && (
 										<div className="mt-1">
 											<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
-												Kelly: {typeof thorpMaxRisk === "number" ? `$${thorpMaxRisk}` : String(thorpMaxRisk)}
+												Kelly:{" "}
+												{typeof thorpMaxRisk === "number"
+													? `$${thorpMaxRisk}`
+													: String(thorpMaxRisk)}
 											</span>
 										</div>
 									)}
 									{hasScanStats && (
 										<div className="text-muted-foreground text-[11px] mt-1 leading-relaxed">
-											{String(scanStatsScanned)} scanned, {String(scanStatsMatched)} matched, {String(scanStatsAboveThresh)} above threshold
+											{String(scanStatsScanned)} scanned,{" "}
+											{String(scanStatsMatched)} matched,{" "}
+											{String(scanStatsAboveThresh)} above threshold
 										</div>
 									)}
 									{dossier.raymond_note && String(dossier.raymond_note) && (
@@ -736,7 +1035,9 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 						{/* Thorp */}
 						<div className="flex-1 min-w-0 rounded-lg border border-border p-3">
 							<div className="flex items-center gap-2 mb-2">
-								<span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold">2</span>
+								<span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold">
+									2
+								</span>
 								<IconShieldCheck size={14} className="text-purple-600" />
 								<span className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
 									Thorp — Verifier
@@ -748,22 +1049,43 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 										{verdictBadge(thorpVerdict)}
 										{mismatchBadge(thorpMismatchClass)}
 									</div>
-									{(thorpRawEdge !== undefined || thorpAdjustedEdge !== undefined) && (
+									{(thorpRawEdge !== undefined ||
+										thorpAdjustedEdge !== undefined) && (
 										<div>
 											{thorpRawEdge !== undefined && (
-												<span className="text-muted-foreground">Raw: <span className="font-semibold text-foreground tabular-nums">{(thorpRawEdge * 100).toFixed(1)}%</span></span>
+												<span className="text-muted-foreground">
+													Raw:{" "}
+													<span className="font-semibold text-foreground tabular-nums">
+														{(thorpRawEdge * 100).toFixed(1)}%
+													</span>
+												</span>
 											)}
 											{thorpAdjustedEdge != null && (
-												<span className="text-muted-foreground ml-2">Adj: <span className="font-semibold text-foreground tabular-nums">{formatAdjustedEdge(thorpAdjustedEdge)}</span></span>
+												<span className="text-muted-foreground ml-2">
+													Adj:{" "}
+													<span className="font-semibold text-foreground tabular-nums">
+														{formatAdjustedEdge(thorpAdjustedEdge)}
+													</span>
+												</span>
 											)}
 										</div>
 									)}
 									{thorpAdjustments.length > 0 && (
 										<div className="space-y-0.5 mt-1">
 											{thorpAdjustments.map((adj, i) => (
-												<div key={i} className="text-[10px] text-muted-foreground">
-													{safeStr(adj.type)}: <span className="tabular-nums">{((Number(adj.value) || 0) * 100).toFixed(2)}%</span>
-													{adj.reason && <span className="ml-1">({safeStr(adj.reason)})</span>}
+												<div
+													key={i}
+													className="text-[10px] text-muted-foreground"
+												>
+													{safeStr(adj.type)}:{" "}
+													<span className="tabular-nums">
+														{((Number(adj.value) || 0) * 100).toFixed(2)}%
+													</span>
+													{adj.reason && (
+														<span className="ml-1">
+															({safeStr(adj.reason)})
+														</span>
+													)}
 												</div>
 											))}
 										</div>
@@ -776,10 +1098,21 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 									{thorpFatalObjs.length > 0 && (
 										<div className="space-y-1 mt-1">
 											{thorpFatalObjs.map((obj, i) => (
-												<div key={i} className="flex items-start gap-1.5 text-red-600">
+												<div
+													key={i}
+													className="flex items-start gap-1.5 text-red-600"
+												>
 													<IconCircleX size={12} className="mt-0.5 shrink-0" />
 													<span className="text-[11px] leading-relaxed">
-														{typeof obj === "string" ? obj : safeStr(obj.argument ?? obj.detail ?? obj.reason ?? obj.code ?? "")}
+														{typeof obj === "string"
+															? obj
+															: safeStr(
+																	obj.argument ??
+																		obj.detail ??
+																		obj.reason ??
+																		obj.code ??
+																		"",
+																)}
 													</span>
 												</div>
 											))}
@@ -788,9 +1121,17 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 									{thorpConcerns.length > 0 && (
 										<div className="space-y-1 mt-1">
 											{thorpConcerns.map((concern, i) => (
-												<div key={i} className="flex items-start gap-1.5 text-amber-600">
-													<IconAlertTriangle size={12} className="mt-0.5 shrink-0" />
-													<span className="text-[11px] leading-relaxed">{concern}</span>
+												<div
+													key={i}
+													className="flex items-start gap-1.5 text-amber-600"
+												>
+													<IconAlertTriangle
+														size={12}
+														className="mt-0.5 shrink-0"
+													/>
+													<span className="text-[11px] leading-relaxed">
+														{concern}
+													</span>
 												</div>
 											))}
 										</div>
@@ -800,9 +1141,15 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 											{thorpChecks.map((check, i) => (
 												<div key={i} className="flex items-start gap-1.5">
 													{safeStr(check.result).startsWith("PASS") ? (
-														<IconCircleCheck size={12} className="text-emerald-500 mt-0.5 shrink-0" />
+														<IconCircleCheck
+															size={12}
+															className="text-emerald-500 mt-0.5 shrink-0"
+														/>
 													) : (
-														<IconCircleX size={12} className="text-red-500 mt-0.5 shrink-0" />
+														<IconCircleX
+															size={12}
+															className="text-red-500 mt-0.5 shrink-0"
+														/>
 													)}
 													<span className="text-[11px] text-muted-foreground">
 														{safeStr(check.name)}
@@ -814,7 +1161,10 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 									{thorpMaxRisk !== null && (
 										<div className="mt-1">
 											<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-blue-100 text-blue-700">
-												Kelly: {typeof thorpMaxRisk === "number" ? `$${thorpMaxRisk}` : thorpMaxRisk}
+												Kelly:{" "}
+												{typeof thorpMaxRisk === "number"
+													? `$${thorpMaxRisk}`
+													: thorpMaxRisk}
 											</span>
 										</div>
 									)}
@@ -822,8 +1172,14 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 							) : (
 								<div className="text-xs text-muted-foreground">
 									{run.status === "abandoned" ? (
-									<span className="text-red-400">Abandoned — gateway dropped pipeline</span>
-								) : run.status === "dossier_only" ? "Awaiting dispatch" : "Not triggered"}
+										<span className="text-red-400">
+											Abandoned — gateway dropped pipeline
+										</span>
+									) : run.status === "dossier_only" ? (
+										"Awaiting dispatch"
+									) : (
+										"Not triggered"
+									)}
 								</div>
 							)}
 						</div>
@@ -836,7 +1192,9 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 						{/* Hustle */}
 						<div className="flex-1 min-w-0 rounded-lg border border-border p-3">
 							<div className="flex items-center gap-2 mb-2">
-								<span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold">3</span>
+								<span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold">
+									3
+								</span>
 								<IconArrowsExchange size={14} className="text-orange-600" />
 								<span className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
 									Hustle — Decision
@@ -850,7 +1208,10 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 									</div>
 									{hustleAdjustedEdge != null && (
 										<div className="text-muted-foreground">
-											Adj. edge: <span className="font-semibold text-foreground tabular-nums">{formatAdjustedEdge(hustleAdjustedEdge)}</span>
+											Adj. edge:{" "}
+											<span className="font-semibold text-foreground tabular-nums">
+												{formatAdjustedEdge(hustleAdjustedEdge)}
+											</span>
 										</div>
 									)}
 									{hustleReasoning && (
@@ -861,126 +1222,216 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 								</div>
 							) : (
 								<div className="text-xs text-muted-foreground">
-									{run.status === "abandoned" ? <span className="text-red-400">Abandoned</span> : "Waiting for verdict"}
+									{run.status === "abandoned" ? (
+										<span className="text-red-400">Abandoned</span>
+									) : (
+										"Waiting for verdict"
+									)}
 								</div>
 							)}
 						</div>
 					</div>
 
 					{/* Metaculus opportunities table */}
-					{isMetaculus && metaculusItems.length > 0 && (() => {
-					const verdictItems = (verdict?.items ?? []) as Array<Record<string, unknown>>;
-					const hasVerdictItems = verdictItems.length > 0;
-					return (
-						<div>
-							<div className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase mb-2">
-								Matched Opportunities ({metaculusItems.length})
-							</div>
-							<div className="bg-gray-50 rounded-lg overflow-x-auto">
-								<table className="w-full text-xs">
-									<thead>
-										<tr className="text-[10px] text-muted-foreground font-semibold tracking-wide uppercase">
-											<th className="text-left px-3 py-2">Question</th>
-											<th className="text-right px-3 py-2">Metaculus YES</th>
-											<th className="text-right px-3 py-2">Polymarket YES</th>
-											<th className="text-center px-2 py-2" title="Visual probability comparison">&nbsp;</th>
-											<th className="text-right px-3 py-2">Edge</th>
-											<th className="text-left px-3 py-2">Trade</th>
-											<th className="text-right px-3 py-2">Return / $1</th>
-											{hasVerdictItems && <th className="text-center px-3 py-2">Verdict</th>}
-										</tr>
-									</thead>
-									<tbody>
-										{metaculusItems.map((item, i) => {
-											const isBuyNo = item.direction === "BUY_NO" || item.direction === "BUY_POLYMARKET_NO";
-											const buyPrice = isBuyNo ? (1 - item.pmPrice) : item.pmPrice;
-											const returnPer1 = buyPrice > 0 ? (1 / buyPrice) : 0;
-											const itemPmUrl = item.polymarketSlug ? `https://polymarket.com/market/${item.polymarketSlug}` : "";
-											// Per-item verdict: prefer from normalizeItem, fallback to verdictItems by metaculus_id, title, or index
-											const itemVerdictStr = item.itemVerdict || (() => {
-												if (!hasVerdictItems) return "";
-												// Match by metaculus_id first (most reliable)
-												const itemId = (rawOpportunities[i] as Record<string, unknown>)?.metaculus_id;
-												const byId = itemId != null ? verdictItems.find((v) => v.metaculus_id === itemId) : undefined;
-												if (byId) return String(byId.verdict ?? "");
-												// Match by title (case-insensitive)
-												const titleLower = item.title.toLowerCase().trim();
-												const byTitle = verdictItems.find((v) => String(v.metaculus_title ?? v.title ?? "").toLowerCase().trim() === titleLower);
-												if (byTitle) return String(byTitle.verdict ?? "");
-												// Fallback to index (only if within bounds)
-												if (i < verdictItems.length) return String(verdictItems[i].verdict ?? "");
-												return "";
-											})();
-											return (
-												<tr key={i} className={i < metaculusItems.length - 1 ? "border-b border-border/30" : ""}>
-													<td className="px-3 py-1.5">
-														{itemPmUrl ? (
-															<a href={itemPmUrl} target="_blank" rel="noopener noreferrer" className="font-medium max-w-[280px] truncate block text-blue-700 underline decoration-blue-200 hover:decoration-blue-500 hover:text-blue-900 transition-colors" title={item.title}>
-																{item.title}
-															</a>
-														) : (
-															<div className="font-medium max-w-[280px] truncate" title={item.title}>
-																{item.title}
-															</div>
-														)}
-														{item.matchNotes && (
-															<div className="text-[10px] text-muted-foreground max-w-[280px] truncate" title={item.matchNotes}>
-																{item.matchNotes}
-															</div>
-														)}
-													</td>
-													<td className="text-right px-3 py-1.5 tabular-nums font-medium">
-														{(item.mcProb * 100).toFixed(0)}%
-													</td>
-													<td className="text-right px-3 py-1.5 tabular-nums font-medium">
-														{(item.pmPrice * 100).toFixed(1)}%
-													</td>
-													<td className="px-2 py-1.5">
-														<div className="w-16 space-y-0.5" title={`Metaculus ${(item.mcProb * 100).toFixed(0)}% vs Polymarket ${(item.pmPrice * 100).toFixed(1)}%`}>
-															<div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-																<div className="h-full rounded-full bg-violet-400" style={{ width: `${Math.max(item.mcProb * 100, 2)}%` }} />
-															</div>
-															<div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-																<div className="h-full rounded-full bg-blue-400" style={{ width: `${Math.max(item.pmPrice * 100, 2)}%` }} />
-															</div>
-														</div>
-													</td>
-													<td className="text-right px-3 py-1.5">
-														<EdgeBar edge={item.edgePct} />
-													</td>
-													<td className="px-3 py-1.5 whitespace-nowrap">
-														<div className="flex items-center gap-1.5">
-															<DirectionBadge direction={item.direction} />
-															<span className="text-muted-foreground tabular-nums text-[10px]">@ ${buyPrice.toFixed(2)}</span>
-														</div>
-													</td>
-													<td className="text-right px-3 py-1.5 tabular-nums font-semibold">
-														{returnPer1 > 0 ? `$${returnPer1.toFixed(2)}` : "---"}
-													</td>
+					{isMetaculus &&
+						metaculusItems.length > 0 &&
+						(() => {
+							const verdictItems = (verdict?.items ?? []) as Array<
+								Record<string, unknown>
+							>;
+							const hasVerdictItems = verdictItems.length > 0;
+							return (
+								<div>
+									<div className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase mb-2">
+										Matched Opportunities ({metaculusItems.length})
+									</div>
+									<div className="bg-gray-50 rounded-lg overflow-x-auto">
+										<table className="w-full text-xs">
+											<thead>
+												<tr className="text-[10px] text-muted-foreground font-semibold tracking-wide uppercase">
+													<th className="text-left px-3 py-2">Question</th>
+													<th className="text-right px-3 py-2">
+														Metaculus YES
+													</th>
+													<th className="text-right px-3 py-2">
+														Polymarket YES
+													</th>
+													<th
+														className="text-center px-2 py-2"
+														title="Visual probability comparison"
+													>
+														&nbsp;
+													</th>
+													<th className="text-right px-3 py-2">Edge</th>
+													<th className="text-left px-3 py-2">Trade</th>
+													<th className="text-right px-3 py-2">Return / $1</th>
 													{hasVerdictItems && (
-														<td className="text-center px-3 py-1.5">
-															{itemVerdictStr === "TRADEABLE" && (
-																<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-emerald-100 text-emerald-700">TRADEABLE</span>
-															)}
-															{itemVerdictStr === "MARGINAL" && (
-																<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-yellow-100 text-yellow-700">MARGINAL</span>
-															)}
-															{itemVerdictStr === "UNTRADEABLE" && (
-																<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-red-100 text-red-700">UNTRADEABLE</span>
-															)}
-															{itemVerdictStr && itemVerdictStr !== "TRADEABLE" && itemVerdictStr !== "MARGINAL" && itemVerdictStr !== "UNTRADEABLE" && (
-																<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-gray-100 text-gray-600">{itemVerdictStr}</span>
-															)}
-														</td>
+														<th className="text-center px-3 py-2">Verdict</th>
 													)}
 												</tr>
-											);
-										})}
-									</tbody>
-								</table>
-							</div>
-						</div>
-					); })()}
+											</thead>
+											<tbody>
+												{metaculusItems.map((item, i) => {
+													const isBuyNo =
+														item.direction === "BUY_NO" ||
+														item.direction === "BUY_POLYMARKET_NO";
+													const buyPrice = isBuyNo
+														? 1 - item.pmPrice
+														: item.pmPrice;
+													const returnPer1 = buyPrice > 0 ? 1 / buyPrice : 0;
+													const itemPmUrl = item.polymarketSlug
+														? `https://polymarket.com/market/${item.polymarketSlug}`
+														: "";
+													// Per-item verdict: prefer from normalizeItem, fallback to verdictItems by metaculus_id, title, or index
+													const itemVerdictStr =
+														item.itemVerdict ||
+														(() => {
+															if (!hasVerdictItems) return "";
+															// Match by metaculus_id first (most reliable)
+															const itemId = (
+																rawOpportunities[i] as Record<string, unknown>
+															)?.metaculus_id;
+															const byId =
+																itemId != null
+																	? verdictItems.find(
+																			(v) => v.metaculus_id === itemId,
+																		)
+																	: undefined;
+															if (byId) return String(byId.verdict ?? "");
+															// Match by title (case-insensitive)
+															const titleLower = item.title
+																.toLowerCase()
+																.trim();
+															const byTitle = verdictItems.find(
+																(v) =>
+																	String(v.metaculus_title ?? v.title ?? "")
+																		.toLowerCase()
+																		.trim() === titleLower,
+															);
+															if (byTitle) return String(byTitle.verdict ?? "");
+															// Fallback to index (only if within bounds)
+															if (i < verdictItems.length)
+																return String(verdictItems[i].verdict ?? "");
+															return "";
+														})();
+													return (
+														<tr
+															key={i}
+															className={
+																i < metaculusItems.length - 1
+																	? "border-b border-border/30"
+																	: ""
+															}
+														>
+															<td className="px-3 py-1.5">
+																{itemPmUrl ? (
+																	<a
+																		href={itemPmUrl}
+																		target="_blank"
+																		rel="noopener noreferrer"
+																		className="font-medium max-w-[280px] truncate block text-blue-700 underline decoration-blue-200 hover:decoration-blue-500 hover:text-blue-900 transition-colors"
+																		title={item.title}
+																	>
+																		{item.title}
+																	</a>
+																) : (
+																	<div
+																		className="font-medium max-w-[280px] truncate"
+																		title={item.title}
+																	>
+																		{item.title}
+																	</div>
+																)}
+																{item.matchNotes && (
+																	<div
+																		className="text-[10px] text-muted-foreground max-w-[280px] truncate"
+																		title={item.matchNotes}
+																	>
+																		{item.matchNotes}
+																	</div>
+																)}
+															</td>
+															<td className="text-right px-3 py-1.5 tabular-nums font-medium">
+																{(item.mcProb * 100).toFixed(0)}%
+															</td>
+															<td className="text-right px-3 py-1.5 tabular-nums font-medium">
+																{(item.pmPrice * 100).toFixed(1)}%
+															</td>
+															<td className="px-2 py-1.5">
+																<div
+																	className="w-16 space-y-0.5"
+																	title={`Metaculus ${(item.mcProb * 100).toFixed(0)}% vs Polymarket ${(item.pmPrice * 100).toFixed(1)}%`}
+																>
+																	<div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+																		<div
+																			className="h-full rounded-full bg-violet-400"
+																			style={{
+																				width: `${Math.max(item.mcProb * 100, 2)}%`,
+																			}}
+																		/>
+																	</div>
+																	<div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+																		<div
+																			className="h-full rounded-full bg-blue-400"
+																			style={{
+																				width: `${Math.max(item.pmPrice * 100, 2)}%`,
+																			}}
+																		/>
+																	</div>
+																</div>
+															</td>
+															<td className="text-right px-3 py-1.5">
+																<EdgeBar edge={item.edgePct} />
+															</td>
+															<td className="px-3 py-1.5 whitespace-nowrap">
+																<div className="flex items-center gap-1.5">
+																	<DirectionBadge direction={item.direction} />
+																	<span className="text-muted-foreground tabular-nums text-[10px]">
+																		@ ${buyPrice.toFixed(2)}
+																	</span>
+																</div>
+															</td>
+															<td className="text-right px-3 py-1.5 tabular-nums font-semibold">
+																{returnPer1 > 0
+																	? `$${returnPer1.toFixed(2)}`
+																	: "---"}
+															</td>
+															{hasVerdictItems && (
+																<td className="text-center px-3 py-1.5">
+																	{itemVerdictStr === "TRADEABLE" && (
+																		<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-emerald-100 text-emerald-700">
+																			TRADEABLE
+																		</span>
+																	)}
+																	{itemVerdictStr === "MARGINAL" && (
+																		<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-yellow-100 text-yellow-700">
+																			MARGINAL
+																		</span>
+																	)}
+																	{itemVerdictStr === "UNTRADEABLE" && (
+																		<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-red-100 text-red-700">
+																			UNTRADEABLE
+																		</span>
+																	)}
+																	{itemVerdictStr &&
+																		itemVerdictStr !== "TRADEABLE" &&
+																		itemVerdictStr !== "MARGINAL" &&
+																		itemVerdictStr !== "UNTRADEABLE" && (
+																			<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-gray-100 text-gray-600">
+																				{itemVerdictStr}
+																			</span>
+																		)}
+																</td>
+															)}
+														</tr>
+													);
+												})}
+											</tbody>
+										</table>
+									</div>
+								</div>
+							);
+						})()}
 
 					{/* All games scanned table (sports) */}
 					{!isMetaculus && allGames.length > 0 && (
@@ -998,25 +1449,53 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 										</tr>
 									</thead>
 									<tbody>
-										{(allGames as Array<{ game?: string; edge_pct?: number; away_edge?: number; home_edge?: number; direction?: string; status?: string; team?: string }>)
+										{(
+											allGames as Array<{
+												game?: string;
+												edge_pct?: number;
+												away_edge?: number;
+												home_edge?: number;
+												direction?: string;
+												status?: string;
+												team?: string;
+											}>
+										)
 											.map((g) => {
-												const edgeVal = g.edge_pct ?? (Math.max(Math.abs(g.away_edge ?? 0), Math.abs(g.home_edge ?? 0)) * 100);
+												const edgeVal =
+													g.edge_pct ??
+													Math.max(
+														Math.abs(g.away_edge ?? 0),
+														Math.abs(g.home_edge ?? 0),
+													) * 100;
 												return { ...g, _edge: edgeVal };
 											})
 											.sort((a, b) => Math.abs(b._edge) - Math.abs(a._edge))
 											.map((g, i) => (
-												<tr key={i} className={i < allGames.length - 1 ? "border-b border-border/30" : ""}>
+												<tr
+													key={i}
+													className={
+														i < allGames.length - 1
+															? "border-b border-border/30"
+															: ""
+													}
+												>
 													<td className="px-3 py-1.5">
 														<div className="font-medium">{g.game ?? "—"}</div>
 														{g.status && g.status !== "matched" && (
-															<div className="text-[10px] text-muted-foreground">{g.status.replace(/_/g, " ")}</div>
+															<div className="text-[10px] text-muted-foreground">
+																{g.status.replace(/_/g, " ")}
+															</div>
 														)}
 													</td>
 													<td className="text-right px-3 py-1.5">
 														<EdgeBar edge={g._edge} />
 													</td>
 													<td className="px-3 py-1.5">
-														{g.direction ? <DirectionBadge direction={g.direction} /> : <span className="text-muted-foreground">—</span>}
+														{g.direction ? (
+															<DirectionBadge direction={g.direction} />
+														) : (
+															<span className="text-muted-foreground">—</span>
+														)}
 													</td>
 												</tr>
 											))}
@@ -1108,7 +1587,8 @@ export default function ArbPaperPage() {
 							</span>
 							{pipelineRuns && pipelineRuns.length > 0 && (
 								<span className="text-muted-foreground text-xs font-normal normal-case">
-									({pipelineRuns.length} scan{pipelineRuns.length !== 1 ? "s" : ""})
+									({pipelineRuns.length} scan
+									{pipelineRuns.length !== 1 ? "s" : ""})
 								</span>
 							)}
 						</button>
@@ -1126,9 +1606,15 @@ export default function ArbPaperPage() {
 								<div className="h-20 bg-white border border-border rounded-xl animate-pulse" />
 							) : pipelineRuns.length === 0 ? (
 								<div className="bg-white border border-border rounded-xl p-6 text-center text-sm text-muted-foreground">
-									<IconScan size={32} strokeWidth={1.2} className="mx-auto mb-2 opacity-40" />
+									<IconScan
+										size={32}
+										strokeWidth={1.2}
+										className="mx-auto mb-2 opacity-40"
+									/>
 									<p className="font-medium">No pipeline runs yet</p>
-									<p className="text-xs mt-1">Send &quot;arb scan&quot; to Hustle to trigger a scan</p>
+									<p className="text-xs mt-1">
+										Send &quot;arb scan&quot; to Hustle to trigger a scan
+									</p>
 								</div>
 							) : (
 								<div className="space-y-2 pr-1">
@@ -1162,7 +1648,8 @@ export default function ArbPaperPage() {
 							</span>
 							{softArbData && softArbData.trades.length > 0 && (
 								<span className="text-muted-foreground text-xs font-normal normal-case">
-									({softArbData.trades.length} trade{softArbData.trades.length !== 1 ? "s" : ""})
+									({softArbData.trades.length} trade
+									{softArbData.trades.length !== 1 ? "s" : ""})
 								</span>
 							)}
 						</button>
@@ -1186,14 +1673,24 @@ export default function ArbPaperPage() {
 							{softArbData === null ? (
 								<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 									{[...Array(4)].map((_, i) => (
-										<div key={i} className="h-20 bg-white border border-border rounded-xl animate-pulse" />
+										<div
+											key={i}
+											className="h-20 bg-white border border-border rounded-xl animate-pulse"
+										/>
 									))}
 								</div>
 							) : softArbData.trades.length === 0 ? (
 								<div className="bg-white border border-border rounded-xl p-6 text-center text-sm text-muted-foreground">
-									<IconTrendingUp size={32} strokeWidth={1.2} className="mx-auto mb-2 opacity-40" />
+									<IconTrendingUp
+										size={32}
+										strokeWidth={1.2}
+										className="mx-auto mb-2 opacity-40"
+									/>
 									<p className="font-medium">No soft arb paper trades yet</p>
-									<p className="text-xs mt-1">The pipeline will log trades here when forecast edges are found</p>
+									<p className="text-xs mt-1">
+										The pipeline will log trades here when forecast edges are
+										found
+									</p>
 								</div>
 							) : (
 								<>
@@ -1201,24 +1698,39 @@ export default function ArbPaperPage() {
 									<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 										<SummaryCard
 											label="Paper Trades"
-											value={Number(softArbData.summary.total_trades ?? softArbData.trades.length)}
+											value={Number(
+												softArbData.summary.total_trades ??
+													softArbData.trades.length,
+											)}
 											icon={<IconArrowsExchange size={20} />}
 										/>
 										<SummaryCard
 											label="Total Invested"
-											value={Number(softArbData.summary.total_invested ?? softArbData.trades.reduce((s, t) => s + t.position_size_usd, 0))}
+											value={Number(
+												softArbData.summary.total_invested ??
+													softArbData.trades.reduce(
+														(s, t) => s + t.position_size_usd,
+														0,
+													),
+											)}
 											icon={<IconChartBar size={20} />}
 											isPnl={false}
 										/>
 										<SummaryCard
 											label="Unrealized P&L"
-											value={softArbData.summary.total_unrealized_pnl != null ? Number(softArbData.summary.total_unrealized_pnl) : 0}
+											value={
+												softArbData.summary.total_unrealized_pnl != null
+													? Number(softArbData.summary.total_unrealized_pnl)
+													: 0
+											}
 											icon={<IconTrendingUp size={20} />}
 											isPnl
 										/>
 										<SummaryCard
 											label="Realized P&L"
-											value={Number(softArbData.summary.total_realized_pnl ?? 0)}
+											value={Number(
+												softArbData.summary.total_realized_pnl ?? 0,
+											)}
 											icon={<IconPercentage size={20} />}
 											isPnl
 										/>
@@ -1226,14 +1738,22 @@ export default function ArbPaperPage() {
 
 									{!softArbData.lastUpdated && (
 										<div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-xs text-amber-700">
-											No MTM data yet — run <code className="bg-amber-100 px-1 rounded">python3 ~/.openclaw/workspace-hustle/scripts/soft_arb_mtm.py</code> to fetch current prices
+											No MTM data yet — run{" "}
+											<code className="bg-amber-100 px-1 rounded">
+												python3
+												~/.openclaw/workspace-hustle/scripts/soft_arb_mtm.py
+											</code>{" "}
+											to fetch current prices
 										</div>
 									)}
 
 									{/* Open trades table */}
-									{softArbData.trades.filter((t) => t.status === "OPEN").length > 0 && (
+									{softArbData.trades.filter((t) => t.status === "OPEN")
+										.length > 0 && (
 										<section>
-											<h4 className="text-xs font-bold text-emerald-800 tracking-wide uppercase mb-2">Open Positions</h4>
+											<h4 className="text-xs font-bold text-emerald-800 tracking-wide uppercase mb-2">
+												Open Positions
+											</h4>
 											<div className="overflow-x-auto">
 												<table className="w-full text-xs">
 													<thead>
@@ -1245,16 +1765,29 @@ export default function ArbPaperPage() {
 															<th className="text-right px-3 py-2">Current</th>
 															<th className="text-left px-3 py-2">Edge</th>
 															<th className="text-right px-3 py-2">Size</th>
-															<th className="text-right px-3 py-2">Unrealized P&L</th>
+															<th className="text-right px-3 py-2">
+																Unrealized P&L
+															</th>
 															<th className="text-left px-3 py-2">Resolves</th>
 														</tr>
 													</thead>
 													<tbody>
 														{softArbData.trades
 															.filter((t) => t.status === "OPEN")
-															.sort((a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime())
+															.sort(
+																(a, b) =>
+																	new Date(b.opened_at).getTime() -
+																	new Date(a.opened_at).getTime(),
+															)
 															.map((t, i, arr) => (
-																<tr key={t.trade_id} className={i < arr.length - 1 ? "border-b border-border/50" : ""}>
+																<tr
+																	key={t.trade_id}
+																	className={
+																		i < arr.length - 1
+																			? "border-b border-border/50"
+																			: ""
+																	}
+																>
 																	<td className="px-3 py-2 text-muted-foreground tabular-nums whitespace-nowrap">
 																		{timeAgo(t.opened_at)}
 																	</td>
@@ -1267,10 +1800,16 @@ export default function ArbPaperPage() {
 																				className="text-blue-700 hover:text-blue-900 underline decoration-blue-300 hover:decoration-blue-500 transition-colors"
 																				title={t.pair}
 																			>
-																				{t.pair.length > 45 ? t.pair.slice(0, 45) + "..." : t.pair}
+																				{t.pair.length > 45
+																					? t.pair.slice(0, 45) + "..."
+																					: t.pair}
 																			</a>
 																		) : (
-																			<span title={t.pair}>{t.pair.length > 45 ? t.pair.slice(0, 45) + "..." : t.pair}</span>
+																			<span title={t.pair}>
+																				{t.pair.length > 45
+																					? t.pair.slice(0, 45) + "..."
+																					: t.pair}
+																			</span>
 																		)}
 																	</td>
 																	<td className="px-3 py-2">
@@ -1280,7 +1819,9 @@ export default function ArbPaperPage() {
 																		${t.entry_price.toFixed(3)}
 																	</td>
 																	<td className="text-right px-3 py-2 tabular-nums font-medium">
-																		{t.current_price != null ? `$${t.current_price.toFixed(3)}` : "---"}
+																		{t.current_price != null
+																			? `$${t.current_price.toFixed(3)}`
+																			: "---"}
 																	</td>
 																	<td className="px-3 py-2">
 																		<EdgeBar edge={t.adjusted_edge_pct} />
@@ -1289,10 +1830,24 @@ export default function ArbPaperPage() {
 																		{formatUsd(t.position_size_usd)}
 																	</td>
 																	<td className="text-right px-3 py-2 tabular-nums">
-																		{t.unrealized_pnl != null ? <PnlBadge value={t.unrealized_pnl} /> : <span className="text-muted-foreground">---</span>}
+																		{t.unrealized_pnl != null ? (
+																			<PnlBadge value={t.unrealized_pnl} />
+																		) : (
+																			<span className="text-muted-foreground">
+																				---
+																			</span>
+																		)}
 																	</td>
 																	<td className="px-3 py-2 text-muted-foreground tabular-nums whitespace-nowrap">
-																		{t.resolves_by ? new Date(t.resolves_by).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "---"}
+																		{t.resolves_by
+																			? new Date(
+																					t.resolves_by,
+																				).toLocaleDateString("en-US", {
+																					month: "short",
+																					day: "numeric",
+																					year: "numeric",
+																				})
+																			: "---"}
 																	</td>
 																</tr>
 															))}
@@ -1303,9 +1858,15 @@ export default function ArbPaperPage() {
 									)}
 
 									{/* Resolved trades table */}
-									{softArbData.trades.filter((t) => t.status === "RESOLVED_WIN" || t.status === "RESOLVED_LOSS").length > 0 && (
+									{softArbData.trades.filter(
+										(t) =>
+											t.status === "RESOLVED_WIN" ||
+											t.status === "RESOLVED_LOSS",
+									).length > 0 && (
 										<section>
-											<h4 className="text-xs font-bold text-emerald-800 tracking-wide uppercase mb-2">Resolved</h4>
+											<h4 className="text-xs font-bold text-emerald-800 tracking-wide uppercase mb-2">
+												Resolved
+											</h4>
 											<div className="overflow-x-auto">
 												<table className="w-full text-xs">
 													<thead>
@@ -1316,19 +1877,37 @@ export default function ArbPaperPage() {
 															<th className="text-right px-3 py-2">Entry</th>
 															<th className="text-right px-3 py-2">Size</th>
 															<th className="text-center px-3 py-2">Result</th>
-															<th className="text-right px-3 py-2">Realized P&L</th>
+															<th className="text-right px-3 py-2">
+																Realized P&L
+															</th>
 														</tr>
 													</thead>
 													<tbody>
 														{softArbData.trades
-															.filter((t) => t.status === "RESOLVED_WIN" || t.status === "RESOLVED_LOSS")
+															.filter(
+																(t) =>
+																	t.status === "RESOLVED_WIN" ||
+																	t.status === "RESOLVED_LOSS",
+															)
 															.map((t, i, arr) => (
-																<tr key={t.trade_id} className={i < arr.length - 1 ? "border-b border-border/50" : ""}>
+																<tr
+																	key={t.trade_id}
+																	className={
+																		i < arr.length - 1
+																			? "border-b border-border/50"
+																			: ""
+																	}
+																>
 																	<td className="px-3 py-2 text-muted-foreground tabular-nums whitespace-nowrap">
 																		{timeAgo(t.opened_at)}
 																	</td>
-																	<td className="px-3 py-2 font-medium max-w-[220px] truncate" title={t.pair}>
-																		{t.pair.length > 45 ? t.pair.slice(0, 45) + "..." : t.pair}
+																	<td
+																		className="px-3 py-2 font-medium max-w-[220px] truncate"
+																		title={t.pair}
+																	>
+																		{t.pair.length > 45
+																			? t.pair.slice(0, 45) + "..."
+																			: t.pair}
 																	</td>
 																	<td className="px-3 py-2">
 																		<DirectionBadge direction={t.direction} />
@@ -1351,7 +1930,13 @@ export default function ArbPaperPage() {
 																		)}
 																	</td>
 																	<td className="text-right px-3 py-2 tabular-nums">
-																		{t.realized_pnl != null ? <PnlBadge value={t.realized_pnl} /> : <span className="text-muted-foreground">---</span>}
+																		{t.realized_pnl != null ? (
+																			<PnlBadge value={t.realized_pnl} />
+																		) : (
+																			<span className="text-muted-foreground">
+																				---
+																			</span>
+																		)}
 																	</td>
 																</tr>
 															))}
@@ -1383,12 +1968,10 @@ export default function ArbPaperPage() {
 							strokeWidth={1.2}
 							className="mb-4 opacity-40"
 						/>
-						<p className="text-sm font-medium">
-							No paper trades yet
-						</p>
+						<p className="text-sm font-medium">No paper trades yet</p>
 						<p className="text-xs mt-1">
-							Run the arb engine with PAPER_MODE=true to start
-							recording simulated fills
+							Run the arb engine with PAPER_MODE=true to start recording
+							simulated fills
 						</p>
 					</div>
 				) : (
@@ -1411,425 +1994,421 @@ export default function ArbPaperPage() {
 							</span>
 						</button>
 						{hardArbOpen && (
-						<div className="max-h-[800px] overflow-y-auto space-y-6 pr-1 mt-3">
-						{/* Confidence filter toggle */}
-						<div className="flex items-center gap-3">
-							<button
-								type="button"
-								onClick={() => setShowLowConf((v) => !v)}
-								className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
-									showLowConf
-										? "border-amber-300 bg-amber-50 text-amber-700"
-										: "border-emerald-300 bg-emerald-50 text-emerald-700"
-								}`}
-							>
-								{showLowConf ? (
-									<IconAlertTriangle size={14} />
-								) : (
-									<IconShieldCheck size={14} />
-								)}
-								{showLowConf
-									? "Showing all trades"
-									: "High confidence only"}
-							</button>
-							{!showLowConf && summary.lowConfTrades > 0 && (
-								<span className="text-[11px] text-muted-foreground">
-									{summary.lowConfTrades} low-confidence trade{summary.lowConfTrades !== 1 ? "s" : ""} hidden ({formatPnl(summary.lowConfPnl)} excluded)
-								</span>
-							)}
-						</div>
-
-						{/* Summary cards */}
-						<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-							<SummaryCard
-								label={showLowConf ? "Total Paper Trades" : "High Conf. Trades"}
-								value={showLowConf ? summary.totalTrades : summary.highConfTrades}
-								icon={<IconArrowsExchange size={20} />}
-							/>
-							<SummaryCard
-								label="Projected P&L"
-								value={showLowConf ? summary.projectedPnl : summary.highConfPnl}
-								icon={<IconTrendingUp size={20} />}
-								isPnl
-							/>
-							<SummaryCard
-								label="Win Rate"
-								value={summary.winRate}
-								icon={<IconPercentage size={20} />}
-								isPercent
-							/>
-							<SummaryCard
-								label="Actual P&L"
-								value={summary.actualPnl}
-								icon={<IconChartBar size={20} />}
-								isPnl
-							/>
-						</div>
-
-						{/* Strategy Analytics Charts */}
-						<section>
-							<h3 className="text-sm font-bold text-foreground tracking-wide mb-3 uppercase">
-								Strategy Analytics
-							</h3>
-
-							<div className="space-y-4">
-								{/* Chart A: Cumulative P&L — full width */}
-								<div className="bg-white border border-border rounded-xl p-5">
-									<div className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4">
-										Cumulative P&L Over Time
-									</div>
-									<ResponsiveContainer width="100%" height={240}>
-										<AreaChart data={cumulativeData}>
-											<defs>
-												<linearGradient id="pnlGradient" x1="0" y1="0" x2="0" y2="1">
-													<stop offset="0%" stopColor="#1dd1a1" stopOpacity={0.3} />
-													<stop offset="100%" stopColor="#1dd1a1" stopOpacity={0.02} />
-												</linearGradient>
-											</defs>
-											<CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-											<XAxis
-												dataKey="date"
-												tick={{ fontSize: 11, fill: "#6b7280" }}
-												tickLine={false}
-												axisLine={{ stroke: "#e5e7eb" }}
-											/>
-											<YAxis
-												tick={{ fontSize: 11, fill: "#6b7280" }}
-												tickLine={false}
-												axisLine={false}
-												tickFormatter={(v: number) => `$${v}`}
-											/>
-											<Tooltip content={<PnlTooltip />} />
-											<Area
-												type="monotone"
-												dataKey="cumPnl"
-												stroke="#1dd1a1"
-												strokeWidth={2}
-												fill="url(#pnlGradient)"
-											/>
-										</AreaChart>
-									</ResponsiveContainer>
+							<div className="max-h-[800px] overflow-y-auto space-y-6 pr-1 mt-3">
+								{/* Confidence filter toggle */}
+								<div className="flex items-center gap-3">
+									<button
+										type="button"
+										onClick={() => setShowLowConf((v) => !v)}
+										className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+											showLowConf
+												? "border-amber-300 bg-amber-50 text-amber-700"
+												: "border-emerald-300 bg-emerald-50 text-emerald-700"
+										}`}
+									>
+										{showLowConf ? (
+											<IconAlertTriangle size={14} />
+										) : (
+											<IconShieldCheck size={14} />
+										)}
+										{showLowConf
+											? "Showing all trades"
+											: "High confidence only"}
+									</button>
+									{!showLowConf && summary.lowConfTrades > 0 && (
+										<span className="text-[11px] text-muted-foreground">
+											{summary.lowConfTrades} low-confidence trade
+											{summary.lowConfTrades !== 1 ? "s" : ""} hidden (
+											{formatPnl(summary.lowConfPnl)} excluded)
+										</span>
+									)}
 								</div>
 
-								{/* Charts B & C side by side */}
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-									{/* Chart B: Profit by Market Pair */}
-									<div className="bg-white border border-border rounded-xl p-5">
-										<div className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4">
-											Profit by Market Pair
-										</div>
-										<ResponsiveContainer width="100%" height={280}>
-											<BarChart
-												data={pairData}
-												layout="vertical"
-												margin={{ left: 10, right: 20 }}
-											>
-												<CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
-												<XAxis
-													type="number"
-													tick={{ fontSize: 11, fill: "#6b7280" }}
-													tickLine={false}
-													axisLine={{ stroke: "#e5e7eb" }}
-													tickFormatter={(v: number) => `$${v}`}
-												/>
-												<YAxis
-													type="category"
-													dataKey="pair"
-													tick={{ fontSize: 10, fill: "#6b7280" }}
-													tickLine={false}
-													axisLine={false}
-													width={120}
-												/>
-												<Tooltip content={<PairTooltip />} />
-												<Bar dataKey="profit" radius={[0, 4, 4, 0]}>
-													{pairData.map((entry, idx) => (
-														<Cell
-															key={idx}
-															fill={entry.profit >= 0 ? "#1dd1a1" : "#ee5253"}
-														/>
-													))}
-												</Bar>
-											</BarChart>
-										</ResponsiveContainer>
-									</div>
+								{/* Summary cards */}
+								<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+									<SummaryCard
+										label={
+											showLowConf ? "Total Paper Trades" : "High Conf. Trades"
+										}
+										value={
+											showLowConf ? summary.totalTrades : summary.highConfTrades
+										}
+										icon={<IconArrowsExchange size={20} />}
+									/>
+									<SummaryCard
+										label="Projected P&L"
+										value={
+											showLowConf ? summary.projectedPnl : summary.highConfPnl
+										}
+										icon={<IconTrendingUp size={20} />}
+										isPnl
+									/>
+									<SummaryCard
+										label="Win Rate"
+										value={summary.winRate}
+										icon={<IconPercentage size={20} />}
+										isPercent
+									/>
+									<SummaryCard
+										label="Actual P&L"
+										value={summary.actualPnl}
+										icon={<IconChartBar size={20} />}
+										isPnl
+									/>
+								</div>
 
-									{/* Chart C: Size vs Profit Scatter */}
-									<div className="bg-white border border-border rounded-xl p-5">
-										<div className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-3">
-											Trade Size vs. Profit
-										</div>
-										<div className="flex items-center gap-4 mb-3">
-											<div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-												<span className="inline-block w-2.5 h-2.5 rounded-full bg-[#54a0ff]" />
-												Polymarket maker
+								{/* Strategy Analytics Charts */}
+								<section>
+									<h3 className="text-sm font-bold text-foreground tracking-wide mb-3 uppercase">
+										Strategy Analytics
+									</h3>
+
+									<div className="space-y-4">
+										{/* Chart A: Cumulative P&L — full width */}
+										<div className="bg-white border border-border rounded-xl p-5">
+											<div className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4">
+												Cumulative P&L Over Time
 											</div>
-											<div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-												<span className="inline-block w-2.5 h-2.5 rounded-full bg-[#ff9f43]" />
-												Other maker
+											<ResponsiveContainer width="100%" height={240}>
+												<AreaChart data={cumulativeData}>
+													<defs>
+														<linearGradient
+															id="pnlGradient"
+															x1="0"
+															y1="0"
+															x2="0"
+															y2="1"
+														>
+															<stop
+																offset="0%"
+																stopColor="#1dd1a1"
+																stopOpacity={0.3}
+															/>
+															<stop
+																offset="100%"
+																stopColor="#1dd1a1"
+																stopOpacity={0.02}
+															/>
+														</linearGradient>
+													</defs>
+													<CartesianGrid
+														strokeDasharray="3 3"
+														stroke="#e5e7eb"
+													/>
+													<XAxis
+														dataKey="date"
+														tick={{ fontSize: 11, fill: "#6b7280" }}
+														tickLine={false}
+														axisLine={{ stroke: "#e5e7eb" }}
+													/>
+													<YAxis
+														tick={{ fontSize: 11, fill: "#6b7280" }}
+														tickLine={false}
+														axisLine={false}
+														tickFormatter={(v: number) => `$${v}`}
+													/>
+													<Tooltip content={<PnlTooltip />} />
+													<Area
+														type="monotone"
+														dataKey="cumPnl"
+														stroke="#1dd1a1"
+														strokeWidth={2}
+														fill="url(#pnlGradient)"
+													/>
+												</AreaChart>
+											</ResponsiveContainer>
+										</div>
+
+										{/* Charts B & C side by side */}
+										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+											{/* Chart B: Profit by Market Pair */}
+											<div className="bg-white border border-border rounded-xl p-5">
+												<div className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4">
+													Profit by Market Pair
+												</div>
+												<ResponsiveContainer width="100%" height={280}>
+													<BarChart
+														data={pairData}
+														layout="vertical"
+														margin={{ left: 10, right: 20 }}
+													>
+														<CartesianGrid
+															strokeDasharray="3 3"
+															stroke="#e5e7eb"
+															horizontal={false}
+														/>
+														<XAxis
+															type="number"
+															tick={{ fontSize: 11, fill: "#6b7280" }}
+															tickLine={false}
+															axisLine={{ stroke: "#e5e7eb" }}
+															tickFormatter={(v: number) => `$${v}`}
+														/>
+														<YAxis
+															type="category"
+															dataKey="pair"
+															tick={{ fontSize: 10, fill: "#6b7280" }}
+															tickLine={false}
+															axisLine={false}
+															width={120}
+														/>
+														<Tooltip content={<PairTooltip />} />
+														<Bar dataKey="profit" radius={[0, 4, 4, 0]}>
+															{pairData.map((entry, idx) => (
+																<Cell
+																	key={idx}
+																	fill={
+																		entry.profit >= 0 ? "#1dd1a1" : "#ee5253"
+																	}
+																/>
+															))}
+														</Bar>
+													</BarChart>
+												</ResponsiveContainer>
+											</div>
+
+											{/* Chart C: Size vs Profit Scatter */}
+											<div className="bg-white border border-border rounded-xl p-5">
+												<div className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-3">
+													Trade Size vs. Profit
+												</div>
+												<div className="flex items-center gap-4 mb-3">
+													<div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+														<span className="inline-block w-2.5 h-2.5 rounded-full bg-[#54a0ff]" />
+														Polymarket maker
+													</div>
+													<div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+														<span className="inline-block w-2.5 h-2.5 rounded-full bg-[#ff9f43]" />
+														Other maker
+													</div>
+												</div>
+												<ResponsiveContainer width="100%" height={240}>
+													<ScatterChart margin={{ bottom: 5 }}>
+														<CartesianGrid
+															strokeDasharray="3 3"
+															stroke="#e5e7eb"
+														/>
+														<XAxis
+															dataKey="viableSize"
+															type="number"
+															name="Size"
+															tick={{ fontSize: 11, fill: "#6b7280" }}
+															tickLine={false}
+															axisLine={{ stroke: "#e5e7eb" }}
+															label={{
+																value: "Size (shares)",
+																position: "insideBottom",
+																offset: -2,
+																fontSize: 10,
+																fill: "#9ca3af",
+															}}
+														/>
+														<YAxis
+															dataKey="netProfit"
+															type="number"
+															name="Profit"
+															tick={{ fontSize: 11, fill: "#6b7280" }}
+															tickLine={false}
+															axisLine={false}
+															tickFormatter={(v: number) => `$${v}`}
+														/>
+														<Tooltip content={<ScatterTooltip />} />
+														<Scatter data={scatterData}>
+															{scatterData.map((entry, idx) => (
+																<Cell
+																	key={idx}
+																	fill={
+																		entry.makerExchange === "polymarket"
+																			? "#54a0ff"
+																			: "#ff9f43"
+																	}
+																	fillOpacity={0.7}
+																/>
+															))}
+														</Scatter>
+													</ScatterChart>
+												</ResponsiveContainer>
 											</div>
 										</div>
-										<ResponsiveContainer width="100%" height={240}>
-											<ScatterChart margin={{ bottom: 5 }}>
-												<CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-												<XAxis
-													dataKey="viableSize"
-													type="number"
-													name="Size"
-													tick={{ fontSize: 11, fill: "#6b7280" }}
-													tickLine={false}
-													axisLine={{ stroke: "#e5e7eb" }}
-													label={{ value: "Size (shares)", position: "insideBottom", offset: -2, fontSize: 10, fill: "#9ca3af" }}
-												/>
-												<YAxis
-													dataKey="netProfit"
-													type="number"
-													name="Profit"
-													tick={{ fontSize: 11, fill: "#6b7280" }}
-													tickLine={false}
-													axisLine={false}
-													tickFormatter={(v: number) => `$${v}`}
-												/>
-												<Tooltip content={<ScatterTooltip />} />
-												<Scatter data={scatterData}>
-													{scatterData.map((entry, idx) => (
-														<Cell
-															key={idx}
-															fill={entry.makerExchange === "polymarket" ? "#54a0ff" : "#ff9f43"}
-															fillOpacity={0.7}
-														/>
-													))}
-												</Scatter>
-											</ScatterChart>
-										</ResponsiveContainer>
 									</div>
-								</div>
-							</div>
-						</section>
+								</section>
 
-						{/* Unresolved trades */}
-						<section>
-							<h3 className="text-sm font-bold text-foreground tracking-wide mb-3 uppercase">
-								Unresolved
-								{unresolvedTrades.length > 0 && (
-									<span className="ml-2 text-muted-foreground font-normal normal-case">
-										({unresolvedTrades.length})
-									</span>
-								)}
-							</h3>
-							{unresolvedTrades.length === 0 ? (
-								<div className="bg-white border border-border rounded-xl p-6 text-center text-sm text-muted-foreground">
-									No unresolved trades
-								</div>
-							) : (
-								<div className="bg-white border border-border rounded-xl overflow-x-auto">
-									<table className="w-full text-sm">
-										<thead>
-											<tr className="border-b border-border text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
-												<th className="text-left px-4 py-3">
-													Time
-												</th>
-												<th className="text-left px-3 py-3">
-													Pair
-												</th>
-												<th className="text-left px-3 py-3">
-													Maker
-												</th>
-												<th className="text-left px-3 py-3">
-													Taker
-												</th>
-												<th className="text-right px-3 py-3">
-													Maker Price
-												</th>
-												<th className="text-right px-3 py-3">
-													Taker Price
-												</th>
-												<th className="text-right px-3 py-3">
-													Size
-												</th>
-												<th className="text-right px-3 py-3">
-													Projected
-												</th>
-												<th className="text-center px-4 py-3">
-													Conf.
-												</th>
-											</tr>
-										</thead>
-										<tbody>
-											{unresolvedTrades.map((t, i) => (
-												<tr
-													key={t._id}
-													className={
-														i <
-														unresolvedTrades.length -
-															1
-															? "border-b border-border/50"
-															: ""
-													}
-												>
-													<td className="px-4 py-3 text-muted-foreground tabular-nums whitespace-nowrap">
-														{timeAgo(t.timestamp)}
-													</td>
-													<td className="px-3 py-3 font-medium max-w-[200px] truncate">
-														{t.pairName}
-													</td>
-													<td className="px-3 py-3">
-														<span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-blue-100 text-blue-700">
-															{t.makerExchange.toUpperCase()}
-														</span>
-													</td>
-													<td className="px-3 py-3">
-														<span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-amber-100 text-amber-700">
-															{t.takerExchange.toUpperCase()}
-														</span>
-													</td>
-													<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
-														$
-														{t.makerPrice.toFixed(
-															4,
-														)}
-													</td>
-													<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
-														$
-														{t.takerPrice.toFixed(
-															4,
-														)}
-													</td>
-													<td className="text-right px-3 py-3 tabular-nums font-medium">
-														{t.viableSize.toFixed(
-															1,
-														)}
-													</td>
-													<td className="text-right px-3 py-3 tabular-nums">
-														<PnlBadge
-															value={t.netProfit}
-														/>
-													</td>
-													<td className="text-center px-4 py-3">
-														{(t.confidence ?? "HIGH") === "HIGH" ? (
-															<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-emerald-100 text-emerald-700" title="API healthy, sufficient time to expiry">
-																HIGH
-															</span>
-														) : (
-															<span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-amber-100 text-amber-700" title="API unhealthy or near expiry">
-																LOW
-															</span>
-														)}
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-								</div>
-							)}
-						</section>
-
-						{/* Resolved trades */}
-						{resolvedTrades.length > 0 && (
-							<section>
-								<h3 className="text-sm font-bold text-foreground tracking-wide mb-3 uppercase">
-									Resolved
-									<span className="ml-2 text-muted-foreground font-normal normal-case">
-										({resolvedTrades.length})
-									</span>
-								</h3>
-								<div className="bg-white border border-border rounded-xl overflow-x-auto">
-									<table className="w-full text-sm">
-										<thead>
-											<tr className="border-b border-border text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
-												<th className="text-left px-4 py-3">
-													Time
-												</th>
-												<th className="text-left px-3 py-3">
-													Pair
-												</th>
-												<th className="text-left px-3 py-3">
-													Maker
-												</th>
-												<th className="text-left px-3 py-3">
-													Taker
-												</th>
-												<th className="text-right px-3 py-3">
-													Size
-												</th>
-												<th className="text-right px-3 py-3">
-													Projected
-												</th>
-												<th className="text-right px-3 py-3">
-													Result
-												</th>
-												<th className="text-right px-4 py-3">
-													Actual P&L
-												</th>
-											</tr>
-										</thead>
-										<tbody>
-											{resolvedTrades.map((t, i) => (
-												<tr
-													key={t._id}
-													className={
-														i <
-														resolvedTrades.length -
-															1
-															? "border-b border-border/50"
-															: ""
-													}
-												>
-													<td className="px-4 py-3 text-muted-foreground tabular-nums whitespace-nowrap">
-														{timeAgo(t.timestamp)}
-													</td>
-													<td className="px-3 py-3 font-medium max-w-[200px] truncate">
-														{t.pairName}
-													</td>
-													<td className="px-3 py-3">
-														<span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-blue-100 text-blue-700">
-															{t.makerExchange.toUpperCase()}
-														</span>
-													</td>
-													<td className="px-3 py-3">
-														<span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-amber-100 text-amber-700">
-															{t.takerExchange.toUpperCase()}
-														</span>
-													</td>
-													<td className="text-right px-3 py-3 tabular-nums font-medium">
-														{t.viableSize.toFixed(
-															1,
-														)}
-													</td>
-													<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
-														{formatPnl(
-															t.netProfit,
-														)}
-													</td>
-													<td className="text-right px-3 py-3">
-														{t.status ===
-															"RESOLVED_WIN" && (
-															<span className="text-emerald-600 font-bold">
-																WIN
-															</span>
-														)}
-														{t.status ===
-															"RESOLVED_LOSS" && (
-															<span className="text-red-500 font-bold">
-																LOSS
-															</span>
-														)}
-													</td>
-													<td className="text-right px-4 py-3 tabular-nums">
-														<PnlBadge
-															value={
-																t.actualPnl ?? 0
+								{/* Unresolved trades */}
+								<section>
+									<h3 className="text-sm font-bold text-foreground tracking-wide mb-3 uppercase">
+										Unresolved
+										{unresolvedTrades.length > 0 && (
+											<span className="ml-2 text-muted-foreground font-normal normal-case">
+												({unresolvedTrades.length})
+											</span>
+										)}
+									</h3>
+									{unresolvedTrades.length === 0 ? (
+										<div className="bg-white border border-border rounded-xl p-6 text-center text-sm text-muted-foreground">
+											No unresolved trades
+										</div>
+									) : (
+										<div className="bg-white border border-border rounded-xl overflow-x-auto">
+											<table className="w-full text-sm">
+												<thead>
+													<tr className="border-b border-border text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
+														<th className="text-left px-4 py-3">Time</th>
+														<th className="text-left px-3 py-3">Pair</th>
+														<th className="text-left px-3 py-3">Maker</th>
+														<th className="text-left px-3 py-3">Taker</th>
+														<th className="text-right px-3 py-3">
+															Maker Price
+														</th>
+														<th className="text-right px-3 py-3">
+															Taker Price
+														</th>
+														<th className="text-right px-3 py-3">Size</th>
+														<th className="text-right px-3 py-3">Projected</th>
+														<th className="text-center px-4 py-3">Conf.</th>
+													</tr>
+												</thead>
+												<tbody>
+													{unresolvedTrades.map((t, i) => (
+														<tr
+															key={t._id}
+															className={
+																i < unresolvedTrades.length - 1
+																	? "border-b border-border/50"
+																	: ""
 															}
-														/>
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-								</div>
-							</section>
+														>
+															<td className="px-4 py-3 text-muted-foreground tabular-nums whitespace-nowrap">
+																{timeAgo(t.timestamp)}
+															</td>
+															<td className="px-3 py-3 font-medium max-w-[200px] truncate">
+																{t.pairName}
+															</td>
+															<td className="px-3 py-3">
+																<span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-blue-100 text-blue-700">
+																	{t.makerExchange.toUpperCase()}
+																</span>
+															</td>
+															<td className="px-3 py-3">
+																<span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-amber-100 text-amber-700">
+																	{t.takerExchange.toUpperCase()}
+																</span>
+															</td>
+															<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
+																${t.makerPrice.toFixed(4)}
+															</td>
+															<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
+																${t.takerPrice.toFixed(4)}
+															</td>
+															<td className="text-right px-3 py-3 tabular-nums font-medium">
+																{t.viableSize.toFixed(1)}
+															</td>
+															<td className="text-right px-3 py-3 tabular-nums">
+																<PnlBadge value={t.netProfit} />
+															</td>
+															<td className="text-center px-4 py-3">
+																{(t.confidence ?? "HIGH") === "HIGH" ? (
+																	<span
+																		className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-emerald-100 text-emerald-700"
+																		title="API healthy, sufficient time to expiry"
+																	>
+																		HIGH
+																	</span>
+																) : (
+																	<span
+																		className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide bg-amber-100 text-amber-700"
+																		title="API unhealthy or near expiry"
+																	>
+																		LOW
+																	</span>
+																)}
+															</td>
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</div>
+									)}
+								</section>
+
+								{/* Resolved trades */}
+								{resolvedTrades.length > 0 && (
+									<section>
+										<h3 className="text-sm font-bold text-foreground tracking-wide mb-3 uppercase">
+											Resolved
+											<span className="ml-2 text-muted-foreground font-normal normal-case">
+												({resolvedTrades.length})
+											</span>
+										</h3>
+										<div className="bg-white border border-border rounded-xl overflow-x-auto">
+											<table className="w-full text-sm">
+												<thead>
+													<tr className="border-b border-border text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
+														<th className="text-left px-4 py-3">Time</th>
+														<th className="text-left px-3 py-3">Pair</th>
+														<th className="text-left px-3 py-3">Maker</th>
+														<th className="text-left px-3 py-3">Taker</th>
+														<th className="text-right px-3 py-3">Size</th>
+														<th className="text-right px-3 py-3">Projected</th>
+														<th className="text-right px-3 py-3">Result</th>
+														<th className="text-right px-4 py-3">Actual P&L</th>
+													</tr>
+												</thead>
+												<tbody>
+													{resolvedTrades.map((t, i) => (
+														<tr
+															key={t._id}
+															className={
+																i < resolvedTrades.length - 1
+																	? "border-b border-border/50"
+																	: ""
+															}
+														>
+															<td className="px-4 py-3 text-muted-foreground tabular-nums whitespace-nowrap">
+																{timeAgo(t.timestamp)}
+															</td>
+															<td className="px-3 py-3 font-medium max-w-[200px] truncate">
+																{t.pairName}
+															</td>
+															<td className="px-3 py-3">
+																<span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-blue-100 text-blue-700">
+																	{t.makerExchange.toUpperCase()}
+																</span>
+															</td>
+															<td className="px-3 py-3">
+																<span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-amber-100 text-amber-700">
+																	{t.takerExchange.toUpperCase()}
+																</span>
+															</td>
+															<td className="text-right px-3 py-3 tabular-nums font-medium">
+																{t.viableSize.toFixed(1)}
+															</td>
+															<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
+																{formatPnl(t.netProfit)}
+															</td>
+															<td className="text-right px-3 py-3">
+																{t.status === "RESOLVED_WIN" && (
+																	<span className="text-emerald-600 font-bold">
+																		WIN
+																	</span>
+																)}
+																{t.status === "RESOLVED_LOSS" && (
+																	<span className="text-red-500 font-bold">
+																		LOSS
+																	</span>
+																)}
+															</td>
+															<td className="text-right px-4 py-3 tabular-nums">
+																<PnlBadge value={t.actualPnl ?? 0} />
+															</td>
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</div>
+									</section>
+								)}
+							</div>
 						)}
-					</div>
-					)}
 					</section>
 				)}
 			</main>

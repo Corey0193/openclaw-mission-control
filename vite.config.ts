@@ -888,8 +888,7 @@ function softArbTradesPlugin() {
 					const url = (req.url ?? "/").split("?")[0];
 					if (
 						req.method === "GET" &&
-						(url === "/api/soft-arb-trades" ||
-							url === "/api/soft-arb/trades")
+						(url === "/api/soft-arb-trades" || url === "/api/soft-arb/trades")
 					) {
 						try {
 							const data = getSoftArbTrades();

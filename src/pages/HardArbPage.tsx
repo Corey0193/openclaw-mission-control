@@ -184,7 +184,10 @@ function getTradeType(trade: PaperTrade): StrategyTradeType {
 
 	// Older Mission Control rows did not persist strategy type. Market-making
 	// fills arrive without book snapshots, while hard-arb rows include them.
-	if (trade.polyBookSnapshot.length === 0 && trade.lmtsBookSnapshot.length === 0) {
+	if (
+		trade.polyBookSnapshot.length === 0 &&
+		trade.lmtsBookSnapshot.length === 0
+	) {
 		return "market_making";
 	}
 
@@ -365,7 +368,10 @@ export default function HardArbPage() {
 	const pairData = useProfitByPairData(hardArbTrades);
 	const scatterData = useScatterData(hardArbTrades);
 
-	const summary = useMemo(() => summarizePaperTrades(hardArbTrades), [hardArbTrades]);
+	const summary = useMemo(
+		() => summarizePaperTrades(hardArbTrades),
+		[hardArbTrades],
+	);
 	const marketMakingSummary = useMemo(
 		() => summarizePaperTrades(marketMakingTrades),
 		[marketMakingTrades],
@@ -501,13 +507,14 @@ export default function HardArbPage() {
 								</div>
 							) : (
 								<div className="space-y-8">
-									{hardArbTrades.length === 0 && marketMakingTrades.length > 0 && (
-										<div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
-											No hard-arb paper trades are in this filtered view yet.
-											Market-making fills are tracked separately below and no
-											longer count toward the hard-arb headline metrics.
-										</div>
-									)}
+									{hardArbTrades.length === 0 &&
+										marketMakingTrades.length > 0 && (
+											<div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
+												No hard-arb paper trades are in this filtered view yet.
+												Market-making fills are tracked separately below and no
+												longer count toward the hard-arb headline metrics.
+											</div>
+										)}
 
 									{/* Confidence filter toggle */}
 									<div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 bg-white border border-border rounded-xl shadow-sm">
@@ -573,20 +580,20 @@ export default function HardArbPage() {
 											<div className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
 												Paper Mode Status
 											</div>
-												<div className="text-sm font-semibold text-slate-900">
-													{daemonHeartbeatStale
-														? `Daemon heartbeat stale (${staleHeartbeatLabel})`
-														: daemonStatus?.running
+											<div className="text-sm font-semibold text-slate-900">
+												{daemonHeartbeatStale
+													? `Daemon heartbeat stale (${staleHeartbeatLabel})`
+													: daemonStatus?.running
 														? daemonStatus.mode === "live"
-														? "Daemon connected in LIVE mode"
-														: "Daemon connected in PAPER mode"
-													: "Using paper-trade history from Mission Control"}
+															? "Daemon connected in LIVE mode"
+															: "Daemon connected in PAPER mode"
+														: "Using paper-trade history from Mission Control"}
 											</div>
 										</div>
 										<div className="text-xs text-muted-foreground">
-											Headline hard-arb totals exclude market making. Open
-											paper edge is still simulated until settlement updates
-											actual P&L.
+											Headline hard-arb totals exclude market making. Open paper
+											edge is still simulated until settlement updates actual
+											P&L.
 										</div>
 									</div>
 

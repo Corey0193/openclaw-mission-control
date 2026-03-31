@@ -159,24 +159,26 @@ export default defineSchema({
 		.index("by_tenant_status", ["tenantId", "status"])
 		.index("by_tenant_epochMs", ["tenantId", "epochMs"]),
 	arbDaemonStatus: defineTable({
-	        tenantId: v.string(),
-	        running: v.boolean(),
-	        mode: v.string(),
-	        processCount: v.number(),
-	        pid: v.optional(v.number()),
-	        startedAt: v.optional(v.number()),
-	        lastHeartbeatAt: v.number(),
-	        event: v.string(),
+		tenantId: v.string(),
+		running: v.boolean(),
+		mode: v.string(),
+		processCount: v.number(),
+		pid: v.optional(v.number()),
+		startedAt: v.optional(v.number()),
+		lastHeartbeatAt: v.number(),
+		event: v.string(),
 	}).index("by_tenant", ["tenantId"]),
 	walletIngestorStatus: defineTable({
-	        tenantId: v.string(),
-	        running: v.boolean(),
-	        pid: v.optional(v.number()),
-	        walletCount: v.number(),
-	        tradeCount: v.number(),
-	        lastHeartbeatAt: v.number(),
-	        status: v.string(), // "active", "idle", "error"
-	        }).index("by_tenant", ["tenantId"]),	polymarketPositions: defineTable({		walletAddress: v.string(),
+		tenantId: v.string(),
+		running: v.boolean(),
+		pid: v.optional(v.number()),
+		walletCount: v.number(),
+		tradeCount: v.number(),
+		lastHeartbeatAt: v.number(),
+		status: v.string(), // "active", "idle", "error"
+	}).index("by_tenant", ["tenantId"]),
+	polymarketPositions: defineTable({
+		walletAddress: v.string(),
 		balanceUsdc: v.number(),
 		positions: v.array(
 			v.object({
@@ -219,47 +221,47 @@ export default defineSchema({
 		tenantId: v.optional(v.string()),
 	}).index("by_tenant", ["tenantId"]),
 	tokenUsage: defineTable({
-	        agentId: v.optional(v.id("agents")),
-	        agentName: v.string(),
-	        skillName: v.string(),
-	        inputTokens: v.number(),
-	        outputTokens: v.number(),
-	        totalTokens: v.number(),
-	        timestamp: v.number(),
-	        runId: v.optional(v.string()),
-	        tenantId: v.optional(v.string()),
+		agentId: v.optional(v.id("agents")),
+		agentName: v.string(),
+		skillName: v.string(),
+		inputTokens: v.number(),
+		outputTokens: v.number(),
+		totalTokens: v.number(),
+		timestamp: v.number(),
+		runId: v.optional(v.string()),
+		tenantId: v.optional(v.string()),
 	})
-	        .index("by_tenant_timestamp", ["tenantId", "timestamp"])
-	        .index("by_agent_timestamp", ["agentId", "timestamp"])
-	        .index("by_agent_skill", ["agentName", "skillName"]),
+		.index("by_tenant_timestamp", ["tenantId", "timestamp"])
+		.index("by_agent_timestamp", ["agentId", "timestamp"])
+		.index("by_agent_skill", ["agentName", "skillName"]),
 	wallets: defineTable({
-	        address: v.string(),
-	        username: v.optional(v.string()),
-	        totalPnl: v.number(),
-	        performanceScore: v.number(),
-	        winRate: v.optional(v.union(v.number(), v.null())),
-	        tradeCount: v.optional(v.union(v.number(), v.null())),
-	        firstTradeAt: v.optional(v.union(v.string(), v.null())),
-	        isInsider: v.boolean(),
-	        lastSyncedAt: v.number(),
-	        tags: v.array(v.string()),
-	        tenantId: v.optional(v.string()),
-	        // Copy-Trading Score (CTS) fields
-	        copyTradingScore: v.optional(v.number()),
-	        ctsConsistency: v.optional(v.number()),
-	        ctsWinRate: v.optional(v.number()),
-	        pnl7d: v.optional(v.number()),
-	        pnl30d: v.optional(v.number()),
-	        pnl90d: v.optional(v.number()),
-	        maxDrawdownPct: v.optional(v.number()),
-	        profitableWeeksRatio: v.optional(v.number()),
-	        computedWinRate: v.optional(v.number()),
+		address: v.string(),
+		username: v.optional(v.string()),
+		totalPnl: v.number(),
+		performanceScore: v.number(),
+		winRate: v.optional(v.union(v.number(), v.null())),
+		tradeCount: v.optional(v.union(v.number(), v.null())),
+		firstTradeAt: v.optional(v.union(v.string(), v.null())),
+		isInsider: v.boolean(),
+		lastSyncedAt: v.number(),
+		tags: v.array(v.string()),
+		tenantId: v.optional(v.string()),
+		// Copy-Trading Score (CTS) fields
+		copyTradingScore: v.optional(v.number()),
+		ctsConsistency: v.optional(v.number()),
+		ctsWinRate: v.optional(v.number()),
+		pnl7d: v.optional(v.number()),
+		pnl30d: v.optional(v.number()),
+		pnl90d: v.optional(v.number()),
+		maxDrawdownPct: v.optional(v.number()),
+		profitableWeeksRatio: v.optional(v.number()),
+		computedWinRate: v.optional(v.number()),
 	})
-	.index("by_tenant", ["tenantId"])
-	.index("by_address", ["address"])
-	.index("by_pnl", ["totalPnl"])
-	.index("by_score", ["performanceScore"])
-	.index("by_cts", ["copyTradingScore"])
-	.index("by_tenant_cts", ["tenantId", "copyTradingScore"])
-	.index("by_tenant_insider", ["tenantId", "isInsider"]),
+		.index("by_tenant", ["tenantId"])
+		.index("by_address", ["address"])
+		.index("by_pnl", ["totalPnl"])
+		.index("by_score", ["performanceScore"])
+		.index("by_cts", ["copyTradingScore"])
+		.index("by_tenant_cts", ["tenantId", "copyTradingScore"])
+		.index("by_tenant_insider", ["tenantId", "isInsider"]),
 });

@@ -39,7 +39,8 @@ function formatPnl(n: number): string {
 }
 
 function timeAgo(isoOrMs: string | number): string {
-	const ts = typeof isoOrMs === "string" ? new Date(isoOrMs).getTime() : isoOrMs;
+	const ts =
+		typeof isoOrMs === "string" ? new Date(isoOrMs).getTime() : isoOrMs;
 	const diffMs = Date.now() - ts;
 	const mins = Math.floor(diffMs / 60000);
 	if (mins < 1) return "just now";
@@ -155,18 +156,27 @@ function SummaryCard({
 function DirectionBadge({ direction }: { direction: string }) {
 	if (!direction) return null;
 	const isBuyNo = direction === "BUY_NO" || direction === "BUY_POLYMARKET_NO";
-	const isBuyYes = direction === "BUY_YES" || direction === "BUY_POLYMARKET_YES";
+	const isBuyYes =
+		direction === "BUY_YES" || direction === "BUY_POLYMARKET_YES";
 	if (!isBuyNo && !isBuyYes) {
 		return (
-			<span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-gray-100 text-gray-700" title={direction}>
+			<span
+				className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-gray-100 text-gray-700"
+				title={direction}
+			>
 				{direction.replace(/_/g, " ")}
 			</span>
 		);
 	}
 	const label = isBuyNo ? "Bet AGAINST" : "Bet FOR";
-	const colors = isBuyNo ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700";
+	const colors = isBuyNo
+		? "bg-red-100 text-red-700"
+		: "bg-emerald-100 text-emerald-700";
 	return (
-		<span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${colors}`} title={direction.replace(/_/g, " ")}>
+		<span
+			className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${colors}`}
+			title={direction.replace(/_/g, " ")}
+		>
 			{label} {isBuyNo ? "\u2193" : "\u2191"}
 		</span>
 	);
@@ -176,14 +186,20 @@ function EdgeBar({ edge }: { edge: number }) {
 	edge = Number(edge) || 0;
 	const absEdge = Math.min(Math.abs(edge), 50);
 	const width = `${Math.max(absEdge * 2, 4)}%`;
-	const color = Math.abs(edge) >= 15 ? "bg-emerald-500" : Math.abs(edge) >= 5 ? "bg-amber-400" : "bg-gray-300";
+	const color =
+		Math.abs(edge) >= 15
+			? "bg-emerald-500"
+			: Math.abs(edge) >= 5
+				? "bg-amber-400"
+				: "bg-gray-300";
 	return (
 		<div className="flex items-center gap-2">
 			<div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
 				<div className={`h-full rounded-full ${color}`} style={{ width }} />
 			</div>
 			<span className="text-xs tabular-nums font-medium">
-				{edge >= 0 ? "+" : ""}{edge.toFixed(1)}%
+				{edge >= 0 ? "+" : ""}
+				{edge.toFixed(1)}%
 			</span>
 		</div>
 	);
@@ -394,33 +410,47 @@ function usePipelineRuns() {
 	return { runs, refresh };
 }
 
-function shieldBadge(trade: Pick<SoftArbTrade, "shield_state" | "shield_coin" | "shield_reason">) {
+function shieldBadge(
+	trade: Pick<SoftArbTrade, "shield_state" | "shield_coin" | "shield_reason">,
+) {
 	const state = trade.shield_state;
 	if (!state) return null;
 	const label = trade.shield_coin ? `${trade.shield_coin} ${state}` : state;
 	if (state === "OPEN") {
 		return (
-			<span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-red-100 text-red-700" title={trade.shield_reason ?? undefined}>
+			<span
+				className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-red-100 text-red-700"
+				title={trade.shield_reason ?? undefined}
+			>
 				{label}
 			</span>
 		);
 	}
 	if (state === "WARN") {
 		return (
-			<span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700" title={trade.shield_reason ?? undefined}>
+			<span
+				className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700"
+				title={trade.shield_reason ?? undefined}
+			>
 				{label}
 			</span>
 		);
 	}
 	if (state === "DEGRADED") {
 		return (
-			<span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200 text-slate-700" title={trade.shield_reason ?? undefined}>
+			<span
+				className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200 text-slate-700"
+				title={trade.shield_reason ?? undefined}
+			>
 				{label}
 			</span>
 		);
 	}
 	return (
-		<span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700" title={trade.shield_reason ?? undefined}>
+		<span
+			className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700"
+			title={trade.shield_reason ?? undefined}
+		>
 			{label}
 		</span>
 	);
@@ -429,9 +459,16 @@ function shieldBadge(trade: Pick<SoftArbTrade, "shield_state" | "shield_coin" | 
 function signalSourceBadge(source: string) {
 	if (!source) return null;
 	const normalized = source.toLowerCase();
-	const cls = normalized === "azuro" ? "bg-cyan-100 text-cyan-700" : normalized === "metaculus" ? "bg-sky-100 text-sky-700" : "bg-amber-100 text-amber-700";
+	const cls =
+		normalized === "azuro"
+			? "bg-cyan-100 text-cyan-700"
+			: normalized === "metaculus"
+				? "bg-sky-100 text-sky-700"
+				: "bg-amber-100 text-amber-700";
 	return (
-		<span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>
+		<span
+			className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}
+		>
 			{source}
 		</span>
 	);
@@ -459,7 +496,10 @@ function executionVenueBadge(trade: SoftArbTrade) {
 	);
 }
 
-function getPipelineRunEventName(dossier: Record<string, unknown> | null, runId: string) {
+function getPipelineRunEventName(
+	dossier: Record<string, unknown> | null,
+	runId: string,
+) {
 	if (!dossier) return runId;
 
 	const bestOpportunity =
@@ -503,7 +543,11 @@ function getPipelineRunEventName(dossier: Record<string, unknown> | null, runId:
 	for (const candidate of candidates) {
 		if (typeof candidate === "string") {
 			const normalized = candidate.trim();
-			if (normalized && normalized !== "—" && normalized.toLowerCase() !== "unknown event") {
+			if (
+				normalized &&
+				normalized !== "—" &&
+				normalized.toLowerCase() !== "unknown event"
+			) {
 				return normalized;
 			}
 		}
@@ -530,19 +574,27 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 				className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/10 transition-colors text-left"
 			>
 				<div className="flex items-center gap-3">
-					<div className={`transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}>
+					<div
+						className={`transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+					>
 						<IconChevronDown size={18} className="text-muted-foreground" />
 					</div>
 					<div>
-						<div className="text-[10px] font-mono text-muted-foreground uppercase">{run.runId}</div>
+						<div className="text-[10px] font-mono text-muted-foreground uppercase">
+							{run.runId}
+						</div>
 						<div className="font-semibold text-sm">{eventName}</div>
 					</div>
 				</div>
 				<div className="flex items-center gap-3">
-					<span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${thorpVerdict === "TRADEABLE" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+					<span
+						className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${thorpVerdict === "TRADEABLE" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}
+					>
 						{thorpVerdict}
 					</span>
-					<span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${hustleDecision === "EXECUTE" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
+					<span
+						className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${hustleDecision === "EXECUTE" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}
+					>
 						{hustleDecision}
 					</span>
 				</div>
@@ -586,25 +638,29 @@ export default function SoftArbPage() {
 	});
 
 	const toggleSection = (s: keyof typeof sectionsOpen) => {
-		setSectionsOpen(prev => ({ ...prev, [s]: !prev[s] }));
+		setSectionsOpen((prev) => ({ ...prev, [s]: !prev[s] }));
 	};
 
 	const activePositions = useMemo(() => {
-		return (softArbData?.trades.filter(t => t.status === "OPEN") || [])
-			.sort((a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime());
+		return (softArbData?.trades.filter((t) => t.status === "OPEN") || []).sort(
+			(a, b) =>
+				new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
+		);
 	}, [softArbData]);
 
 	const historyPositions = useMemo(() => {
-		return softArbData?.trades.filter(t => t.status !== "OPEN") || [];
+		return softArbData?.trades.filter((t) => t.status !== "OPEN") || [];
 	}, [softArbData]);
 
 	const calibrationFamilies = useMemo(() => {
-		return softArbData?.calibration?.families ? Object.entries(softArbData.calibration.families) : [];
+		return softArbData?.calibration?.families
+			? Object.entries(softArbData.calibration.families)
+			: [];
 	}, [softArbData]);
 
 	const dailyStats = useMemo(() => {
 		if (!softArbData?.outcomes) return { today: 0, yesterday: 0, avg: 0 };
-		
+
 		const now = new Date();
 		const todayStr = now.toISOString().split("T")[0];
 		const yesterday = new Date(now);
@@ -618,20 +674,21 @@ export default function SoftArbPage() {
 		for (const o of softArbData.outcomes) {
 			const dateStr = new Date(o.timestamp).toISOString().split("T")[0];
 			dailyMap[dateStr] = (dailyMap[dateStr] || 0) + o.pnl_usd;
-			
+
 			if (dateStr === todayStr) todayPnl += o.pnl_usd;
 			if (dateStr === yesterdayStr) yesterdayPnl += o.pnl_usd;
 		}
 
 		const dailyValues = Object.values(dailyMap);
-		const avgPnl = dailyValues.length > 0 
-			? dailyValues.reduce((a, b) => a + b, 0) / dailyValues.length 
-			: 0;
+		const avgPnl =
+			dailyValues.length > 0
+				? dailyValues.reduce((a, b) => a + b, 0) / dailyValues.length
+				: 0;
 
 		return {
 			today: todayPnl,
 			yesterday: yesterdayPnl,
-			avg: avgPnl
+			avg: avgPnl,
 		};
 	}, [softArbData?.outcomes]);
 
@@ -646,15 +703,22 @@ export default function SoftArbPage() {
 							<IconTarget size={20} />
 						</div>
 						<div>
-							<h2 className="text-xl font-bold text-foreground tracking-tight">Soft Arbitrage</h2>
-							<p className="text-xs text-muted-foreground">Reasoning-first forecast arbitrage pipeline</p>
+							<h2 className="text-xl font-bold text-foreground tracking-tight">
+								Soft Arbitrage
+							</h2>
+							<p className="text-xs text-muted-foreground">
+								Reasoning-first forecast arbitrage pipeline
+							</p>
 						</div>
 					</div>
 					<button
 						onClick={refreshSoftArb}
 						className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-white text-xs font-semibold hover:bg-slate-50 transition-all shadow-sm"
 					>
-						<IconRefresh size={14} className={!softArbData ? "animate-spin" : ""} />
+						<IconRefresh
+							size={14}
+							className={!softArbData ? "animate-spin" : ""}
+						/>
 						Refresh Dashboard
 					</button>
 				</div>
@@ -665,8 +729,13 @@ export default function SoftArbPage() {
 						onClick={() => toggleSection("positions")}
 						className="flex items-center gap-2 group"
 					>
-						<IconChevronDown size={16} className={`text-emerald-500 transition-transform ${sectionsOpen.positions ? "" : "-rotate-90"}`} />
-						<h3 className="text-sm font-bold text-emerald-900 tracking-widest uppercase">Open Positions</h3>
+						<IconChevronDown
+							size={16}
+							className={`text-emerald-500 transition-transform ${sectionsOpen.positions ? "" : "-rotate-90"}`}
+						/>
+						<h3 className="text-sm font-bold text-emerald-900 tracking-widest uppercase">
+							Open Positions
+						</h3>
 						<span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
 							{activePositions.length} ACTIVE
 						</span>
@@ -730,19 +799,29 @@ export default function SoftArbPage() {
 												<th className="text-right px-3 py-2.5">Entry</th>
 												<th className="text-right px-3 py-2.5">Current</th>
 												<th className="text-right px-3 py-2.5">Edge</th>
-												<th className="text-right px-4 py-2.5">Unrealized P&L</th>
+												<th className="text-right px-4 py-2.5">
+													Unrealized P&L
+												</th>
 											</tr>
 										</thead>
 										<tbody>
 											{activePositions.map((t) => (
-												<tr key={t.trade_id} className="border-b border-border/50 last:border-0 hover:bg-muted/5">
+												<tr
+													key={t.trade_id}
+													className="border-b border-border/50 last:border-0 hover:bg-muted/5"
+												>
 													<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
 														{timeAgo(t.opened_at)}
 													</td>
 													<td className="px-3 py-3">
 														<div className="font-semibold text-foreground text-xs leading-snug">
 															{t.polymarket_slug ? (
-																<a href={getPolymarketUrl(t.polymarket_slug)!} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+																<a
+																	href={getPolymarketUrl(t.polymarket_slug)!}
+																	target="_blank"
+																	rel="noopener noreferrer"
+																	className="text-blue-600 hover:underline"
+																>
 																	{formatTradeName(t.pair)}
 																</a>
 															) : (
@@ -779,8 +858,13 @@ export default function SoftArbPage() {
 								</div>
 							) : (
 								<div className="bg-white border border-border rounded-xl p-8 text-center shadow-sm">
-									<IconTarget size={32} className="mx-auto mb-3 text-muted-foreground/40" />
-									<p className="text-sm font-medium text-muted-foreground">No open positions</p>
+									<IconTarget
+										size={32}
+										className="mx-auto mb-3 text-muted-foreground/40"
+									/>
+									<p className="text-sm font-medium text-muted-foreground">
+										No open positions
+									</p>
 								</div>
 							)}
 						</div>
@@ -794,10 +878,18 @@ export default function SoftArbPage() {
 							onClick={() => toggleSection("audit")}
 							className="flex items-center gap-2 group"
 						>
-							<IconChevronDown size={16} className={`text-purple-500 transition-transform ${sectionsOpen.audit ? "" : "-rotate-90"}`} />
-							<h3 className="text-sm font-bold text-purple-900 tracking-widest uppercase">Scan History & Verification Audit</h3>
+							<IconChevronDown
+								size={16}
+								className={`text-purple-500 transition-transform ${sectionsOpen.audit ? "" : "-rotate-90"}`}
+							/>
+							<h3 className="text-sm font-bold text-purple-900 tracking-widest uppercase">
+								Scan History & Verification Audit
+							</h3>
 						</button>
-						<button onClick={refreshPipeline} className="text-[10px] font-bold text-purple-600 uppercase hover:underline">
+						<button
+							onClick={refreshPipeline}
+							className="text-[10px] font-bold text-purple-600 uppercase hover:underline"
+						>
 							Force Scan Sync
 						</button>
 					</div>
@@ -805,9 +897,9 @@ export default function SoftArbPage() {
 					{sectionsOpen.audit && (
 						<div className="max-h-[600px] overflow-y-auto space-y-3 pr-2">
 							{pipelineRuns ? (
-								pipelineRuns.slice(0, 20).map(run => (
-									<PipelineRunCard key={run.runId} run={run} />
-								))
+								pipelineRuns
+									.slice(0, 20)
+									.map((run) => <PipelineRunCard key={run.runId} run={run} />)
 							) : (
 								<div className="h-20 bg-white border border-border rounded-xl animate-pulse" />
 							)}
@@ -823,31 +915,53 @@ export default function SoftArbPage() {
 							onClick={() => toggleSection("feedback")}
 							className="flex items-center gap-2 group"
 						>
-							<IconChevronDown size={16} className={`text-amber-500 transition-transform ${sectionsOpen.feedback ? "" : "-rotate-90"}`} />
-							<h3 className="text-sm font-bold text-amber-900 tracking-widest uppercase">Outcome Feedback Loop</h3>
+							<IconChevronDown
+								size={16}
+								className={`text-amber-500 transition-transform ${sectionsOpen.feedback ? "" : "-rotate-90"}`}
+							/>
+							<h3 className="text-sm font-bold text-amber-900 tracking-widest uppercase">
+								Outcome Feedback Loop
+							</h3>
 						</button>
 
 						{sectionsOpen.feedback && (
 							<div className="space-y-4">
 								{calibrationFamilies.map(([key, family]) => (
-									<div key={key} className="bg-white border border-amber-100 rounded-xl p-4 shadow-sm">
+									<div
+										key={key}
+										className="bg-white border border-amber-100 rounded-xl p-4 shadow-sm"
+									>
 										<div className="flex justify-between items-start mb-3">
 											<div>
-												<h4 className="text-xs font-bold text-amber-900 uppercase">{family.label}</h4>
-												<p className="text-[10px] text-muted-foreground">{family.progress.unique_resolved} events resolved</p>
+												<h4 className="text-xs font-bold text-amber-900 uppercase">
+													{family.label}
+												</h4>
+												<p className="text-[10px] text-muted-foreground">
+													{family.progress.unique_resolved} events resolved
+												</p>
 											</div>
-											<span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${family.status === "ready" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+											<span
+												className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${family.status === "ready" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+											>
 												{family.status}
 											</span>
 										</div>
 										<div className="grid grid-cols-2 gap-2 text-[11px]">
 											<div className="bg-amber-50/50 p-2 rounded border border-amber-100/50">
-												<div className="text-[9px] font-bold text-muted-foreground uppercase">Baseline Edge</div>
-												<div className="font-bold">{formatPct(family.baseline.edge_threshold_pct)}</div>
+												<div className="text-[9px] font-bold text-muted-foreground uppercase">
+													Baseline Edge
+												</div>
+												<div className="font-bold">
+													{formatPct(family.baseline.edge_threshold_pct)}
+												</div>
 											</div>
 											<div className="bg-emerald-50/50 p-2 rounded border border-emerald-100/50">
-												<div className="text-[9px] font-bold text-muted-foreground uppercase">Recommended</div>
-												<div className="font-bold">{formatPct(family.recommended.edge_threshold_pct)}</div>
+												<div className="text-[9px] font-bold text-muted-foreground uppercase">
+													Recommended
+												</div>
+												<div className="font-bold">
+													{formatPct(family.recommended.edge_threshold_pct)}
+												</div>
 											</div>
 										</div>
 										<p className="mt-2 text-[10px] text-muted-foreground leading-relaxed italic">
@@ -865,8 +979,13 @@ export default function SoftArbPage() {
 							onClick={() => toggleSection("shield")}
 							className="flex items-center gap-2 group"
 						>
-							<IconChevronDown size={16} className={`text-rose-500 transition-transform ${sectionsOpen.shield ? "" : "-rotate-90"}`} />
-							<h3 className="text-sm font-bold text-rose-900 tracking-widest uppercase">Self Improvement & Safety</h3>
+							<IconChevronDown
+								size={16}
+								className={`text-rose-500 transition-transform ${sectionsOpen.shield ? "" : "-rotate-90"}`}
+							/>
+							<h3 className="text-sm font-bold text-rose-900 tracking-widest uppercase">
+								Self Improvement & Safety
+							</h3>
 						</button>
 
 						{sectionsOpen.shield && (
@@ -877,22 +996,38 @@ export default function SoftArbPage() {
 											<IconShieldCheck size={20} />
 										</div>
 										<div>
-											<h4 className="text-xs font-bold text-slate-900">Hyperliquid Oracle Shield</h4>
-											<p className="text-[10px] text-muted-foreground">Monitoring toxic flow & price divergence</p>
+											<h4 className="text-xs font-bold text-slate-900">
+												Hyperliquid Oracle Shield
+											</h4>
+											<p className="text-[10px] text-muted-foreground">
+												Monitoring toxic flow & price divergence
+											</p>
 										</div>
 									</div>
 									<div className="space-y-2">
 										<div className="flex justify-between text-xs">
-											<span className="text-muted-foreground">Watcher Status</span>
-											<span className="font-bold text-emerald-600">HEALTHY</span>
+											<span className="text-muted-foreground">
+												Watcher Status
+											</span>
+											<span className="font-bold text-emerald-600">
+												HEALTHY
+											</span>
 										</div>
 										<div className="flex justify-between text-xs">
-											<span className="text-muted-foreground">Mapped Assets</span>
-											<span className="font-bold">{softArbData?.shield?.tracked_coins.length ?? 0}</span>
+											<span className="text-muted-foreground">
+												Mapped Assets
+											</span>
+											<span className="font-bold">
+												{softArbData?.shield?.tracked_coins.length ?? 0}
+											</span>
 										</div>
 										<div className="flex justify-between text-xs">
-											<span className="text-muted-foreground">Active Alerts</span>
-											<span className="font-bold text-rose-600">{softArbData?.shield?.open_trade_alerts.length ?? 0}</span>
+											<span className="text-muted-foreground">
+												Active Alerts
+											</span>
+											<span className="font-bold text-rose-600">
+												{softArbData?.shield?.open_trade_alerts.length ?? 0}
+											</span>
 										</div>
 									</div>
 								</div>
@@ -902,16 +1037,28 @@ export default function SoftArbPage() {
 										<div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
 											<IconBrain size={20} />
 										</div>
-										<h4 className="text-xs font-bold uppercase tracking-wider">Learnings Loop</h4>
+										<h4 className="text-xs font-bold uppercase tracking-wider">
+											Learnings Loop
+										</h4>
 									</div>
 									<div className="space-y-3">
 										<div className="border-l-2 border-blue-500 pl-3 py-1">
-											<div className="text-[10px] font-bold text-blue-400 uppercase">Recent Adjustment</div>
-											<p className="text-[11px] text-slate-300">Increased Polymarket slippage buffer to 1.2% based on failed fills.</p>
+											<div className="text-[10px] font-bold text-blue-400 uppercase">
+												Recent Adjustment
+											</div>
+											<p className="text-[11px] text-slate-300">
+												Increased Polymarket slippage buffer to 1.2% based on
+												failed fills.
+											</p>
 										</div>
 										<div className="border-l-2 border-purple-500 pl-3 py-1">
-											<div className="text-[10px] font-bold text-purple-400 uppercase">New Negative Constraint</div>
-											<p className="text-[11px] text-slate-300">Filtering &quot;Will X happen by end of day&quot; due to extreme Gamma decay.</p>
+											<div className="text-[10px] font-bold text-purple-400 uppercase">
+												New Negative Constraint
+											</div>
+											<p className="text-[11px] text-slate-300">
+												Filtering &quot;Will X happen by end of day&quot; due to
+												extreme Gamma decay.
+											</p>
 										</div>
 									</div>
 								</div>

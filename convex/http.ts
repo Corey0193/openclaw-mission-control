@@ -126,79 +126,79 @@ http.route({
 
 // Arb daemon status endpoint
 http.route({
-        path: "/arb/daemon-status",
-        method: "POST",
-        handler: httpAction(async (ctx, request) => {
-                const body = await request.json();
-                await ctx.runMutation(api.arbDaemon.upsertDaemonStatus, {
-                        tenantId: body.tenant_id ?? "default",
-                        running: body.running ?? false,
-                        mode: body.mode ?? "unknown",
-                        processCount: body.process_count ?? 0,
-                        pid: body.pid,
-                        event: body.event ?? "heartbeat",
-                });
-                return new Response(JSON.stringify({ ok: true }), {
-                        status: 200,
-                        headers: { "Content-Type": "application/json" },
-                });
-        }),
+	path: "/arb/daemon-status",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		await ctx.runMutation(api.arbDaemon.upsertDaemonStatus, {
+			tenantId: body.tenant_id ?? "default",
+			running: body.running ?? false,
+			mode: body.mode ?? "unknown",
+			processCount: body.process_count ?? 0,
+			pid: body.pid,
+			event: body.event ?? "heartbeat",
+		});
+		return new Response(JSON.stringify({ ok: true }), {
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		});
+	}),
 });
 
 // Wallet ingestor status endpoint
 http.route({
-        path: "/wallet/ingestor-status",
-        method: "POST",
-        handler: httpAction(async (ctx, request) => {
-                const body = await request.json();
-                await ctx.runMutation(api.walletIngestor.upsertStatus, {
-                        tenantId: body.tenant_id ?? "default",
-                        running: body.running ?? false,
-                        pid: body.pid,
-                        walletCount: body.wallet_count ?? 0,
-                        tradeCount: body.trade_count ?? 0,
-                        status: body.status ?? "unknown",
-                });
-                return new Response(JSON.stringify({ ok: true }), {
-                        status: 200,
-                        headers: { "Content-Type": "application/json" },
-                });
-        }),
+	path: "/wallet/ingestor-status",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		await ctx.runMutation(api.walletIngestor.upsertStatus, {
+			tenantId: body.tenant_id ?? "default",
+			running: body.running ?? false,
+			pid: body.pid,
+			walletCount: body.wallet_count ?? 0,
+			tradeCount: body.trade_count ?? 0,
+			status: body.status ?? "unknown",
+		});
+		return new Response(JSON.stringify({ ok: true }), {
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		});
+	}),
 });
 
 // Wallet upsert endpoint
 http.route({
-        path: "/wallet/upsert",
-        method: "POST",
-        handler: httpAction(async (ctx, request) => {
-                const body = await request.json();
-                await ctx.runMutation(api.wallets.upsert, {
-                        address: body.address,
-                        username: body.username,
-                        totalPnl: body.totalPnl ?? 0,
-                        performanceScore: body.performanceScore ?? 0,
-                        winRate: body.winRate,
-                        tradeCount: body.tradeCount,
-                        firstTradeAt: body.firstTradeAt,
-                        isInsider: body.isInsider ?? false,
-                        tags: body.tags ?? [],
-                        tenantId: body.tenantId ?? "default",
-                        // CTS fields
-                        copyTradingScore: body.copyTradingScore,
-                        ctsConsistency: body.ctsConsistency,
-                        ctsWinRate: body.ctsWinRate,
-                        pnl7d: body.pnl7d,
-                        pnl30d: body.pnl30d,
-                        pnl90d: body.pnl90d,
-                        maxDrawdownPct: body.maxDrawdownPct,
-                        profitableWeeksRatio: body.profitableWeeksRatio,
-                        computedWinRate: body.computedWinRate,
-                });
-                return new Response(JSON.stringify({ ok: true }), {
-                        status: 200,
-                        headers: { "Content-Type": "application/json" },
-                });
-        }),
+	path: "/wallet/upsert",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		await ctx.runMutation(api.wallets.upsert, {
+			address: body.address,
+			username: body.username,
+			totalPnl: body.totalPnl ?? 0,
+			performanceScore: body.performanceScore ?? 0,
+			winRate: body.winRate,
+			tradeCount: body.tradeCount,
+			firstTradeAt: body.firstTradeAt,
+			isInsider: body.isInsider ?? false,
+			tags: body.tags ?? [],
+			tenantId: body.tenantId ?? "default",
+			// CTS fields
+			copyTradingScore: body.copyTradingScore,
+			ctsConsistency: body.ctsConsistency,
+			ctsWinRate: body.ctsWinRate,
+			pnl7d: body.pnl7d,
+			pnl30d: body.pnl30d,
+			pnl90d: body.pnl90d,
+			maxDrawdownPct: body.maxDrawdownPct,
+			profitableWeeksRatio: body.profitableWeeksRatio,
+			computedWinRate: body.computedWinRate,
+		});
+		return new Response(JSON.stringify({ ok: true }), {
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		});
+	}),
 });
 // Token telemetry endpoint
 http.route({

@@ -127,7 +127,6 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 					>
 						Token Usage
 					</Link>
-
 					{/* Arbitrage Dropdown */}
 					<div className="relative" ref={arbDropdownRef}>
 						<button
@@ -161,12 +160,22 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 									to="/arb/polymarket"
 									onClick={() => setIsArbDropdownOpen(false)}
 									className={`
-										block px-4 py-2 text-[12px] font-semibold hover:bg-muted transition-colors
-										${location.pathname === "/arb/polymarket" ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
-									`}
+								                block px-4 py-2 text-[12px] font-semibold hover:bg-muted transition-colors
+								                ${location.pathname === "/arb/polymarket" ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
+								        `}
 								>
 									Polymarket
 								</Link>
+								<Link
+									to="/arb/backtesting"
+									onClick={() => setIsArbDropdownOpen(false)}
+									className={`
+								                block px-4 py-2 text-[12px] font-semibold hover:bg-muted transition-colors
+								                ${location.pathname === "/arb/backtesting" ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
+								        `}
+								>
+									Backtesting
+								</Link>{" "}
 								<Link
 									to="/arb/soft"
 									onClick={() => setIsArbDropdownOpen(false)}
@@ -178,28 +187,29 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 									Soft Arb
 								</Link>
 								<Link
-								        to="/arb/hard"
-								        onClick={() => setIsArbDropdownOpen(false)}
-								        className={`
+									to="/arb/hard"
+									onClick={() => setIsArbDropdownOpen(false)}
+									className={`
 								                block px-4 py-2 text-[12px] font-semibold hover:bg-muted transition-colors
 								                ${location.pathname === "/arb/hard" ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
 								        `}
 								>
-								        Hard Arb
+									Hard Arb
 								</Link>
 								<Link
-								        to="/arb/wallets"
-								        onClick={() => setIsArbDropdownOpen(false)}
-								        className={`
+									to="/arb/wallets"
+									onClick={() => setIsArbDropdownOpen(false)}
+									className={`
 								                block px-4 py-2 text-[12px] font-semibold hover:bg-muted transition-colors
 								                ${location.pathname === "/arb/wallets" ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
 								        `}
 								>
-								        Wallets
+									Wallets
 								</Link>
-								</div>
-								)}
-								</div>				</nav>
+							</div>
+						)}
+					</div>{" "}
+				</nav>
 			</div>
 
 			<div className="hidden md:flex items-center gap-6 bg-muted/40 px-5 py-2 rounded-full border border-border/50">
@@ -244,7 +254,8 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 					</div>
 				</div>
 				<ArbDaemonBadge />
-				<WalletIngestorBadge />				<div className="hidden sm:flex items-center gap-2 bg-[#e6fcf5] text-[#0ca678] px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider border border-[#b2f2bb]/40 shadow-sm">
+				<WalletIngestorBadge />{" "}
+				<div className="hidden sm:flex items-center gap-2 bg-[#e6fcf5] text-[#0ca678] px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider border border-[#b2f2bb]/40 shadow-sm">
 					<span className="w-1.5 h-1.5 bg-[#0ca678] rounded-full animate-pulse" />
 					ONLINE
 				</div>

@@ -505,7 +505,7 @@ export const ORG_MEMBERS: OrgMember[] = [
 				"Out-of-Sample (OOS) validation of strategy candidates",
 				"Reactive optimization when significant new data arrives",
 				"Providing Morning Reports comparing strategies to baselines",
-				"Updating Hustle's execution parameters with statistically superior strategies"
+				"Updating Hustle's execution parameters with statistically superior strategies",
 			],
 			skills: [{ name: "strategy-discovery" }],
 			personality:
