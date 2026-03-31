@@ -260,5 +260,6 @@ export default defineSchema({
 	.index("by_pnl", ["totalPnl"])
 	.index("by_score", ["performanceScore"])
 	.index("by_cts", ["copyTradingScore"])
-	.index("by_tenant_cts", ["tenantId", "copyTradingScore"]),
+	.index("by_tenant_cts", ["tenantId", "copyTradingScore"])
+	.index("by_tenant_insider", ["tenantId", "isInsider"]),
 });

@@ -37,16 +37,17 @@ export const paginatedList = query({
         },
 });
 
-// Separate query for insider wallets — ensures they're always loadable
-// regardless of CTS sort position.
+// Separate query for insider wallets — uses dedicated index so it never
+// needs to scan the full wallets table.
 export const listInsiders = query({
         args: { tenantId: v.string() },
         handler: async (ctx, args) => {
-                const all = await ctx.db
+                return await ctx.db
                         .query("wallets")
-                        .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+                        .withIndex("by_tenant_insider", (q) =>
+                                q.eq("tenantId", args.tenantId).eq("isInsider", true),
+                        )
                         .collect();
-                return all.filter((w) => w.isInsider);
         },
 });
 
