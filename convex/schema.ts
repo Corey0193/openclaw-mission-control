@@ -261,3 +261,4 @@ export default defineSchema({
 	.index("by_score", ["performanceScore"])
 	.index("by_cts", ["copyTradingScore"])
 	.index("by_tenant_cts", ["tenantId", "copyTradingScore"]),
+});
