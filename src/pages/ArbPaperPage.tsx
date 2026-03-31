@@ -18,7 +18,6 @@ import {
 	IconCircleCheck,
 	IconCircleX,
 	IconAlertCircle,
-	IconLoader2,
 } from "@tabler/icons-react";
 import {
 	ResponsiveContainer,
@@ -475,15 +474,10 @@ function EdgeBar({ edge }: { edge: number }) {
 }
 
 function OpportunitySummary({
-	dossier,
 	verdict,
 	decision,
 	metaculusItems,
-	edgePct,
-	direction,
-	eventName,
 }: {
-	dossier: Record<string, unknown> | null;
 	verdict: Record<string, unknown> | null;
 	decision: Record<string, unknown> | null;
 	metaculusItems: Array<{
@@ -498,9 +492,6 @@ function OpportunitySummary({
 		polymarketUrl: string;
 		polymarketSlug: string;
 	}>;
-	edgePct: number;
-	direction: string;
-	eventName: string;
 }) {
 	const bestItem =
 		metaculusItems.length > 0
@@ -638,12 +629,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 		| Record<string, unknown>
 		| undefined;
 
-	// Fallback slug from best_opportunity
-	const bestOppSlug = String(
-		bestOpportunity?.polymarket_market_slug ??
-			bestOpportunity?.polymarket_slug ??
-			"",
-	);
+
 
 	// Post-normalization: canonical field names from normalize_dossier.py
 	function normalizeItem(item: Record<string, unknown>) {
@@ -948,13 +934,9 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 					{/* Plain-English summary banner (Metaculus only) */}
 					{isMetaculus && (
 						<OpportunitySummary
-							dossier={dossier}
 							verdict={verdict}
 							decision={decision}
 							metaculusItems={metaculusItems}
-							edgePct={edgePct}
-							direction={direction}
-							eventName={eventName}
 						/>
 					)}
 
@@ -1016,7 +998,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 											{String(scanStatsAboveThresh)} above threshold
 										</div>
 									)}
-									{dossier.raymond_note && String(dossier.raymond_note) && (
+									{!!dossier.raymond_note && (
 										<div className="text-muted-foreground text-[11px] mt-1 leading-relaxed">
 											{safeStr(dossier.raymond_note)}
 										</div>
@@ -1081,7 +1063,7 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 													<span className="tabular-nums">
 														{((Number(adj.value) || 0) * 100).toFixed(2)}%
 													</span>
-													{adj.reason && (
+													{!!adj.reason && (
 														<span className="ml-1">
 															({safeStr(adj.reason)})
 														</span>
