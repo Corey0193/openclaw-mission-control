@@ -5,9 +5,7 @@ import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import Header from "../components/Header";
 import {
 	IconWallet,
-	IconExternalLink,
 	IconSearch,
-	IconFilter,
 	IconTrendingUp,
 	IconTrendingDown,
 	IconAlertTriangle,

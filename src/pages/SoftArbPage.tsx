@@ -81,110 +81,59 @@ function getPolymarketUrl(slug: string | null): string | null {
         return `https://polymarket.com/event/${slug}`;
 }
 
-function PnlBadge({ value }: { value: number | null }) {	if (value === null) return <span className="text-muted-foreground">---</span>;
-	const isPositive = value >= 0;
-	return (
-		<span
-			className={`inline-flex items-center gap-1 font-semibold ${
-				isPositive ? "text-emerald-600" : "text-red-500"
-			}`}
-		>
-			{isPositive ? (
-				<IconTrendingUp size={14} />
-			) : (
-				<IconTrendingDown size={14} />
-			)}
-			{formatPnl(value)}
-		</span>
-	);
+function PnlBadge({ value }: { value: number | null }) {
+        if (value === null) return <span className="text-muted-foreground">---</span>;
+        const isPositive = value >= 0;
+        return (
+                <span
+                        className={`inline-flex items-center gap-1 font-semibold ${
+                                isPositive ? "text-emerald-600" : "text-red-500"
+                        }`}
+                >
+                        {isPositive ? (
+                                <IconTrendingUp size={14} />
+                        ) : (
+                                <IconTrendingDown size={14} />
+                        )}
+                        {formatPnl(value)}
+                </span>
+        );
 }
 
 function SummaryCard({
-	label,
-	value,
-	icon,
-	isPnl,
-	isPercent,
+        label,
+        value,
+        icon,
+        isPnl,
+        isPercent,
 }: {
-	label: string;
-	value: number;
-	icon: React.ReactNode;
-	isPnl?: boolean;
-	isPercent?: boolean;
+        label: string;
+        value: number;
+        icon: React.ReactNode;
+        isPnl?: boolean;
+        isPercent?: boolean;
 }) {
-	return (
-		<div className="flex items-center gap-3 bg-white border border-border rounded-xl px-5 py-4 shadow-sm">
-			<div className="flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground">
-				{icon}
-			</div>
-			<div>
-				<div className="text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
-					{label}
-				</div>
-				<div className="text-lg font-bold text-foreground">
-					{isPnl ? (
-						<PnlBadge value={value} />
-					) : isPercent ? (
-						`${value.toFixed(1)}%`
-					) : (
-						value
-					)}
-				</div>
-			</div>
-		</div>
-	);
-}
-
-function DirectionBadge({ direction }: { direction: string }) {
-	if (!direction) return null;
-	const isBuyNo = direction === "BUY_NO" || direction === "BUY_POLYMARKET_NO";
-	const isBuyYes =
-		direction === "BUY_YES" || direction === "BUY_POLYMARKET_YES";
-	if (!isBuyNo && !isBuyYes) {
-		return (
-			<span
-				className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-gray-100 text-gray-700"
-				title={direction}
-			>
-				{direction.replace(/_/g, " ")}
-			</span>
-		);
-	}
-	const label = isBuyNo ? "Bet AGAINST" : "Bet FOR";
-	const colors = isBuyNo
-		? "bg-red-100 text-red-700"
-		: "bg-emerald-100 text-emerald-700";
-	return (
-		<span
-			className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${colors}`}
-			title={direction.replace(/_/g, " ")}
-		>
-			{label} {isBuyNo ? "\u2193" : "\u2191"}
-		</span>
-	);
-}
-
-function EdgeBar({ edge }: { edge: number }) {
-	edge = Number(edge) || 0;
-	const absEdge = Math.min(Math.abs(edge), 50);
-	const width = `${Math.max(absEdge * 2, 4)}%`;
-	const color =
-		Math.abs(edge) >= 15
-			? "bg-emerald-500"
-			: Math.abs(edge) >= 5
-				? "bg-amber-400"
-				: "bg-gray-300";
-	return (
-		<div className="flex items-center gap-2">
-			<div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-				<div className={`h-full rounded-full ${color}`} style={{ width }} />
-			</div>
-			<span className="text-xs tabular-nums font-medium">
-				{edge >= 0 ? "+" : ""}
-				{edge.toFixed(1)}%
-			</span>
-		</div>
-	);
+        return (
+                <div className="flex items-center gap-3 bg-white border border-border rounded-xl px-5 py-4 shadow-sm">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground">
+                                {icon}
+                        </div>
+                        <div>
+                                <div className="text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
+                                        {label}
+                                </div>
+                                <div className="text-lg font-bold text-foreground">
+                                        {isPnl ? (
+                                                <PnlBadge value={value} />
+                                        ) : isPercent ? (
+                                                `${value.toFixed(1)}%`
+                                        ) : (
+                                                value
+                                        )}
+                                </div>
+                        </div>
+                </div>
+        );
 }
 
 interface SoftArbTrade {
@@ -317,6 +266,9 @@ interface SoftArbData {
 	summary: Record<string, unknown>;
 	outcomes: SoftArbOutcome[];
 	outcomeSummary: Record<string, unknown>;
+        outcome_feedback?: {
+                families: Record<string, SoftArbCalibrationFamily>;
+        };
 	calibration: {
 		families: Record<string, SoftArbCalibrationFamily>;
 	} | null;
@@ -456,27 +408,6 @@ function signalSourceBadge(source: string) {
 	);
 }
 
-function executionVenueBadge(trade: SoftArbTrade) {
-	let venue = "";
-	const direction = (trade.direction ?? "").toLowerCase();
-	if (trade.polymarket_slug || direction.includes("polymarket")) {
-		venue = "Polymarket";
-	} else if (direction.includes("azuro")) {
-		venue = "Azuro";
-	} else if (direction.includes("limitless")) {
-		venue = "Limitless";
-	} else if (direction.includes("predictit")) {
-		venue = "PredictIt";
-	} else if (direction.includes("kalshi")) {
-		venue = "Kalshi";
-	}
-	if (!venue) return null;
-	return (
-		<span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold bg-violet-100 text-violet-700">
-			{venue}
-		</span>
-	);
-}
 
 function getPipelineRunEventName(
 	dossier: Record<string, unknown> | null,
@@ -630,49 +561,22 @@ export default function SoftArbPage() {
 		);
 	}, [softArbData]);
 
-	const historyPositions = useMemo(() => {
-		return softArbData?.trades.filter((t) => t.status !== "OPEN") || [];
-	}, [softArbData]);
+        const dailyStats = useMemo(() => {
+                const stats = { today: 0, yesterday: 0, avg: 0 };
+                if (!softArbData) return stats;
+                const summary = softArbData.summary as any;
+                stats.today = Number(summary?.daily_pnl ?? 0);
+                stats.yesterday = Number(summary?.yesterday_pnl ?? 0);
+                stats.avg = Number(summary?.avg_daily_pnl ?? 0);
+                return stats;
+        }, [softArbData]);
 
-	const calibrationFamilies = useMemo(() => {
-		return softArbData?.calibration?.families
-			? Object.entries(softArbData.calibration.families)
-			: [];
-	}, [softArbData]);
+        const calibrationFamilies = useMemo(() => {
+                const families = softArbData?.outcome_feedback?.families || softArbData?.calibration?.families;
+                if (!families) return [];
+                return Object.entries(families) as [string, SoftArbCalibrationFamily][];
+        }, [softArbData]);
 
-	const dailyStats = useMemo(() => {
-		if (!softArbData?.outcomes) return { today: 0, yesterday: 0, avg: 0 };
-
-		const now = new Date();
-		const todayStr = now.toISOString().split("T")[0];
-		const yesterday = new Date(now);
-		yesterday.setDate(yesterday.getDate() - 1);
-		const yesterdayStr = yesterday.toISOString().split("T")[0];
-
-		let todayPnl = 0;
-		let yesterdayPnl = 0;
-		const dailyMap: Record<string, number> = {};
-
-		for (const o of softArbData.outcomes) {
-			const dateStr = new Date(o.timestamp).toISOString().split("T")[0];
-			dailyMap[dateStr] = (dailyMap[dateStr] || 0) + o.pnl_usd;
-
-			if (dateStr === todayStr) todayPnl += o.pnl_usd;
-			if (dateStr === yesterdayStr) yesterdayPnl += o.pnl_usd;
-		}
-
-		const dailyValues = Object.values(dailyMap);
-		const avgPnl =
-			dailyValues.length > 0
-				? dailyValues.reduce((a, b) => a + b, 0) / dailyValues.length
-				: 0;
-
-		return {
-			today: todayPnl,
-			yesterday: yesterdayPnl,
-			avg: avgPnl,
-		};
-	}, [softArbData?.outcomes]);
 
 	return (
 		<div className="h-screen overflow-y-auto bg-[#f8f9fa] text-slate-800">
