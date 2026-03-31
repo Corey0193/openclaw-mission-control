@@ -1,30 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import type { Doc } from "../../convex/_generated/dataModel";
-import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import Header from "../components/Header";
 import {
-	IconArrowsExchange,
-	IconChartBar,
-	IconPercentage,
-	IconTrendingUp,
-	IconTrendingDown,
-	IconShieldCheck,
-	IconAlertTriangle,
-	IconScan,
-	IconChevronDown,
-	IconChevronRight,
-	IconCircleCheck,
-	IconCircleX,
-	IconAlertCircle,
-	IconLoader2,
-	IconInfoCircle,
-	IconTarget,
-	IconRefresh,
-	IconBrain,
+        IconArrowsExchange,
+        IconChartBar,
+        IconPercentage,
+        IconTrendingUp,
+        IconTrendingDown,
+        IconShieldCheck,
+        IconScan,
+        IconChevronDown,
+        IconTarget,
+        IconRefresh,
+        IconBrain,
 } from "@tabler/icons-react";
-
 function formatUsd(n: number): string {
 	return n.toLocaleString("en-US", {
 		style: "currency",
@@ -89,17 +77,11 @@ function formatTradeName(name: string): string {
 }
 
 function getPolymarketUrl(slug: string | null): string | null {
-	if (!slug || slug.trim() === "") return null;
-	return `https://polymarket.com/event/${slug}`;
+        if (!slug || slug.trim() === "") return null;
+        return `https://polymarket.com/event/${slug}`;
 }
 
-function getMetaculusUrl(id: number | null): string | null {
-	if (!id || id <= 0) return null;
-	return `https://www.metaculus.com/questions/${id}`;
-}
-
-function PnlBadge({ value }: { value: number | null }) {
-	if (value === null) return <span className="text-muted-foreground">---</span>;
+function PnlBadge({ value }: { value: number | null }) {	if (value === null) return <span className="text-muted-foreground">---</span>;
 	const isPositive = value >= 0;
 	return (
 		<span
