@@ -134,7 +134,7 @@ export default function ArbExperimentsPage() {
     <div className="flex flex-col min-h-screen bg-[#f8f9fa]">
       <Header title="Experiments & Analysis" />
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-6 space-y-6 overflow-y-auto">
         {/* Zone 1 — Summary bar */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <SummaryCard
