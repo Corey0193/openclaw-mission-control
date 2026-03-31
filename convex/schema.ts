@@ -288,9 +288,8 @@ export default defineSchema({
 		                        pruned_trials: v.number(),
 		                }),
 		        ),
-		        error: v.optional(v.string()),
+		        error: v.optional(v.union(v.string(), v.null())),
 		        lastSyncedAt: v.number(),
-		})
-		        .index("by_tenant", ["tenantId"])
+		        })		        .index("by_tenant", ["tenantId"])
 		        .index("by_tenant_status", ["tenantId", "status"]),
 		});

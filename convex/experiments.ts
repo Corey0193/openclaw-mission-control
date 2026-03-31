@@ -23,7 +23,7 @@ export const pending = query({
   },
 });
 
-export const syncExperiment = internalMutation({
+export const syncExperiment = mutation({
   args: {
     tenantId: v.string(),
     experimentId: v.string(),
@@ -40,7 +40,7 @@ export const syncExperiment = internalMutation({
         pruned_trials: v.number(),
       })
     ),
-    error: v.optional(v.string()),
+    error: v.optional(v.union(v.string(), v.null())),
     lastSyncedAt: v.number(),
   },
   handler: async (ctx, args) => {
