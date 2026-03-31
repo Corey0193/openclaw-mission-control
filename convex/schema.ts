@@ -277,11 +277,10 @@ export default defineSchema({
 		                        number: v.number(),
 		                        params: v.any(),
 		                        train: v.any(),
-		                        validate: v.any(),
-		                        test: v.any(),
+		                        validate: v.optional(v.any()),
+		                        test: v.optional(v.any()),
 		                }),
-		        ),
-		        summary: v.optional(
+		        ),		        summary: v.optional(
 		                v.object({
 		                        total_trials: v.number(),
 		                        completed_trials: v.number(),

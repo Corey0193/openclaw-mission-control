@@ -26,10 +26,11 @@ async function sync() {
   // 1. Check Compute Loop Status
   const lockPath = path.join(WORKSPACE_DIR, "run_experiment.lock");
   const isRunning = fs.existsSync(lockPath);
-  let lastHeartbeat = 0;
-  if (isRunning) {
-    lastHeartbeat = fs.statSync(lockPath).mtimeMs;
-  } else {
+  
+  // S3: If NOT running, ensure Mission Control knows it's idle.
+  // If running, the process itself (run_experiment.py) handles status with better progress info.
+  if (!isRunning) {
+    let lastHeartbeat = 0;
     const completedDir = path.join(EXPERIMENTS_DIR, "completed");
     if (fs.existsSync(completedDir)) {
       const files = fs.readdirSync(completedDir).filter(f => f.endsWith(".json"));
@@ -38,19 +39,20 @@ async function sync() {
         lastHeartbeat = fs.statSync(path.join(completedDir, latestFile)).mtimeMs;
       }
     }
-  }
 
-  try {
-    await client.mutation(api.experiments.syncExperiment, {
-      tenantId: "default",
-      experimentId: "system_compute_loop",
-      hypothesis: "Internal state for compute loop status",
-      status: isRunning ? "active" : "idle",
-      completedAt: new Date(lastHeartbeat).toISOString(),
-      lastSyncedAt: now,
-    });
-  } catch (err) {
-    console.error("Failed to sync compute loop status:", err.message);
+    try {
+      await client.mutation(api.experiments.syncExperiment, {
+        tenantId: "default",
+        experimentId: "system_compute_loop",
+        hypothesis: "Internal state for compute loop status",
+        status: "idle",
+        completedAt: lastHeartbeat > 0 ? new Date(lastHeartbeat).toISOString() : undefined,
+        lastSyncedAt: now,
+      });
+      console.log("✓ Set compute loop to idle");
+    } catch (err) {
+      console.error("Failed to sync compute loop status:", err.message);
+    }
   }
 
   // 2. Sync Completed & Milestones
@@ -89,7 +91,7 @@ async function sync() {
           error: data.error,
           lastSyncedAt: now,
         });
-        console.log(`✓ Synced ${data.id}`);
+        console.log(`✓ Synced completed: ${data.id}`);
       } catch (err) {
         console.warn(`! Failed to sync ${file}: ${err.message}`);
       }
@@ -111,6 +113,7 @@ async function sync() {
           status: "pending",
           lastSyncedAt: now,
         });
+        console.log(`✓ Synced pending: ${data.id}`);
       } catch (err) {
         console.warn(`! Failed to sync pending ${file}: ${err.message}`);
       }
