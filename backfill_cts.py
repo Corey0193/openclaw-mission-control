@@ -64,20 +64,26 @@ def migrate_cts_columns(conn):
     conn.commit()
 
 
-def calculate_cts(conn, address):
+def calculate_cts(conn, address, as_of_ts=None):
+    """
+    Compute CTS for a wallet using only trade data available up to as_of_ts.
+
+    If as_of_ts is None, uses current time (backward-compatible).
+    All SQL queries include an upper bound: timestamp < as_of_ts (point-in-time).
+    """
     weights = CTS_CONF.get('weights', DEFAULT_CTS_CONFIG['weights'])
     lookback_weeks = CTS_CONF.get('lookback_weeks', 12)
     min_weeks = CTS_CONF.get('min_weeks_active', 4)
     min_trades = CTS_CONF.get('min_trades', 10)
 
     cursor = conn.cursor()
-    now_ts = int(time.time())
+    now_ts = as_of_ts if as_of_ts is not None else int(time.time())
     lookback_start = now_ts - (lookback_weeks * 7 * 86400)
 
     cursor.execute('''
         SELECT COUNT(*), MIN(timestamp), MAX(timestamp)
-        FROM trades WHERE address = ? AND timestamp >= ?
-    ''', (address, lookback_start))
+        FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
+    ''', (address, lookback_start, now_ts))
     row = cursor.fetchone()
     trade_count = row[0] if row else 0
     min_ts = row[1] if row else None
@@ -97,9 +103,9 @@ def calculate_cts(conn, address):
         SELECT (timestamp - ?) / (7 * 86400) as week_num,
                SUM(CASE WHEN side IN ('SELL','sell') THEN size ELSE -size END) as weekly_pnl,
                COUNT(*) as cnt
-        FROM trades WHERE address = ? AND timestamp >= ?
+        FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
         GROUP BY week_num ORDER BY week_num
-    ''', (lookback_start, address, lookback_start))
+    ''', (lookback_start, address, lookback_start, now_ts))
     weekly_rows = cursor.fetchall()
 
     if len(weekly_rows) < min_weeks:
@@ -148,9 +154,9 @@ def calculate_cts(conn, address):
         SELECT market_id,
                SUM(CASE WHEN side IN ('BUY','buy') THEN size ELSE 0 END) as bought,
                SUM(CASE WHEN side IN ('SELL','sell') THEN size ELSE 0 END) as sold
-        FROM trades WHERE address = ? AND timestamp >= ?
+        FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
         GROUP BY market_id HAVING sold > 0
-    ''', (address, lookback_start))
+    ''', (address, lookback_start, now_ts))
     markets = cursor.fetchall()
     total_market_profit = sum(max(0, sold - bought) for _, bought, sold in markets)
     total_market_loss = sum(max(0, bought - sold) for _, bought, sold in markets)
@@ -164,9 +170,9 @@ def calculate_cts(conn, address):
     cursor.execute('''
         SELECT timestamp / 86400 as day,
                SUM(CASE WHEN side IN ('SELL','sell') THEN size ELSE -size END) as daily_pnl
-        FROM trades WHERE address = ? AND timestamp >= ?
+        FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
         GROUP BY day ORDER BY day
-    ''', (address, lookback_start))
+    ''', (address, lookback_start, now_ts))
     cumulative = 0
     peak = 0
     max_drawdown = 0
@@ -194,8 +200,8 @@ def calculate_cts(conn, address):
         cutoff = now_ts - (days * 86400)
         cursor.execute('''
             SELECT SUM(CASE WHEN side IN ('SELL','sell') THEN size ELSE -size END)
-            FROM trades WHERE address = ? AND timestamp >= ?
-        ''', (address, cutoff))
+            FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
+        ''', (address, cutoff, now_ts))
         val = cursor.fetchone()[0]
         period_pnls[label] = val or 0
 
