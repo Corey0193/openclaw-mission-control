@@ -242,13 +242,22 @@ def calculate_cts(conn, address, as_of_ts=None):
         val = cursor.fetchone()[0]
         period_pnls[label] = val or 0
 
-    # Absolute Return — uses Polymarket's ground-truth PnL from lb-api
+    # Absolute Return — uses Polymarket's ground-truth PnL from lb-api for live scoring;
+    # falls back to computed pnl_90d for historical snapshots (polymarket_pnl is today's
+    # value and is not point-in-time safe).
+    # Negative PnL intentionally scores 0 — we don't penalize, just don't reward.
     abs_return_cap = CTS_CONF.get('absolute_return_cap', 50000)
-    cursor.execute("SELECT polymarket_pnl FROM wallets WHERE address = ?", (address,))
-    pm_row = cursor.fetchone()
-    polymarket_pnl = pm_row[0] if pm_row and pm_row[0] is not None else None
-    if polymarket_pnl is not None and polymarket_pnl > 0:
-        absolute_return_score = min(100, math.log10(1 + polymarket_pnl) / math.log10(1 + abs_return_cap) * 100)
+    if as_of_ts is None:
+        # Live scoring: use Polymarket's real all-time PnL
+        cursor.execute("SELECT polymarket_pnl FROM wallets WHERE address = ?", (address,))
+        pm_row = cursor.fetchone()
+        effective_pnl = pm_row[0] if pm_row and pm_row[0] is not None else None
+    else:
+        # Historical snapshot: polymarket_pnl reflects today's value, not the snapshot date.
+        # Use computed pnl_90d from the round-trip trades as the best available proxy.
+        effective_pnl = period_pnls['pnl_90d'] if period_pnls['pnl_90d'] > 0 else None
+    if effective_pnl is not None and effective_pnl > 0:
+        absolute_return_score = min(100, math.log10(1 + effective_pnl) / math.log10(1 + abs_return_cap) * 100)
     else:
         absolute_return_score = 0
 
