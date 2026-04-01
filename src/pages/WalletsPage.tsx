@@ -478,9 +478,11 @@ export default function WalletsPage() {
 																? w.address.slice(0, 8) + "..."
 																: w.username || "Anonymous"}
 														</span>
-														<code className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded w-fit mt-1 group-hover:bg-muted group-hover:text-foreground transition-colors">
-															{w.address.slice(0, 6)}...{w.address.slice(-4)}
-														</code>
+														{w.username && w.username !== w.address && (
+															<code className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded w-fit mt-1 group-hover:bg-muted group-hover:text-foreground transition-colors">
+																{w.address.slice(0, 6)}...{w.address.slice(-4)}
+															</code>
+														)}
 													</a>
 												</td>
 												<td className="px-4 py-4">

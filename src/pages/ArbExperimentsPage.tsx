@@ -164,10 +164,10 @@ export default function ArbExperimentsPage() {
   }, [realExperiments]);
 
   return (
-    <div className="app-container">
+    <div className="h-screen bg-[#f8f9fa] overflow-y-auto">
       <Header title="Experiments & Analysis" />
 
-      <main className="[grid-area:main] p-8 space-y-8 overflow-y-auto bg-[#f8f9fa]">
+      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Zone 1 — Summary bar */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           <SummaryCard
@@ -297,14 +297,14 @@ export default function ArbExperimentsPage() {
           {/* Right Panel — Detail */}
           <div className="flex-1 min-w-0 bg-white border border-border rounded-2xl flex flex-col shadow-sm min-h-[500px]">
             {selectedExperiment ? (
-              <div className="p-8 lg:p-10 flex flex-col h-full gap-8">
+              <div className="p-6 lg:p-8 flex flex-col h-full gap-6">
                 
                 {/* Header */}
                 <div className="flex flex-col gap-4">
                   <div className="flex justify-between items-start gap-6">
                     <div>
-                      <h2 className="text-3xl font-extrabold text-foreground tracking-tight">{selectedExperiment.experimentId}</h2>
-                      <p className="text-base text-slate-500 mt-2 max-w-3xl leading-relaxed">{selectedExperiment.hypothesis}</p>
+                      <h2 className="text-2xl font-extrabold text-foreground tracking-tight">{selectedExperiment.experimentId}</h2>
+                      <p className="text-sm text-slate-500 mt-1.5 max-w-3xl leading-relaxed">{selectedExperiment.hypothesis}</p>
                     </div>
                     <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
                       <span className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-widest ${
@@ -325,7 +325,7 @@ export default function ArbExperimentsPage() {
                 <div className="flex flex-wrap gap-4 border-b border-border pb-8">
                   <div className="bg-slate-50 border border-slate-200 rounded-xl px-5 py-3 flex-1 min-w-[200px] shadow-sm">
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Trials Summary</div>
-                    <div className="text-lg font-bold text-slate-800">
+                    <div className="text-base font-bold text-slate-800">
                       {selectedExperiment.summary?.total_trials || 100} <span className="text-sm font-medium text-slate-500">total</span> 
                       <span className="text-slate-300 mx-2">·</span> 
                       {selectedExperiment.summary?.completed_trials || 0} <span className="text-sm font-medium text-slate-500">complete</span>
@@ -337,7 +337,7 @@ export default function ArbExperimentsPage() {
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1.5">
                       <IconClock size={14} /> Compute Duration
                     </div>
-                    <div className="text-lg font-bold text-slate-800">
+                    <div className="text-base font-bold text-slate-800">
                       {selectedExperiment.durationSeconds 
                         ? `${Math.floor(selectedExperiment.durationSeconds / 60)}m ${selectedExperiment.durationSeconds % 60}s` 
                         : "Unknown"}
@@ -357,10 +357,10 @@ export default function ArbExperimentsPage() {
                         <table className="w-full text-left border-collapse">
                           <thead>
                             <tr className="bg-slate-50 border-b border-slate-200">
-                              <th className="px-6 py-4 text-xs font-extrabold text-slate-500 uppercase tracking-wider">Metric</th>
-                              <th className="px-6 py-4 text-xs font-extrabold text-slate-500 uppercase tracking-wider text-center border-l border-slate-200">Train (60%)</th>
-                              <th className="px-6 py-4 text-xs font-extrabold text-slate-500 uppercase tracking-wider text-center border-l border-slate-200">Val (20%)</th>
-                              <th className="px-6 py-4 text-xs font-extrabold text-slate-500 uppercase tracking-wider text-center border-l border-slate-200">Test (20%)</th>
+                              <th className="px-5 py-3.5 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Metric</th>
+                              <th className="px-5 py-3.5 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider text-center border-l border-slate-200">Train (60%)</th>
+                              <th className="px-5 py-3.5 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider text-center border-l border-slate-200">Val (20%)</th>
+                              <th className="px-5 py-3.5 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider text-center border-l border-slate-200">Test (20%)</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
@@ -372,7 +372,7 @@ export default function ArbExperimentsPage() {
                               { label: "Max DD", key: "max_dd", suffix: "%" },
                             ].map((row) => (
                               <tr key={row.key} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="px-6 py-4 text-sm font-bold text-slate-600 bg-slate-50/30">
+                                <td className="px-5 py-3.5 text-xs font-bold text-slate-600 bg-slate-50/30">
                                   {row.label}
                                 </td>
                                 {["train", "validate", "test"].map((phase) => {
@@ -385,17 +385,17 @@ export default function ArbExperimentsPage() {
                                   let weight = "font-semibold";
                                   
                                   if (row.key === "sharpe" && val !== undefined) {
-                                    if (val > 0.5) { color = "text-emerald-600"; weight = "font-extrabold text-base"; }
+                                    if (val > 0.5) { color = "text-emerald-600"; weight = "font-extrabold text-sm"; }
                                     else if (val > 0) { color = "text-emerald-500"; weight = "font-bold"; }
                                     else if (val < 0) { color = "text-red-500"; weight = "font-medium"; }
                                   }
                                   if (row.key === "pnl" && val !== undefined) {
-                                    if (val > 0) { color = "text-emerald-600"; weight = "font-bold text-base"; }
+                                    if (val > 0) { color = "text-emerald-600"; weight = "font-bold text-sm"; }
                                     else if (val < 0) { color = "text-red-500"; weight = "font-medium"; }
                                   }
 
                                   return (
-                                    <td key={phase} className={`px-6 py-4 text-sm text-center border-l border-slate-100 ${color} ${weight}`}>
+                                    <td key={phase} className={`px-5 py-3.5 text-xs text-center border-l border-slate-100 ${color} ${weight}`}>
                                       {val !== undefined ? `${row.prefix || ""}${displayVal}${row.suffix || ""}` : "—"}
                                     </td>
                                   );
@@ -407,12 +407,12 @@ export default function ArbExperimentsPage() {
                       </div>
                     </div>
 
-                    <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-5 shadow-sm">
+                    <div className="bg-blue-50/80 border border-blue-200 rounded-xl p-4 shadow-sm">
                       <div className="flex gap-4">
-                        <div className="bg-white p-2 rounded-full h-fit border border-blue-100 shadow-sm flex-shrink-0">
-                          <IconFlask className="text-blue-600" size={20} />
+                        <div className="bg-white p-1.5 rounded-full h-fit border border-blue-100 shadow-sm flex-shrink-0">
+                          <IconFlask className="text-blue-600" size={16} />
                         </div>
-                        <div className="text-sm text-blue-900 leading-relaxed pt-1">
+                        <div className="text-xs text-blue-900 leading-relaxed pt-0.5">
                           <strong className="font-bold mr-1">Backtest Insight:</strong> 
                           This experiment ran {selectedExperiment.summary?.total_trials || 100} Optuna trials. 
                           The Test outcome reflects true out-of-sample performance. 
