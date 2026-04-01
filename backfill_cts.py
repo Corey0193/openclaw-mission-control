@@ -54,6 +54,7 @@ def migrate_cts_columns(conn):
         ("max_drawdown_pct", "REAL DEFAULT 0"),
         ("profitable_weeks_ratio", "REAL DEFAULT 0"),
         ("cts_last_calculated_at", "TIMESTAMP"),
+        ("polymarket_pnl", "REAL"),
     ]
     cursor = conn.cursor()
     for col_name, col_def in migrations:
@@ -71,14 +72,12 @@ def calculate_cts(conn, address, as_of_ts=None):
     If as_of_ts is None, uses current time (backward-compatible).
     All SQL queries include an upper bound: timestamp < as_of_ts (point-in-time).
 
-    NOTE — PnL accuracy limitation:
-    All PnL is computed as size * price (USD value of the trade leg). This correctly
-    measures open-market buy/sell flow, but does NOT capture share minting (buying
-    at $0 via contract initialization) or market resolution payouts (receiving $1 per
-    YES share at resolution). Wallets that hold positions to resolution will show
-    inflated "sold" USD relative to their true profit. CTS scores are still valid for
-    ranking traders by market-trade behavior, but absolute PnL figures understate
-    performance for resolution-heavy wallets.
+    CTS v3 — Round-trip filter + ground-truth PnL:
+    All PnL sub-scores are filtered to "round-trip" markets only — markets where the
+    wallet has both BUY and SELL trades. This eliminates phantom sells from share
+    minting and resolution payouts that the Activity API / Goldsky can't capture.
+    The absolute_return sub-score uses Polymarket's lb-api ground-truth PnL
+    (stored in wallets.polymarket_pnl) instead of our computed pnl_90d.
     """
     weights = CTS_CONF.get('weights', DEFAULT_CTS_CONFIG['weights'])
     lookback_weeks = CTS_CONF.get('lookback_weeks', 12)
@@ -89,10 +88,28 @@ def calculate_cts(conn, address, as_of_ts=None):
     now_ts = as_of_ts if as_of_ts is not None else int(time.time())
     lookback_start = now_ts - (lookback_weeks * 7 * 86400)
 
+    # Round-trip markets: only markets where the wallet has both BUY and SELL within window.
+    # This filters out phantom sells from share minting / resolution payouts.
+    cursor.execute('''
+        SELECT market_id FROM trades
+        WHERE address = ? AND timestamp >= ? AND timestamp < ?
+        GROUP BY market_id
+        HAVING SUM(CASE WHEN side IN ('BUY','buy') THEN 1 ELSE 0 END) > 0
+           AND SUM(CASE WHEN side IN ('SELL','sell') THEN 1 ELSE 0 END) > 0
+    ''', (address, lookback_start, now_ts))
+    rt_market_ids = [row[0] for row in cursor.fetchall()]
+
+    # Gate: need at least 1 round-trip market to score
+    if not rt_market_ids:
+        return None
+
+    rt_placeholders = ','.join('?' * len(rt_market_ids))
+
     cursor.execute('''
         SELECT COUNT(*), MIN(timestamp), MAX(timestamp)
         FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
-    ''', (address, lookback_start, now_ts))
+          AND market_id IN ({})
+    '''.format(rt_placeholders), (address, lookback_start, now_ts, *rt_market_ids))
     row = cursor.fetchone()
     trade_count = row[0] if row else 0
     min_ts = row[1] if row else None
@@ -120,8 +137,9 @@ def calculate_cts(conn, address, as_of_ts=None):
                SUM(CASE WHEN side IN ('SELL','sell') THEN usd_value ELSE -usd_value END) as weekly_pnl,
                COUNT(*) as cnt
         FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
+          AND market_id IN ({})
         GROUP BY week_num ORDER BY week_num
-    ''', (lookback_start, address, lookback_start, now_ts))
+    '''.format(rt_placeholders), (lookback_start, address, lookback_start, now_ts, *rt_market_ids))
     weekly_rows = cursor.fetchall()
 
     if len(weekly_rows) < min_weeks:
@@ -165,14 +183,15 @@ def calculate_cts(conn, address, as_of_ts=None):
     else:
         recency_score = 50
 
-    # Size-Weighted Win Rate
+    # Size-Weighted Win Rate (round-trip markets only)
     cursor.execute('''
         SELECT market_id,
                SUM(CASE WHEN side IN ('BUY','buy') THEN usd_value ELSE 0 END) as bought,
                SUM(CASE WHEN side IN ('SELL','sell') THEN usd_value ELSE 0 END) as sold
         FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
+          AND market_id IN ({})
         GROUP BY market_id HAVING sold > 0
-    ''', (address, lookback_start, now_ts))
+    '''.format(rt_placeholders), (address, lookback_start, now_ts, *rt_market_ids))
     markets = cursor.fetchall()
     total_market_profit = sum(max(0, sold - bought) for _, bought, sold in markets)
     total_market_loss = sum(max(0, bought - sold) for _, bought, sold in markets)
@@ -182,13 +201,14 @@ def calculate_cts(conn, address, as_of_ts=None):
         computed_win_rate = 0
     win_rate_score = computed_win_rate * 100
 
-    # Max Drawdown
+    # Max Drawdown (round-trip markets only)
     cursor.execute('''
         SELECT timestamp / 86400 as day,
                SUM(CASE WHEN side IN ('SELL','sell') THEN usd_value ELSE -usd_value END) as daily_pnl
         FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
+          AND market_id IN ({})
         GROUP BY day ORDER BY day
-    ''', (address, lookback_start, now_ts))
+    '''.format(rt_placeholders), (address, lookback_start, now_ts, *rt_market_ids))
     cumulative = 0
     peak = 0
     max_drawdown = 0
@@ -210,21 +230,25 @@ def calculate_cts(conn, address, as_of_ts=None):
     else:
         drawdown_score = max(0, 20 - ((drawdown_pct - severe_thresh) / severe_thresh) * 20)
 
-    # Period P&L (computed before composite — absolute return needs pnl_90d)
+    # Period P&L — round-trip markets only
     period_pnls = {}
     for label, days in [('pnl_7d', 7), ('pnl_30d', 30), ('pnl_90d', 90)]:
         cutoff = now_ts - (days * 86400)
         cursor.execute('''
             SELECT SUM(CASE WHEN side IN ('SELL','sell') THEN usd_value ELSE -usd_value END)
             FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
-        ''', (address, cutoff, now_ts))
+              AND market_id IN ({})
+        '''.format(rt_placeholders), (address, cutoff, now_ts, *rt_market_ids))
         val = cursor.fetchone()[0]
         period_pnls[label] = val or 0
 
-    # Absolute Return (log-scaled 90d P&L)
+    # Absolute Return — uses Polymarket's ground-truth PnL from lb-api
     abs_return_cap = CTS_CONF.get('absolute_return_cap', 50000)
-    if period_pnls['pnl_90d'] > 0:
-        absolute_return_score = min(100, math.log10(1 + period_pnls['pnl_90d']) / math.log10(1 + abs_return_cap) * 100)
+    cursor.execute("SELECT polymarket_pnl FROM wallets WHERE address = ?", (address,))
+    pm_row = cursor.fetchone()
+    polymarket_pnl = pm_row[0] if pm_row and pm_row[0] is not None else None
+    if polymarket_pnl is not None and polymarket_pnl > 0:
+        absolute_return_score = min(100, math.log10(1 + polymarket_pnl) / math.log10(1 + abs_return_cap) * 100)
     else:
         absolute_return_score = 0
 
