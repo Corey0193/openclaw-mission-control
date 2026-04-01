@@ -35,7 +35,7 @@ def sync():
         payload = {
             "address": wd['address'],
             "username": username,
-            "totalPnl": wd['pnl'] or 0,
+            "totalPnl": wd.get('polymarket_pnl') or wd['pnl'] or 0,
             "performanceScore": wd.get('copy_trading_score') or wd.get('insider_confidence_score') or 0,
             "winRate": win_rate,
             "tradeCount": wd['trade_count'],
