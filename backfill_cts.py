@@ -108,9 +108,16 @@ def calculate_cts(conn, address, as_of_ts=None):
     if max_ts < now_ts - (recency_days * 86400):
         return None
 
+    # Gate 4: Require sufficient data quality (live scoring only, not historical snapshots)
+    if as_of_ts is None:
+        cursor.execute("SELECT ingestion_status FROM wallets WHERE address = ?", (address,))
+        status_row = cursor.fetchone()
+        if status_row and status_row[0] == 'partial':
+            return None
+
     cursor.execute('''
         SELECT (timestamp - ?) / (7 * 86400) as week_num,
-               SUM(CASE WHEN side IN ('SELL','sell') THEN size * price ELSE -(size * price) END) as weekly_pnl,
+               SUM(CASE WHEN side IN ('SELL','sell') THEN usd_value ELSE -usd_value END) as weekly_pnl,
                COUNT(*) as cnt
         FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
         GROUP BY week_num ORDER BY week_num
@@ -161,8 +168,8 @@ def calculate_cts(conn, address, as_of_ts=None):
     # Size-Weighted Win Rate
     cursor.execute('''
         SELECT market_id,
-               SUM(CASE WHEN side IN ('BUY','buy') THEN size * price ELSE 0 END) as bought,
-               SUM(CASE WHEN side IN ('SELL','sell') THEN size * price ELSE 0 END) as sold
+               SUM(CASE WHEN side IN ('BUY','buy') THEN usd_value ELSE 0 END) as bought,
+               SUM(CASE WHEN side IN ('SELL','sell') THEN usd_value ELSE 0 END) as sold
         FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
         GROUP BY market_id HAVING sold > 0
     ''', (address, lookback_start, now_ts))
@@ -178,7 +185,7 @@ def calculate_cts(conn, address, as_of_ts=None):
     # Max Drawdown
     cursor.execute('''
         SELECT timestamp / 86400 as day,
-               SUM(CASE WHEN side IN ('SELL','sell') THEN size * price ELSE -(size * price) END) as daily_pnl
+               SUM(CASE WHEN side IN ('SELL','sell') THEN usd_value ELSE -usd_value END) as daily_pnl
         FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
         GROUP BY day ORDER BY day
     ''', (address, lookback_start, now_ts))
@@ -208,7 +215,7 @@ def calculate_cts(conn, address, as_of_ts=None):
     for label, days in [('pnl_7d', 7), ('pnl_30d', 30), ('pnl_90d', 90)]:
         cutoff = now_ts - (days * 86400)
         cursor.execute('''
-            SELECT SUM(CASE WHEN side IN ('SELL','sell') THEN size * price ELSE -(size * price) END)
+            SELECT SUM(CASE WHEN side IN ('SELL','sell') THEN usd_value ELSE -usd_value END)
             FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
         ''', (address, cutoff, now_ts))
         val = cursor.fetchone()[0]
