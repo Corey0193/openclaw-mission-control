@@ -1,6 +1,34 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
+export const deleteExperiment = mutation({
+  args: { tenantId: v.string(), experimentId: v.string() },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("experiments")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+      .filter((q) => q.eq(q.field("experimentId"), args.experimentId))
+      .first();
+    if (existing) {
+      await ctx.db.delete(existing._id);
+    }
+  },
+});
+
+export const deleteAllExperiments = mutation({
+  args: { tenantId: v.string() },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query("experiments")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+      .collect();
+    for (const doc of all) {
+      await ctx.db.delete(doc._id);
+    }
+    return { deleted: all.length };
+  },
+});
+
 export const list = query({
   args: { tenantId: v.string() },
   handler: async (ctx, args) => {
