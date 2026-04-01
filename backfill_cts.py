@@ -70,6 +70,15 @@ def calculate_cts(conn, address, as_of_ts=None):
 
     If as_of_ts is None, uses current time (backward-compatible).
     All SQL queries include an upper bound: timestamp < as_of_ts (point-in-time).
+
+    NOTE — PnL accuracy limitation:
+    All PnL is computed as size * price (USD value of the trade leg). This correctly
+    measures open-market buy/sell flow, but does NOT capture share minting (buying
+    at $0 via contract initialization) or market resolution payouts (receiving $1 per
+    YES share at resolution). Wallets that hold positions to resolution will show
+    inflated "sold" USD relative to their true profit. CTS scores are still valid for
+    ranking traders by market-trade behavior, but absolute PnL figures understate
+    performance for resolution-heavy wallets.
     """
     weights = CTS_CONF.get('weights', DEFAULT_CTS_CONFIG['weights'])
     lookback_weeks = CTS_CONF.get('lookback_weeks', 12)
@@ -101,7 +110,7 @@ def calculate_cts(conn, address, as_of_ts=None):
 
     cursor.execute('''
         SELECT (timestamp - ?) / (7 * 86400) as week_num,
-               SUM(CASE WHEN side IN ('SELL','sell') THEN size ELSE -size END) as weekly_pnl,
+               SUM(CASE WHEN side IN ('SELL','sell') THEN size * price ELSE -(size * price) END) as weekly_pnl,
                COUNT(*) as cnt
         FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
         GROUP BY week_num ORDER BY week_num
@@ -152,8 +161,8 @@ def calculate_cts(conn, address, as_of_ts=None):
     # Size-Weighted Win Rate
     cursor.execute('''
         SELECT market_id,
-               SUM(CASE WHEN side IN ('BUY','buy') THEN size ELSE 0 END) as bought,
-               SUM(CASE WHEN side IN ('SELL','sell') THEN size ELSE 0 END) as sold
+               SUM(CASE WHEN side IN ('BUY','buy') THEN size * price ELSE 0 END) as bought,
+               SUM(CASE WHEN side IN ('SELL','sell') THEN size * price ELSE 0 END) as sold
         FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
         GROUP BY market_id HAVING sold > 0
     ''', (address, lookback_start, now_ts))
@@ -169,7 +178,7 @@ def calculate_cts(conn, address, as_of_ts=None):
     # Max Drawdown
     cursor.execute('''
         SELECT timestamp / 86400 as day,
-               SUM(CASE WHEN side IN ('SELL','sell') THEN size ELSE -size END) as daily_pnl
+               SUM(CASE WHEN side IN ('SELL','sell') THEN size * price ELSE -(size * price) END) as daily_pnl
         FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
         GROUP BY day ORDER BY day
     ''', (address, lookback_start, now_ts))
@@ -199,7 +208,7 @@ def calculate_cts(conn, address, as_of_ts=None):
     for label, days in [('pnl_7d', 7), ('pnl_30d', 30), ('pnl_90d', 90)]:
         cutoff = now_ts - (days * 86400)
         cursor.execute('''
-            SELECT SUM(CASE WHEN side IN ('SELL','sell') THEN size ELSE -size END)
+            SELECT SUM(CASE WHEN side IN ('SELL','sell') THEN size * price ELSE -(size * price) END)
             FROM trades WHERE address = ? AND timestamp >= ? AND timestamp < ?
         ''', (address, cutoff, now_ts))
         val = cursor.fetchone()[0]
