@@ -188,7 +188,7 @@ http.route({
 			peakPrice: Number(p.peak_price),
 			exitPrice: p.exit_price != null ? Number(p.exit_price) : undefined,
 			exitTimestamp: p.exit_timestamp != null ? Number(p.exit_timestamp) : undefined,
-			exitReason: p.exit_reason as string | undefined,
+			exitReason: p.exit_reason != null ? String(p.exit_reason) : undefined,
 			pnl: p.pnl != null ? Number(p.pnl) : undefined,
 			mode: (p.mode as string) ?? "PAPER",
 		}));

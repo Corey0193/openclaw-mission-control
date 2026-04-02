@@ -245,7 +245,7 @@ export default function CopyTradePage() {
 						<h2 className="text-[11px] font-bold text-muted-foreground tracking-wider uppercase mb-3">
 							Cumulative PnL
 						</h2>
-						<ResponsiveContainer width="100%" height={180}>
+						<ResponsiveContainer width="100%" height={180} minWidth={0}>
 							<LineChart data={pnlChartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
 								<XAxis
 									dataKey="ts"
