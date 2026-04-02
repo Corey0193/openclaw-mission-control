@@ -177,6 +177,17 @@ export default defineSchema({
 		lastHeartbeatAt: v.number(),
 		status: v.string(), // "active", "idle", "error"
 	}).index("by_tenant", ["tenantId"]),
+	copyTradeDaemonStatus: defineTable({
+		tenantId: v.string(),
+		running: v.boolean(),
+		pid: v.optional(v.number()),
+		mode: v.string(), // "PAPER" | "LIVE"
+		bankroll: v.number(),
+		openPositions: v.number(),
+		totalPaperPnl: v.number(),
+		status: v.string(), // "starting" | "active" | "idle" | "error" | "stopped"
+		lastHeartbeatAt: v.number(),
+	}).index("by_tenant", ["tenantId"]),
 	polymarketPositions: defineTable({
 		walletAddress: v.string(),
 		balanceUsdc: v.number(),

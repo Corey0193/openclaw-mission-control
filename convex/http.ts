@@ -145,6 +145,29 @@ http.route({
 	}),
 });
 
+// Copy-trade daemon status endpoint
+http.route({
+	path: "/copy-trade/status",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		await ctx.runMutation(api.copyTrade.upsertStatus, {
+			tenantId: body.tenant_id ?? "default",
+			running: body.running ?? false,
+			pid: body.pid,
+			mode: body.mode ?? "PAPER",
+			bankroll: body.bankroll ?? 0,
+			openPositions: body.open_positions ?? 0,
+			totalPaperPnl: body.total_paper_pnl ?? 0,
+			status: body.status ?? "unknown",
+		});
+		return new Response(JSON.stringify({ ok: true }), {
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		});
+	}),
+});
+
 // Wallet ingestor status endpoint
 http.route({
 	path: "/wallet/ingestor-status",
