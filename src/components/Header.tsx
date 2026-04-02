@@ -209,7 +209,16 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 								</Link>
 							</div>
 						)}
-					</div>{" "}
+					</div>
+					<Link
+						to="/copy-trade"
+						className={`
+							text-[12px] font-semibold tracking-wide px-3.5 py-1.5 rounded-full transition-all
+							${location.pathname.startsWith("/copy-trade") ? "bg-[#7048e8] text-white shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80"}
+						`}
+					>
+						Copy Trade
+					</Link>
 				</nav>
 			</div>
 

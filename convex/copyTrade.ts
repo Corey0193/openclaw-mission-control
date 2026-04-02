@@ -1,6 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+// ── Daemon status ─────────────────────────────────────────────────────────────
+
 export const upsertStatus = mutation({
 	args: {
 		tenantId: v.string(),
@@ -34,10 +36,7 @@ export const upsertStatus = mutation({
 		if (existing) {
 			await ctx.db.patch("copyTradeDaemonStatus", existing._id, base);
 		} else {
-			await ctx.db.insert("copyTradeDaemonStatus", {
-				tenantId: args.tenantId,
-				...base,
-			});
+			await ctx.db.insert("copyTradeDaemonStatus", { tenantId: args.tenantId, ...base });
 		}
 		return null;
 	},
@@ -74,5 +73,101 @@ export const getStatus = query({
 			status: row.status,
 			lastHeartbeatAt: row.lastHeartbeatAt,
 		};
+	},
+});
+
+// ── Positions ─────────────────────────────────────────────────────────────────
+
+const positionShape = v.object({
+	positionId: v.string(),
+	leaderAddress: v.string(),
+	marketId: v.string(),
+	tokenId: v.string(),
+	outcomeIndex: v.number(),
+	shares: v.number(),
+	entryPrice: v.number(),
+	leaderEntryPrice: v.number(),
+	entryUsd: v.number(),
+	entryTimestamp: v.number(),
+	peakPrice: v.number(),
+	exitPrice: v.optional(v.number()),
+	exitTimestamp: v.optional(v.number()),
+	exitReason: v.optional(v.string()),
+	pnl: v.optional(v.number()),
+	mode: v.string(),
+});
+
+export const syncPositions = mutation({
+	args: {
+		tenantId: v.string(),
+		positions: v.array(positionShape),
+	},
+	returns: v.null(),
+	handler: async (ctx, args) => {
+		for (const pos of args.positions) {
+			const existing = await ctx.db
+				.query("copyTradePositions")
+				.withIndex("by_position_id", (q) => q.eq("positionId", pos.positionId))
+				.first();
+			if (existing) {
+				await ctx.db.patch("copyTradePositions", existing._id, pos);
+			} else {
+				await ctx.db.insert("copyTradePositions", {
+					tenantId: args.tenantId,
+					...pos,
+				});
+			}
+		}
+		return null;
+	},
+});
+
+export const listPositions = query({
+	args: { tenantId: v.string() },
+	returns: v.array(
+		v.object({
+			positionId: v.string(),
+			leaderAddress: v.string(),
+			marketId: v.string(),
+			tokenId: v.string(),
+			outcomeIndex: v.number(),
+			shares: v.number(),
+			entryPrice: v.number(),
+			leaderEntryPrice: v.number(),
+			entryUsd: v.number(),
+			entryTimestamp: v.number(),
+			peakPrice: v.number(),
+			exitPrice: v.optional(v.number()),
+			exitTimestamp: v.optional(v.number()),
+			exitReason: v.optional(v.string()),
+			pnl: v.optional(v.number()),
+			mode: v.string(),
+		}),
+	),
+	handler: async (ctx, args) => {
+		const rows = await ctx.db
+			.query("copyTradePositions")
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.collect();
+		return rows
+			.sort((a, b) => b.entryTimestamp - a.entryTimestamp)
+			.map((r) => ({
+				positionId: r.positionId,
+				leaderAddress: r.leaderAddress,
+				marketId: r.marketId,
+				tokenId: r.tokenId,
+				outcomeIndex: r.outcomeIndex,
+				shares: r.shares,
+				entryPrice: r.entryPrice,
+				leaderEntryPrice: r.leaderEntryPrice,
+				entryUsd: r.entryUsd,
+				entryTimestamp: r.entryTimestamp,
+				peakPrice: r.peakPrice,
+				exitPrice: r.exitPrice,
+				exitTimestamp: r.exitTimestamp,
+				exitReason: r.exitReason,
+				pnl: r.pnl,
+				mode: r.mode,
+			}));
 	},
 });

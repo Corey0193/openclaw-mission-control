@@ -177,6 +177,27 @@ export default defineSchema({
 		lastHeartbeatAt: v.number(),
 		status: v.string(), // "active", "idle", "error"
 	}).index("by_tenant", ["tenantId"]),
+	copyTradePositions: defineTable({
+		tenantId: v.string(),
+		positionId: v.string(),
+		leaderAddress: v.string(),
+		marketId: v.string(),
+		tokenId: v.string(),
+		outcomeIndex: v.number(),
+		shares: v.number(),
+		entryPrice: v.number(),
+		leaderEntryPrice: v.number(),
+		entryUsd: v.number(),
+		entryTimestamp: v.number(),
+		peakPrice: v.number(),
+		exitPrice: v.optional(v.number()),
+		exitTimestamp: v.optional(v.number()),
+		exitReason: v.optional(v.string()),
+		pnl: v.optional(v.number()),
+		mode: v.string(),
+	})
+		.index("by_tenant", ["tenantId"])
+		.index("by_position_id", ["positionId"]),
 	copyTradeDaemonStatus: defineTable({
 		tenantId: v.string(),
 		running: v.boolean(),

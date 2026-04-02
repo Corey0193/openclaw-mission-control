@@ -168,6 +168,43 @@ http.route({
 	}),
 });
 
+// Copy-trade positions sync endpoint
+http.route({
+	path: "/copy-trade/sync-positions",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		const positions = (body.positions ?? []).map((p: Record<string, unknown>) => ({
+			positionId: p.position_id as string,
+			leaderAddress: p.leader_address as string,
+			marketId: p.market_id as string,
+			tokenId: p.token_id as string,
+			outcomeIndex: Number(p.outcome_index),
+			shares: Number(p.shares),
+			entryPrice: Number(p.entry_price),
+			leaderEntryPrice: Number(p.leader_entry_price),
+			entryUsd: Number(p.entry_usd),
+			entryTimestamp: Number(p.entry_timestamp),
+			peakPrice: Number(p.peak_price),
+			exitPrice: p.exit_price != null ? Number(p.exit_price) : undefined,
+			exitTimestamp: p.exit_timestamp != null ? Number(p.exit_timestamp) : undefined,
+			exitReason: p.exit_reason as string | undefined,
+			pnl: p.pnl != null ? Number(p.pnl) : undefined,
+			mode: (p.mode as string) ?? "PAPER",
+		}));
+		if (positions.length > 0) {
+			await ctx.runMutation(api.copyTrade.syncPositions, {
+				tenantId: body.tenant_id ?? "default",
+				positions,
+			});
+		}
+		return new Response(JSON.stringify({ ok: true, synced: positions.length }), {
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		});
+	}),
+});
+
 // Wallet ingestor status endpoint
 http.route({
 	path: "/wallet/ingestor-status",

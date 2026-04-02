@@ -1,0 +1,467 @@
+import { useState, useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { DEFAULT_TENANT_ID } from "../lib/tenant";
+import Header from "../components/Header";
+import {
+	IconTrendingUp,
+	IconTrendingDown,
+	IconCurrencyDollar,
+	IconChartLine,
+	IconWallet,
+	IconAlertCircle,
+	IconCircleCheck,
+	IconClock,
+} from "@tabler/icons-react";
+import {
+	LineChart,
+	Line,
+	XAxis,
+	YAxis,
+	Tooltip,
+	ResponsiveContainer,
+	ReferenceLine,
+} from "recharts";
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtUsd(n: number | undefined | null, showSign = false): string {
+	if (n == null) return "—";
+	const s = Math.abs(n).toLocaleString("en-US", {
+		style: "currency",
+		currency: "USD",
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	});
+	if (showSign) return (n >= 0 ? "+" : "−") + s.slice(1);
+	return n < 0 ? "−" + s.slice(1) : s;
+}
+
+function fmtPct(n: number): string {
+	return (n >= 0 ? "+" : "") + (n * 100).toFixed(1) + "%";
+}
+
+function fmtTs(ts: number): string {
+	return new Date(ts * 1000).toLocaleString([], {
+		month: "short",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+}
+
+function holdTime(entryTs: number, exitTs?: number | null): string {
+	const end = exitTs ? exitTs * 1000 : Date.now();
+	const mins = Math.round((end - entryTs * 1000) / 60000);
+	if (mins < 60) return `${mins}m`;
+	const hrs = Math.round(mins / 60);
+	if (hrs < 48) return `${hrs}h`;
+	return `${Math.round(hrs / 24)}d`;
+}
+
+function shortAddr(addr: string): string {
+	return addr.slice(0, 6) + "…" + addr.slice(-4);
+}
+
+function shortMarket(id: string): string {
+	return id.slice(0, 8) + "…";
+}
+
+// ── Summary card ─────────────────────────────────────────────────────────────
+
+function StatCard({
+	label,
+	value,
+	sub,
+	icon,
+	positive,
+}: {
+	label: string;
+	value: string;
+	sub?: string;
+	icon: React.ReactNode;
+	positive?: boolean;
+}) {
+	const accent =
+		positive === true
+			? "text-emerald-600"
+			: positive === false
+			? "text-red-500"
+			: "text-foreground";
+	return (
+		<div className="flex items-center gap-3 bg-white border border-border rounded-xl px-5 py-4 shadow-sm">
+			<div className="flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground flex-shrink-0">
+				{icon}
+			</div>
+			<div className="min-w-0">
+				<div className="text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
+					{label}
+				</div>
+				<div className={`text-lg font-bold leading-tight ${accent}`}>{value}</div>
+				{sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
+			</div>
+		</div>
+	);
+}
+
+// ── Exit reason badge ─────────────────────────────────────────────────────────
+
+function ReasonBadge({ reason }: { reason: string | undefined | null }) {
+	if (!reason) return <span className="text-muted-foreground">—</span>;
+	const colors: Record<string, string> = {
+		TAKE_PROFIT: "bg-emerald-100 text-emerald-700",
+		STOP_LOSS: "bg-red-100 text-red-600",
+		MIRROR: "bg-violet-100 text-violet-700",
+		TIME_LIMIT: "bg-blue-100 text-blue-700",
+		TRAILING_STOP: "bg-amber-100 text-amber-700",
+		FORCE_CLOSE: "bg-gray-100 text-gray-600",
+	};
+	const cls = colors[reason] ?? "bg-slate-100 text-slate-600";
+	return (
+		<span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${cls}`}>
+			{reason.replace("_", " ")}
+		</span>
+	);
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+export default function CopyTradePage() {
+	const status = useQuery(api.copyTrade.getStatus, { tenantId: DEFAULT_TENANT_ID });
+	const allPositions = useQuery(api.copyTrade.listPositions, { tenantId: DEFAULT_TENANT_ID });
+	const [tab, setTab] = useState<"open" | "closed">("open");
+
+	const open = useMemo(
+		() => (allPositions ?? []).filter((p) => p.exitPrice == null),
+		[allPositions],
+	);
+	const closed = useMemo(
+		() => (allPositions ?? []).filter((p) => p.exitPrice != null),
+		[allPositions],
+	);
+
+	// Stats
+	const wins = closed.filter((p) => (p.pnl ?? 0) > 0).length;
+	const losses = closed.filter((p) => (p.pnl ?? 0) <= 0).length;
+	const winRate = closed.length > 0 ? wins / closed.length : null;
+	const avgWin =
+		wins > 0
+			? closed.filter((p) => (p.pnl ?? 0) > 0).reduce((s, p) => s + (p.pnl ?? 0), 0) / wins
+			: null;
+	const avgLoss =
+		losses > 0
+			? closed.filter((p) => (p.pnl ?? 0) <= 0).reduce((s, p) => s + (p.pnl ?? 0), 0) / losses
+			: null;
+
+	// Cumulative PnL chart data
+	const pnlChartData = useMemo(() => {
+		const sorted = [...closed]
+			.filter((p) => p.exitTimestamp != null)
+			.sort((a, b) => (a.exitTimestamp ?? 0) - (b.exitTimestamp ?? 0));
+		let cum = 0;
+		return sorted.map((p) => {
+			cum += p.pnl ?? 0;
+			return {
+				ts: fmtTs(p.exitTimestamp!),
+				cumPnl: parseFloat(cum.toFixed(2)),
+				pnl: parseFloat((p.pnl ?? 0).toFixed(2)),
+			};
+		});
+	}, [closed]);
+
+	const totalPnl = status?.totalPaperPnl ?? 0;
+	const bankroll = status?.bankroll ?? 0;
+	const loading = allPositions === undefined;
+
+	return (
+		<div className="h-screen overflow-y-auto bg-[#f8f9fa]">
+			<Header />
+			<main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+				{/* Page title */}
+				<div className="flex items-center justify-between">
+					<div>
+						<h1 className="text-xl font-bold text-foreground tracking-tight">
+							Copy-Trade — Paper Mode
+						</h1>
+						<p className="text-[11px] text-muted-foreground mt-0.5">
+							Live positions synced from daemon every 60 s
+						</p>
+					</div>
+					{status && (
+						<div
+							className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider border ${
+								status.running
+									? "bg-[#f3f0ff] text-[#7048e8] border-violet-200"
+									: "bg-muted text-muted-foreground border-border"
+							}`}
+						>
+							<span
+								className={`w-2 h-2 rounded-full ${status.running ? "bg-[#7048e8] animate-pulse" : "bg-gray-400"}`}
+							/>
+							{status.running ? `RUNNING · PID ${status.pid ?? "?"}` : "STOPPED"}
+						</div>
+					)}
+				</div>
+
+				{/* Summary cards */}
+				<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+					<StatCard
+						label="Bankroll"
+						value={fmtUsd(bankroll)}
+						sub="Paper USD"
+						icon={<IconWallet size={20} />}
+					/>
+					<StatCard
+						label="Total PnL"
+						value={fmtUsd(totalPnl, true)}
+						sub={closed.length > 0 ? `${closed.length} closed trades` : "no trades yet"}
+						icon={<IconCurrencyDollar size={20} />}
+						positive={totalPnl >= 0}
+					/>
+					<StatCard
+						label="Win Rate"
+						value={winRate != null ? `${(winRate * 100).toFixed(0)}%` : "—"}
+						sub={`${wins}W / ${losses}L`}
+						icon={<IconChartLine size={20} />}
+						positive={winRate != null ? winRate >= 0.5 : undefined}
+					/>
+					<StatCard
+						label="Avg W / L"
+						value={
+							avgWin != null && avgLoss != null
+								? `${fmtUsd(avgWin, true)}`
+								: "—"
+						}
+						sub={avgLoss != null ? `Avg loss ${fmtUsd(avgLoss, true)}` : undefined}
+						icon={<IconTrendingUp size={20} />}
+						positive={avgWin != null && avgLoss != null ? Math.abs(avgWin) > Math.abs(avgLoss) : undefined}
+					/>
+				</div>
+
+				{/* PnL chart (only when there are closed trades) */}
+				{pnlChartData.length > 1 && (
+					<div className="bg-white border border-border rounded-xl p-5 shadow-sm">
+						<h2 className="text-[11px] font-bold text-muted-foreground tracking-wider uppercase mb-3">
+							Cumulative PnL
+						</h2>
+						<ResponsiveContainer width="100%" height={180}>
+							<LineChart data={pnlChartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+								<XAxis
+									dataKey="ts"
+									tick={{ fontSize: 10, fill: "#868e96" }}
+									tickLine={false}
+									axisLine={false}
+									interval="preserveStartEnd"
+								/>
+								<YAxis
+									tick={{ fontSize: 10, fill: "#868e96" }}
+									tickLine={false}
+									axisLine={false}
+									tickFormatter={(v) => `$${v}`}
+									width={48}
+								/>
+								<Tooltip
+									formatter={(v: number) => [fmtUsd(v, true), "Cum. PnL"]}
+									contentStyle={{ fontSize: 11, borderRadius: 8 }}
+								/>
+								<ReferenceLine y={0} stroke="#dee2e6" strokeDasharray="4 2" />
+								<Line
+									type="monotone"
+									dataKey="cumPnl"
+									stroke={totalPnl >= 0 ? "#7048e8" : "#e03131"}
+									strokeWidth={2}
+									dot={false}
+									activeDot={{ r: 4 }}
+								/>
+							</LineChart>
+						</ResponsiveContainer>
+					</div>
+				)}
+
+				{/* Positions panel */}
+				<div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+					{/* Tab bar */}
+					<div className="flex border-b border-border">
+						<button
+							type="button"
+							onClick={() => setTab("open")}
+							className={`px-5 py-3 text-[12px] font-bold tracking-wide transition-colors ${
+								tab === "open"
+									? "text-[#7048e8] border-b-2 border-[#7048e8]"
+									: "text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							Open Positions{" "}
+							<span className="ml-1.5 px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[10px]">
+								{open.length}
+							</span>
+						</button>
+						<button
+							type="button"
+							onClick={() => setTab("closed")}
+							className={`px-5 py-3 text-[12px] font-bold tracking-wide transition-colors ${
+								tab === "closed"
+									? "text-[#7048e8] border-b-2 border-[#7048e8]"
+									: "text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							Closed
+							<span className="ml-1.5 px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[10px]">
+								{closed.length}
+							</span>
+						</button>
+					</div>
+
+					{loading ? (
+						<div className="py-12 text-center text-sm text-muted-foreground">
+							Loading positions…
+						</div>
+					) : tab === "open" ? (
+						open.length === 0 ? (
+							<div className="py-12 text-center text-sm text-muted-foreground">
+								No open positions
+							</div>
+						) : (
+							<div className="overflow-x-auto">
+								<table className="w-full text-xs">
+									<thead>
+										<tr className="bg-slate-50 border-b border-border">
+											{["Leader", "Market", "Side", "Entry", "Cost", "Peak", "Unreal. PnL", "Held", ""].map((h) => (
+												<th
+													key={h}
+													className="px-4 py-2.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap"
+												>
+													{h}
+												</th>
+											))}
+										</tr>
+									</thead>
+									<tbody className="divide-y divide-slate-100">
+										{open.map((pos) => {
+											const unrealPnl =
+												pos.shares * pos.peakPrice - pos.entryUsd;
+											return (
+												<tr key={pos.positionId} className="hover:bg-slate-50/50">
+													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+														{shortAddr(pos.leaderAddress)}
+													</td>
+													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+														{shortMarket(pos.marketId)}
+													</td>
+													<td className="px-4 py-2.5">
+														<span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold">
+															YES {pos.outcomeIndex === 0 ? "" : "(NO)"}
+														</span>
+													</td>
+													<td className="px-4 py-2.5 tabular-nums">
+														{pos.entryPrice.toFixed(3)}
+													</td>
+													<td className="px-4 py-2.5 tabular-nums">
+														{fmtUsd(pos.entryUsd)}
+													</td>
+													<td className="px-4 py-2.5 tabular-nums">
+														{pos.peakPrice.toFixed(3)}
+													</td>
+													<td
+														className={`px-4 py-2.5 tabular-nums font-bold ${unrealPnl >= 0 ? "text-emerald-600" : "text-red-500"}`}
+													>
+														{fmtUsd(unrealPnl, true)}
+													</td>
+													<td className="px-4 py-2.5 text-muted-foreground">
+														{holdTime(pos.entryTimestamp)}
+													</td>
+													<td className="px-4 py-2.5">
+														<IconClock size={13} className="text-muted-foreground" />
+													</td>
+												</tr>
+											);
+										})}
+									</tbody>
+								</table>
+							</div>
+						)
+					) : closed.length === 0 ? (
+						<div className="py-12 text-center text-sm text-muted-foreground">
+							No closed positions yet
+						</div>
+					) : (
+						<div className="overflow-x-auto">
+							<table className="w-full text-xs">
+								<thead>
+									<tr className="bg-slate-50 border-b border-border">
+										{["Leader", "Market", "Entry", "Exit", "Cost", "PnL", "ROI", "Hold", "Reason", ""].map((h) => (
+											<th
+												key={h}
+												className="px-4 py-2.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap"
+											>
+												{h}
+											</th>
+										))}
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-slate-100">
+									{closed.map((pos) => {
+										const roi =
+											pos.entryUsd > 0 ? (pos.pnl ?? 0) / pos.entryUsd : 0;
+										const isWin = (pos.pnl ?? 0) > 0;
+										return (
+											<tr key={pos.positionId} className="hover:bg-slate-50/50">
+												<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+													{shortAddr(pos.leaderAddress)}
+												</td>
+												<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+													{shortMarket(pos.marketId)}
+												</td>
+												<td className="px-4 py-2.5 tabular-nums">
+													{pos.entryPrice.toFixed(3)}
+												</td>
+												<td className="px-4 py-2.5 tabular-nums">
+													{(pos.exitPrice ?? 0).toFixed(3)}
+												</td>
+												<td className="px-4 py-2.5 tabular-nums text-muted-foreground">
+													{fmtUsd(pos.entryUsd)}
+												</td>
+												<td
+													className={`px-4 py-2.5 tabular-nums font-bold ${isWin ? "text-emerald-600" : "text-red-500"}`}
+												>
+													{fmtUsd(pos.pnl, true)}
+												</td>
+												<td
+													className={`px-4 py-2.5 tabular-nums ${isWin ? "text-emerald-600" : "text-red-500"}`}
+												>
+													{fmtPct(roi)}
+												</td>
+												<td className="px-4 py-2.5 text-muted-foreground">
+													{holdTime(pos.entryTimestamp, pos.exitTimestamp)}
+												</td>
+												<td className="px-4 py-2.5">
+													<ReasonBadge reason={pos.exitReason} />
+												</td>
+												<td className="px-4 py-2.5">
+													{isWin ? (
+														<IconCircleCheck size={13} className="text-emerald-500" />
+													) : (
+														<IconTrendingDown size={13} className="text-red-400" />
+													)}
+												</td>
+											</tr>
+										);
+									})}
+								</tbody>
+							</table>
+						</div>
+					)}
+				</div>
+
+				{/* Empty state hint */}
+				{!loading && allPositions?.length === 0 && (
+					<div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+						<IconAlertCircle size={16} />
+						No positions synced yet — daemon syncs every 60 s once it finds qualifying leader trades.
+					</div>
+				)}
+			</main>
+		</div>
+	);
+}
