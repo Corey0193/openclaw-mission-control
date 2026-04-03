@@ -36,6 +36,10 @@ const SOFT_ARB_LIVE_TRADES_PATH = path.join(
         ARB_PIPELINE_DIR,
         "soft-arb-live-trades.jsonl",
 );
+const SOFT_ARB_LIVE_TRADES_LEGACY_PATH = path.join(
+        os.homedir(),
+        ".openclaw/workspace-hustle/live-trades.jsonl",
+);
 
 const SOFT_ARB_MTM_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-mtm.json");
 const SOFT_ARB_OUTCOMES_PATH = path.join(
@@ -935,7 +939,10 @@ async function getSoftArbTrades(): Promise<{
 	lastUpdated: string | null;
 }> {
 	const paperRaw = readJsonlSafe(SOFT_ARB_TRADES_PATH);
-	const liveRaw = readJsonlSafe(SOFT_ARB_LIVE_TRADES_PATH);
+	const liveRaw = [
+		...readJsonlSafe(SOFT_ARB_LIVE_TRADES_PATH),
+		...readJsonlSafe(SOFT_ARB_LIVE_TRADES_LEGACY_PATH),
+	];
 	const dossierByOpportunity = loadOpportunityDossiers();
 	const paperTrades = buildMergedLedgerRows(paperRaw, "paper");
 	const liveTrades = buildMergedLedgerRows(liveRaw, "live");
