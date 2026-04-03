@@ -408,6 +408,17 @@ function signalSourceBadge(source: string) {
 	);
 }
 
+function tradeKindBadge(isReal: boolean) {
+	return (
+		<span
+			className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+				isReal ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"
+			}`}
+		>
+			{isReal ? "LIVE" : "PAPER"}
+		</span>
+	);
+}
 
 function getPipelineRunEventName(
 	dossier: Record<string, unknown> | null,
@@ -632,7 +643,7 @@ export default function SoftArbPage() {
 							{/* Summary stats */}
 							<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
 								<SummaryCard
-									label="Paper Trades"
+									label="Tracked Trades"
 									value={softArbData?.trades.length ?? 0}
 									icon={<IconArrowsExchange size={20} />}
 								/>
@@ -718,6 +729,7 @@ export default function SoftArbPage() {
 															<span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-600">
 																{familyLabel(t.signal_family)}
 															</span>
+															{tradeKindBadge(t.is_real)}
 															{signalSourceBadge(t.signal_source)}
 															{shieldBadge(t)}
 														</div>

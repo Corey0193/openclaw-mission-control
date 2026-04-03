@@ -101,6 +101,122 @@ function readJsonlSafe(filePath: string): Record<string, unknown>[] {
 
         return rows;
 }
+
+function hasValue(value: unknown): boolean {
+	return value != null && !(typeof value === "string" && value.trim() === "");
+}
+
+function mergeLedgerRows(
+	previous: Record<string, unknown>,
+	next: Record<string, unknown>,
+): Record<string, unknown> {
+	const merged = { ...previous };
+	for (const [key, value] of Object.entries(next)) {
+		if (!hasValue(value)) continue;
+		merged[key] = value;
+	}
+	return merged;
+}
+
+function firstNonEmptyString(...values: unknown[]): string {
+	for (const value of values) {
+		if (typeof value === "string") {
+			const trimmed = value.trim();
+			if (trimmed) return trimmed;
+		}
+	}
+	return "";
+}
+
+function getDossierDisplayName(dossier: Record<string, unknown> | null): string {
+	if (!dossier) return "";
+
+	const bestOpportunity =
+		typeof dossier.best_opportunity === "object" && dossier.best_opportunity
+			? (dossier.best_opportunity as Record<string, unknown>)
+			: null;
+	const marketA =
+		typeof dossier.market_a === "object" && dossier.market_a
+			? (dossier.market_a as Record<string, unknown>)
+			: null;
+	const signalSource =
+		typeof dossier.signal_source === "object" && dossier.signal_source
+			? (dossier.signal_source as Record<string, unknown>)
+			: null;
+	const firstMatchedPair =
+		Array.isArray(dossier.matched_pairs) &&
+		dossier.matched_pairs.length > 0 &&
+		typeof dossier.matched_pairs[0] === "object" &&
+		dossier.matched_pairs[0]
+			? (dossier.matched_pairs[0] as Record<string, unknown>)
+			: null;
+
+	const candidates = [
+		dossier.event_name,
+		dossier.target_event,
+		dossier.pair,
+		dossier.title,
+		dossier.question,
+		dossier.polymarket_question,
+		dossier.metaculus_question,
+		marketA?.question,
+		signalSource?.question_title,
+		bestOpportunity?.title,
+		bestOpportunity?.game,
+		bestOpportunity?.polymarket_question,
+		bestOpportunity?.metaculus_question,
+		firstMatchedPair?.polymarket_question,
+		firstMatchedPair?.metaculus_title,
+	];
+
+	for (const candidate of candidates) {
+		if (typeof candidate !== "string") continue;
+		const normalized = candidate.trim();
+		if (
+			normalized &&
+			normalized !== "—" &&
+			normalized.toLowerCase() !== "unknown event"
+		) {
+			return normalized;
+		}
+	}
+
+	return "";
+}
+
+function loadOpportunityDossiers(): Map<string, Record<string, unknown>> {
+	const dossiers = new Map<string, Record<string, unknown>>();
+	const dirs = [ARB_PIPELINE_DIR, path.join(ARB_PIPELINE_DIR, "archive")];
+	for (const dir of dirs) {
+		if (!fs.existsSync(dir)) continue;
+		for (const file of fs.readdirSync(dir)) {
+			if (!file.endsWith(".dossier.json")) continue;
+			const dossier = readJsonSafe(path.join(dir, file));
+			if (!dossier) continue;
+			const opportunityId = firstNonEmptyString(
+				dossier.opportunity_id,
+				file.replace(/\.dossier\.json$/, ""),
+			);
+			if (!opportunityId) continue;
+			dossiers.set(opportunityId, dossier);
+		}
+	}
+	return dossiers;
+}
+
+function buildMergedLedgerRows(
+	rows: Record<string, unknown>[],
+): Record<string, Record<string, unknown>> {
+	const deduped = new Map<string, Record<string, unknown>>();
+	for (const row of rows) {
+		const tradeId = firstNonEmptyString(row.trade_id);
+		if (!tradeId) continue;
+		const current = deduped.get(tradeId);
+		deduped.set(tradeId, current ? mergeLedgerRows(current, row) : { ...row });
+	}
+	return deduped;
+}
+
 function normalizeRun(run: PipelineRun): PipelineRun {
 	if (!run.dossier) return run;
 	// Only normalize Metaculus dossiers (sports pass through unchanged)
@@ -811,22 +927,13 @@ async function getSoftArbTrades(): Promise<{
 }> {
 	const paperRaw = readJsonlSafe(SOFT_ARB_TRADES_PATH);
 	const liveRaw = readJsonlSafe(SOFT_ARB_LIVE_TRADES_PATH);
-
-	// Deduplicate within each file (last-write-wins) but keep paper vs live separate
-	// Use opportunity_id as part of the key to prevent collisions (e.g. live-001 reused)
-	const tradeDedup = new Map<string, Record<string, unknown>>();
-	for (const t of paperRaw) {
-		const tid = String(t.trade_id ?? "");
-		const oid = String(t.opportunity_id ?? "");
-		if (tid) tradeDedup.set(`paper-${tid}-${oid}`, t);
-	}
-	for (const t of liveRaw) {
-		const tid = String(t.trade_id ?? "");
-		const oid = String(t.opportunity_id ?? "");
-		if (tid) tradeDedup.set(`live-${tid}-${oid}`, t);
-	}
-
-	const rawTrades = Array.from(tradeDedup.values());
+	const dossierByOpportunity = loadOpportunityDossiers();
+	const paperTrades = buildMergedLedgerRows(paperRaw);
+	const liveTrades = buildMergedLedgerRows(liveRaw);
+	const rawTrades = [
+		...paperTrades.values(),
+		...liveTrades.values(),
+	];
 	const rawOutcomes = readJsonlSafe(SOFT_ARB_OUTCOMES_PATH);
 
 	const calibration = readJsonSafe(
@@ -897,49 +1004,74 @@ async function getSoftArbTrades(): Promise<{
 
 	// Merge trades with MTM overlay
 	const trades: SoftArbTrade[] = rawTrades.map((t) => {
-	        const tradeId = String(t.trade_id ?? "");
-	        const isReal = !!t.real_trade || tradeId.startsWith("live-");
-	        const rowKey = `${isReal ? "live" : "paper"}-${tradeId}-${t.opportunity_id ?? ""}`;
-	        const mtmData = mtm?.trades?.[rowKey];
-	        const shieldData = shieldTradeState[rowKey] ?? shieldTradeState[tradeId];
-	        return {
-	                trade_id: tradeId,
-	                rowKey,
-
-		        pair: String(t.pair ?? t.event_name ?? t.polymarket_question ?? t.target_outcome ?? t.polymarket_slug ?? ""),
-		        signal_family: String(mtmData?.signal_family ?? getSignalFamily(t)),
-		        signal_source: getSignalSource(t),
-		        direction: String(t.direction ?? ""),
-		        entry_price: Number(t.entry_price ?? 0),
-		        position_size_usd: Number(t.position_size_usd ?? t.stake_usd ?? 0),
-		        shares: Number(t.shares ?? t.shares_est ?? 0),
-		        adjusted_edge_pct: normalizeSoftArbPct(t.adjusted_edge_pct ?? t.edge_pct),
-		        opened_at: String(t.opened_at ?? t.timestamp ?? t.executed_at ?? t.resolves_by ?? ""),
-		        resolves_by: String(t.resolves_by ?? ""),
-
-		        polymarket_slug: String(t.polymarket_slug ?? ""),
-		        metaculus_id: Number(t.metaculus_id ?? 0),
-		        status: String(mtmData?.status ?? t.status ?? "OPEN"),
-		        current_price:
-		                mtmData?.current_price != null ? Number(mtmData.current_price) : null,
-		        unrealized_pnl:
-		                mtmData?.unrealized_pnl != null ? Number(mtmData.unrealized_pnl) : null,
-		        realized_pnl:
-		                mtmData?.realized_pnl != null ? Number(mtmData.realized_pnl) : null,
-		        shadow_pnl:
-		                mtmData?.shadow_pnl != null ? Number(mtmData.shadow_pnl) : null,
-		        ready_to_close: Boolean(mtmData?.ready_to_close),
-		        fair_value:
-		                mtmData?.fair_value != null ? Number(mtmData.fair_value) : null,
-		        exit_price:
-		                mtmData?.exit_price != null ? Number(mtmData.exit_price) : null,
-		        resolved_outcome:
-		                mtmData?.resolved_outcome != null
-		                        ? String(mtmData.resolved_outcome)
-		                        : null,
-		        event_slug:
-		                mtmData?.event_slug != null ? String(mtmData.event_slug) : null,
-		        is_real: isReal,
+		const tradeId = firstNonEmptyString(t.trade_id);
+		const opportunityId = firstNonEmptyString(t.opportunity_id);
+		const isReal = !!t.real_trade || tradeId.startsWith("live-");
+		const rowKey = `${isReal ? "live" : "paper"}-${tradeId}-${opportunityId}`;
+		const mtmData = mtm?.trades?.[rowKey] ?? mtm?.trades?.[tradeId];
+		const shieldData = shieldTradeState[rowKey] ?? shieldTradeState[tradeId];
+		const dossier = dossierByOpportunity.get(opportunityId) ?? null;
+		const dossierDecision =
+			dossier && typeof dossier.decision === "object" && dossier.decision
+				? (dossier.decision as Record<string, unknown>)
+				: null;
+		const fallbackPair =
+			getDossierDisplayName(dossier) ||
+			firstNonEmptyString(dossier?.event_name, dossier?.pair, opportunityId);
+		return {
+			trade_id: tradeId,
+			rowKey,
+			pair: firstNonEmptyString(
+				t.pair,
+				t.event_name,
+				t.polymarket_question,
+				t.target_outcome,
+				t.polymarket_slug,
+				fallbackPair,
+			),
+			signal_family: String(mtmData?.signal_family ?? getSignalFamily(t)),
+			signal_source: getSignalSource(t),
+			direction: String(t.direction ?? ""),
+			entry_price: Number(t.entry_price ?? 0),
+			position_size_usd: Number(t.position_size_usd ?? t.stake_usd ?? 0),
+			shares: Number(t.shares ?? t.shares_est ?? 0),
+			adjusted_edge_pct: normalizeSoftArbPct(t.adjusted_edge_pct ?? t.edge_pct),
+			opened_at: firstNonEmptyString(
+				t.opened_at,
+				t.timestamp,
+				t.executed_at,
+				t.resolves_by,
+				dossierDecision?.decided_at,
+				dossier?.scan_timestamp,
+			),
+			resolves_by: firstNonEmptyString(
+				t.resolves_by,
+				dossier?.event_date_utc,
+				dossier?.scan_timestamp,
+			),
+			polymarket_slug: String(t.polymarket_slug ?? ""),
+			metaculus_id: Number(t.metaculus_id ?? 0),
+			status: String(mtmData?.status ?? t.status ?? "OPEN"),
+			current_price:
+				mtmData?.current_price != null ? Number(mtmData.current_price) : null,
+			unrealized_pnl:
+				mtmData?.unrealized_pnl != null ? Number(mtmData.unrealized_pnl) : null,
+			realized_pnl:
+				mtmData?.realized_pnl != null ? Number(mtmData.realized_pnl) : null,
+			shadow_pnl:
+				mtmData?.shadow_pnl != null ? Number(mtmData.shadow_pnl) : null,
+			ready_to_close: Boolean(mtmData?.ready_to_close),
+			fair_value:
+				mtmData?.fair_value != null ? Number(mtmData.fair_value) : null,
+			exit_price:
+				mtmData?.exit_price != null ? Number(mtmData.exit_price) : null,
+			resolved_outcome:
+				mtmData?.resolved_outcome != null
+					? String(mtmData.resolved_outcome)
+					: null,
+			event_slug:
+				mtmData?.event_slug != null ? String(mtmData.event_slug) : null,
+			is_real: isReal,
 			order_id: t.order_id != null ? String(t.order_id) : null,
 			order_status:
 				t.order_status != null
