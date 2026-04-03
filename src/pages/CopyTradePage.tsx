@@ -68,11 +68,20 @@ function shortMarket(id: string): string {
 	return id.slice(0, 8) + "…";
 }
 
-const polymarketSlugCache = new Map<string, string | null>();
+type PolymarketMarketMeta = {
+	marketSlug: string | null;
+	outcomesByTokenId: Record<string, string>;
+};
+
+const polymarketMarketMetaCache = new Map<string, PolymarketMarketMeta | null>();
 
 function buildPolymarketMarketUrl(marketSlug?: string | null): string | null {
 	if (!marketSlug) return null;
 	return `https://polymarket.com/market/${marketSlug}`;
+}
+
+function fallbackOutcomeLabel(outcomeIndex: number): string {
+	return outcomeIndex === 0 ? "Yes" : "No";
 }
 
 // ── Summary card ─────────────────────────────────────────────────────────────
@@ -139,7 +148,9 @@ export default function CopyTradePage() {
 	const allPositions = useQuery(api.copyTrade.listPositions, { tenantId: DEFAULT_TENANT_ID });
 	const [tab, setTab] = useState<"open" | "closed">("open");
 	const [nowMs, setNowMs] = useState(() => Date.now());
-	const [resolvedMarketSlugs, setResolvedMarketSlugs] = useState<Record<string, string>>({});
+	const [resolvedMarketMeta, setResolvedMarketMeta] = useState<
+		Record<string, PolymarketMarketMeta>
+	>({});
 
 	const open = useMemo(
 		() => (allPositions ?? []).filter((p) => p.exitPrice == null),
@@ -207,9 +218,8 @@ export default function CopyTradePage() {
 				allPositions
 					.filter(
 						(pos) =>
-							!pos.marketSlug &&
-							!resolvedMarketSlugs[pos.marketId] &&
-							!polymarketSlugCache.has(pos.marketId),
+							!resolvedMarketMeta[pos.marketId] &&
+							!polymarketMarketMetaCache.has(pos.marketId),
 					)
 					.map((pos) => pos.marketId)
 			),
@@ -226,34 +236,53 @@ export default function CopyTradePage() {
 						headers: { Accept: "application/json" },
 					});
 					if (!resp.ok) {
-						polymarketSlugCache.set(marketId, null);
+						polymarketMarketMetaCache.set(marketId, null);
 						return [marketId, null] as const;
 					}
-					const payload = (await resp.json()) as { market_slug?: unknown };
+					const payload = (await resp.json()) as {
+						market_slug?: unknown;
+						tokens?: Array<{ token_id?: unknown; outcome?: unknown }>;
+					};
 					const marketSlug =
 						typeof payload.market_slug === "string" && payload.market_slug.trim()
 							? payload.market_slug.trim()
 							: null;
-					polymarketSlugCache.set(marketId, marketSlug);
-					return [marketId, marketSlug] as const;
+					const outcomesByTokenId = Object.fromEntries(
+						(payload.tokens ?? []).flatMap((token) => {
+							const tokenId =
+								typeof token.token_id === "string" && token.token_id.trim()
+									? token.token_id.trim()
+									: null;
+							const outcome =
+								typeof token.outcome === "string" && token.outcome.trim()
+									? token.outcome.trim()
+									: null;
+							return tokenId && outcome ? [[tokenId, outcome] as const] : [];
+						}),
+					);
+					const meta = { marketSlug, outcomesByTokenId };
+					polymarketMarketMetaCache.set(marketId, meta);
+					return [marketId, meta] as const;
 				} catch {
-					polymarketSlugCache.set(marketId, null);
+					polymarketMarketMetaCache.set(marketId, null);
 					return [marketId, null] as const;
 				}
 			}),
 		).then((entries) => {
 			if (cancelled) return;
 			const updates = Object.fromEntries(
-				entries.filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+				entries.filter(
+					(entry): entry is [string, PolymarketMarketMeta] => entry[1] !== null,
+				),
 			);
 			if (Object.keys(updates).length === 0) return;
-			setResolvedMarketSlugs((current) => ({ ...current, ...updates }));
+			setResolvedMarketMeta((current) => ({ ...current, ...updates }));
 		});
 
 		return () => {
 			cancelled = true;
 		};
-	}, [allPositions, resolvedMarketSlugs]);
+	}, [allPositions, resolvedMarketMeta]);
 
 	return (
 		<div className="h-screen overflow-y-auto bg-[#f8f9fa]">
@@ -434,12 +463,18 @@ export default function CopyTradePage() {
 										{open.map((pos) => {
 											const currentPrice = pos.currentPrice ?? pos.peakPrice;
 											const unrealPnl = pos.shares * currentPrice - pos.entryUsd;
+											const marketMeta =
+												resolvedMarketMeta[pos.marketId] ??
+												polymarketMarketMetaCache.get(pos.marketId) ??
+												null;
 											const marketUrl = buildPolymarketMarketUrl(
 												pos.marketSlug ??
-													resolvedMarketSlugs[pos.marketId] ??
-													polymarketSlugCache.get(pos.marketId) ??
+													marketMeta?.marketSlug ??
 													null,
 											);
+											const outcomeLabel =
+												marketMeta?.outcomesByTokenId[pos.tokenId] ??
+												fallbackOutcomeLabel(pos.outcomeIndex);
 											return (
 												<tr key={pos.positionId} className="hover:bg-slate-50/50">
 													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
@@ -480,7 +515,7 @@ export default function CopyTradePage() {
 													</td>
 													<td className="px-4 py-2.5">
 														<span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold">
-															YES {pos.outcomeIndex === 0 ? "" : "(NO)"}
+															{outcomeLabel}
 														</span>
 													</td>
 													<td className="px-4 py-2.5 tabular-nums">
