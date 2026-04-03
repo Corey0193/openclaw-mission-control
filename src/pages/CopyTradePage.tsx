@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import Header from "../components/Header";
+import { useConvexHttpQuery } from "../lib/useConvexHttpQuery";
 import {
 	IconTrendingUp,
 	IconTrendingDown,
@@ -155,9 +154,20 @@ function ReasonBadge({ reason }: { reason: string | undefined | null }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function CopyTradePage() {
-	const status = useQuery(api.copyTrade.getStatus, { tenantId: DEFAULT_TENANT_ID });
-	const allPositions = useQuery(api.copyTrade.listPositions, { tenantId: DEFAULT_TENANT_ID });
-	const wallets = useQuery(api.wallets.list, { tenantId: DEFAULT_TENANT_ID });
+	const status = useConvexHttpQuery<{
+		totalPaperPnl: number;
+		bankroll: number;
+	}>("copyTrade:getStatus", { tenantId: DEFAULT_TENANT_ID }, { pollMs: 15_000 });
+	const allPositions = useConvexHttpQuery<any[]>(
+		"copyTrade:listPositions",
+		{ tenantId: DEFAULT_TENANT_ID },
+		{ pollMs: 15_000 },
+	);
+	const wallets = useConvexHttpQuery<any[]>(
+		"wallets:list",
+		{ tenantId: DEFAULT_TENANT_ID },
+		{ pollMs: 60_000 },
+	);
 	const [tab, setTab] = useState<"open" | "closed">("open");
 	const [nowMs, setNowMs] = useState(() => Date.now());
 	const [resolvedMarketMeta, setResolvedMarketMeta] = useState<

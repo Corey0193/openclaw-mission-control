@@ -1,15 +1,19 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import { IconDatabaseImport } from "@tabler/icons-react";
+import { useConvexHttpQuery } from "../lib/useConvexHttpQuery";
 
 const STALE_MS = 300_000; // 5 min
 
 const WalletIngestorBadge = () => {
-	const status = useQuery(api.walletIngestor.getStatus, {
-		tenantId: DEFAULT_TENANT_ID,
-	});
+	const status = useConvexHttpQuery<{
+		running: boolean;
+		lastHeartbeatAt: number;
+		walletCount: number;
+		tradeCount: number;
+		status: string;
+		pid?: number;
+	}>("walletIngestor:getStatus", { tenantId: DEFAULT_TENANT_ID }, { pollMs: 15_000 });
 	const [now, setNow] = useState(Date.now());
 
 	useEffect(() => {

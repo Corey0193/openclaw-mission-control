@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
+import { useConvexHttpQuery } from "../lib/useConvexHttpQuery";
 
 const STALE_MS = 120_000; // 2 min
 
@@ -56,7 +55,11 @@ function resolveLabel(variant: Variant, status: StatusData | null | undefined): 
 }
 
 const CopyTradeBadge: React.FC = () => {
-	const status = useQuery(api.copyTrade.getStatus, { tenantId: DEFAULT_TENANT_ID });
+	const status = useConvexHttpQuery<StatusData>(
+		"copyTrade:getStatus",
+		{ tenantId: DEFAULT_TENANT_ID },
+		{ pollMs: 15_000 },
+	);
 	const [now, setNow] = useState(Date.now());
 
 	useEffect(() => {
