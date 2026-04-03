@@ -29,9 +29,14 @@ const ARB_PIPELINE_DIR = path.join(
 );
 
 const SOFT_ARB_TRADES_PATH = path.join(
-	ARB_PIPELINE_DIR,
-	"soft-arb-paper-trades.jsonl",
+        ARB_PIPELINE_DIR,
+        "soft-arb-paper-trades.jsonl",
 );
+const SOFT_ARB_LIVE_TRADES_PATH = path.join(
+        ARB_PIPELINE_DIR,
+        "soft-arb-live-trades.jsonl",
+);
+
 const SOFT_ARB_MTM_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-mtm.json");
 const SOFT_ARB_OUTCOMES_PATH = path.join(
 	ARB_PIPELINE_DIR,
@@ -68,21 +73,34 @@ function readJsonSafe(filePath: string): Record<string, unknown> | null {
 }
 
 function readJsonlSafe(filePath: string): Record<string, unknown>[] {
-	if (!fs.existsSync(filePath)) return [];
+        if (!fs.existsSync(filePath)) return [];
 
-	const rows: Record<string, unknown>[] = [];
-	for (const line of fs.readFileSync(filePath, "utf-8").split("\n")) {
-		const trimmed = line.trim();
-		if (!trimmed) continue;
-		try {
-			rows.push(JSON.parse(trimmed));
-		} catch {
-			// skip malformed lines
-		}
-	}
-	return rows;
+        const rows: Record<string, unknown>[] = [];
+        const content = fs.readFileSync(filePath, "utf-8");
+        let buffer = "";
+
+        for (const line of content.split("\n")) {
+                buffer += line + "\n";
+                try {
+                        const parsed = JSON.parse(buffer);
+                        rows.append?.(parsed as any) || rows.push(parsed);
+                        buffer = "";
+                } catch {
+                        // Continue buffering
+                }
+        }
+
+        if (buffer.trim()) {
+                try {
+                        const parsed = JSON.parse(buffer);
+                        rows.append?.(parsed as any) || rows.push(parsed);
+                } catch {
+                        // Truly malformed
+                }
+        }
+
+        return rows;
 }
-
 function normalizeRun(run: PipelineRun): PipelineRun {
 	if (!run.dossier) return run;
 	// Only normalize Metaculus dossiers (sports pass through unchanged)
@@ -640,15 +658,26 @@ function getSoftArbTrades(): {
 	discovery: SoftArbDiscoverySummary;
 	lastUpdated: string | null;
 } {
-	const rawTradesAll = readJsonlSafe(SOFT_ARB_TRADES_PATH);
-	// Deduplicate by trade_id (last-write-wins for append-only JSONL updates)
+	const paperRaw = readJsonlSafe(SOFT_ARB_TRADES_PATH);
+	const liveRaw = readJsonlSafe(SOFT_ARB_LIVE_TRADES_PATH);
+
+	// Deduplicate within each file (last-write-wins) but keep paper vs live separate
+	// Use opportunity_id as part of the key to prevent collisions (e.g. live-001 reused)
 	const tradeDedup = new Map<string, Record<string, unknown>>();
-	for (const t of rawTradesAll) {
-		const id = String(t.trade_id ?? "");
-		if (id) tradeDedup.set(id, t);
+	for (const t of paperRaw) {
+		const tid = String(t.trade_id ?? "");
+		const oid = String(t.opportunity_id ?? "");
+		if (tid) tradeDedup.set(`paper-${tid}-${oid}`, t);
 	}
+	for (const t of liveRaw) {
+		const tid = String(t.trade_id ?? "");
+		const oid = String(t.opportunity_id ?? "");
+		if (tid) tradeDedup.set(`live-${tid}-${oid}`, t);
+	}
+
 	const rawTrades = Array.from(tradeDedup.values());
 	const rawOutcomes = readJsonlSafe(SOFT_ARB_OUTCOMES_PATH);
+
 	const calibration = readJsonSafe(
 		SOFT_ARB_CALIBRATION_PATH,
 	) as SoftArbCalibration | null;
@@ -717,44 +746,49 @@ function getSoftArbTrades(): {
 
 	// Merge trades with MTM overlay
 	const trades: SoftArbTrade[] = rawTrades.map((t) => {
-		const tradeId = String(t.trade_id ?? "");
-		const mtmData = mtm?.trades?.[tradeId];
-		const shieldData = shieldTradeState[tradeId];
-		return {
-			trade_id: tradeId,
-			pair: String(t.pair ?? ""),
-			signal_family: String(mtmData?.signal_family ?? getSignalFamily(t)),
-			signal_source: getSignalSource(t),
-			direction: String(t.direction ?? ""),
-			entry_price: Number(t.entry_price ?? 0),
-			position_size_usd: Number(t.position_size_usd ?? 0),
-			shares: Number(t.shares ?? 0),
-			adjusted_edge_pct: normalizeSoftArbPct(t.adjusted_edge_pct),
-			opened_at: String(t.opened_at ?? ""),
-			resolves_by: String(t.resolves_by ?? ""),
-			polymarket_slug: String(t.polymarket_slug ?? ""),
-			metaculus_id: Number(t.metaculus_id ?? 0),
-			status: String(mtmData?.status ?? t.status ?? "OPEN"),
-			current_price:
-				mtmData?.current_price != null ? Number(mtmData.current_price) : null,
-			unrealized_pnl:
-				mtmData?.unrealized_pnl != null ? Number(mtmData.unrealized_pnl) : null,
-			realized_pnl:
-				mtmData?.realized_pnl != null ? Number(mtmData.realized_pnl) : null,
-			shadow_pnl:
-				mtmData?.shadow_pnl != null ? Number(mtmData.shadow_pnl) : null,
-			ready_to_close: Boolean(mtmData?.ready_to_close),
-			fair_value:
-				mtmData?.fair_value != null ? Number(mtmData.fair_value) : null,
-			exit_price:
-				mtmData?.exit_price != null ? Number(mtmData.exit_price) : null,
-			resolved_outcome:
-				mtmData?.resolved_outcome != null
-					? String(mtmData.resolved_outcome)
-					: null,
-			event_slug:
-				mtmData?.event_slug != null ? String(mtmData.event_slug) : null,
-			is_real: !!t.real_trade,
+	        const tradeId = String(t.trade_id ?? "");
+	        const isReal = !!t.real_trade || tradeId.startsWith("live-");
+	        const rowKey = `${isReal ? "live" : "paper"}-${tradeId}-${t.opportunity_id ?? ""}`;
+	        const mtmData = mtm?.trades?.[rowKey];
+	        const shieldData = shieldTradeState[rowKey] ?? shieldTradeState[tradeId];
+	        return {
+	                trade_id: tradeId,
+	                rowKey,
+
+		        pair: String(t.pair ?? t.event_name ?? t.polymarket_question ?? t.target_outcome ?? t.polymarket_slug ?? ""),
+		        signal_family: String(mtmData?.signal_family ?? getSignalFamily(t)),
+		        signal_source: getSignalSource(t),
+		        direction: String(t.direction ?? ""),
+		        entry_price: Number(t.entry_price ?? 0),
+		        position_size_usd: Number(t.position_size_usd ?? t.stake_usd ?? 0),
+		        shares: Number(t.shares ?? t.shares_est ?? 0),
+		        adjusted_edge_pct: normalizeSoftArbPct(t.adjusted_edge_pct ?? t.edge_pct),
+		        opened_at: String(t.opened_at ?? t.timestamp ?? t.executed_at ?? t.resolves_by ?? ""),
+		        resolves_by: String(t.resolves_by ?? ""),
+
+		        polymarket_slug: String(t.polymarket_slug ?? ""),
+		        metaculus_id: Number(t.metaculus_id ?? 0),
+		        status: String(mtmData?.status ?? t.status ?? "OPEN"),
+		        current_price:
+		                mtmData?.current_price != null ? Number(mtmData.current_price) : null,
+		        unrealized_pnl:
+		                mtmData?.unrealized_pnl != null ? Number(mtmData.unrealized_pnl) : null,
+		        realized_pnl:
+		                mtmData?.realized_pnl != null ? Number(mtmData.realized_pnl) : null,
+		        shadow_pnl:
+		                mtmData?.shadow_pnl != null ? Number(mtmData.shadow_pnl) : null,
+		        ready_to_close: Boolean(mtmData?.ready_to_close),
+		        fair_value:
+		                mtmData?.fair_value != null ? Number(mtmData.fair_value) : null,
+		        exit_price:
+		                mtmData?.exit_price != null ? Number(mtmData.exit_price) : null,
+		        resolved_outcome:
+		                mtmData?.resolved_outcome != null
+		                        ? String(mtmData.resolved_outcome)
+		                        : null,
+		        event_slug:
+		                mtmData?.event_slug != null ? String(mtmData.event_slug) : null,
+		        is_real: isReal,
 			shield_coin:
 				shieldData?.shield_coin != null ? String(shieldData.shield_coin) : null,
 			shield_state:
@@ -818,15 +852,14 @@ function getSoftArbTrades(): {
 		);
 
 	// Summary: use MTM summary if available, else compute basic stats
-	const summary = mtm?.summary ?? {
+	const summary = {
+		...(mtm?.summary ?? {}),
 		total_trades: trades.length,
-		open_trades: trades.length,
-		resolved_trades: 0,
-		total_invested: trades.reduce((s, t) => s + t.position_size_usd, 0),
-		total_unrealized_pnl: null,
-		total_realized_pnl: 0,
-		wins: 0,
-		losses: 0,
+		open_trades: trades.filter((t) => t.status === "OPEN").length,
+		resolved_trades: trades.filter((t) => t.status.startsWith("RESOLVED") || t.status.startsWith("CLOSED")).length,
+		total_invested: Math.round(trades.reduce((s, t) => s + t.position_size_usd, 0) * 100) / 100,
+		total_unrealized_pnl: trades.reduce((s, t) => s + (t.unrealized_pnl ?? 0), 0),
+		total_realized_pnl: Math.round(trades.reduce((s, t) => s + (t.realized_pnl ?? 0), 0) * 100) / 100,
 	};
 
 	const outcomeSummary = outcomes.reduce(

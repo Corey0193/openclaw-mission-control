@@ -17,7 +17,17 @@ const WalletIngestorBadge = () => {
 		return () => clearInterval(id);
 	}, []);
 
-	if (!status) return null;
+	if (!status) {
+		return (
+			<div
+				title="No ingestor status received yet"
+				className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider border shadow-sm cursor-default bg-gray-50 text-gray-400 border-gray-200"
+			>
+				<IconDatabaseImport size={14} />
+				INGESTOR: ...
+			</div>
+		);
+	}
 
 	const isLive = status.running && now - status.lastHeartbeatAt < STALE_MS;
 

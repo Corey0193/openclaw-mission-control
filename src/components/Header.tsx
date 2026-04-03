@@ -4,9 +4,7 @@ import SignOutButton from "./Signout";
 import ArbDaemonBadge from "./ArbDaemonBadge";
 import WalletIngestorBadge from "./WalletIngestorBadge";
 import CopyTradeBadge from "./CopyTradeBadge";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { DEFAULT_TENANT_ID } from "../lib/tenant";
+
 import { IconChevronDown } from "@tabler/icons-react";
 
 type HeaderProps = {
@@ -20,21 +18,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 	const arbDropdownRef = useRef<HTMLDivElement>(null);
 	const location = useLocation();
 
-	// Fetch data for dynamic counts
-	const agents = useQuery(api.queries.listAgents, {
-		tenantId: DEFAULT_TENANT_ID,
-	});
-	const tasks = useQuery(api.queries.listTasks, {
-		tenantId: DEFAULT_TENANT_ID,
-	});
 
-	// Calculate counts
-	const activeAgentsCount = agents
-		? agents.filter((a) => a.status === "active").length
-		: 0;
-	const tasksInQueueCount = tasks
-		? tasks.filter((t) => t.status !== "done").length
-		: 0;
 
 	useEffect(() => {
 		const timer = setInterval(() => setTime(new Date()), 1000);
@@ -74,7 +58,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 			.toUpperCase();
 	};
 
-	const isArbActive = location.pathname.startsWith("/arb");
+	const isArbActive = location.pathname.startsWith("/arb") || location.pathname.startsWith("/copy-trade");
 
 	return (
 		<header className="[grid-area:header] flex items-center justify-between px-3 md:px-6 py-2 bg-white border-b border-border z-10 shadow-sm">
@@ -207,42 +191,23 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 								>
 									Wallets
 								</Link>
+								<Link
+									to="/copy-trade"
+									onClick={() => setIsArbDropdownOpen(false)}
+									className={`
+								                block px-4 py-2 text-[12px] font-semibold hover:bg-muted transition-colors
+								                ${location.pathname.startsWith("/copy-trade") ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
+								        `}
+								>
+									Copy Trade
+								</Link>
 							</div>
 						)}
 					</div>
-					<Link
-						to="/copy-trade"
-						className={`
-							text-[12px] font-semibold tracking-wide px-3.5 py-1.5 rounded-full transition-all
-							${location.pathname.startsWith("/copy-trade") ? "bg-[#7048e8] text-white shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted/80"}
-						`}
-					>
-						Copy Trade
-					</Link>
 				</nav>
 			</div>
 
-			<div className="hidden md:flex items-center gap-6 bg-muted/40 px-5 py-2 rounded-full border border-border/50">
-				<div className="flex items-center gap-2">
-					<div className="w-1.5 h-1.5 rounded-full bg-blue-500/80" />
-					<div className="text-[11px] font-bold text-muted-foreground tracking-wider">
-						AGENTS
-					</div>
-					<div className="text-[13px] font-extrabold text-foreground">
-						{agents ? activeAgentsCount : "-"}
-					</div>
-				</div>
-				<div className="w-px h-3.5 bg-border" />
-				<div className="flex items-center gap-2">
-					<div className="w-1.5 h-1.5 rounded-full bg-purple-500/80" />
-					<div className="text-[11px] font-bold text-muted-foreground tracking-wider">
-						QUEUE
-					</div>
-					<div className="text-[13px] font-extrabold text-foreground">
-						{tasks ? tasksInQueueCount : "-"}
-					</div>
-				</div>
-			</div>
+
 
 			<div className="flex items-center gap-3 md:gap-5">
 				{onOpenLiveFeed && (

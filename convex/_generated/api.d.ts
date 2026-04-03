@@ -14,6 +14,7 @@ import type * as arbPaperTradeActions from "../arbPaperTradeActions.js";
 import type * as arbPaperTrades from "../arbPaperTrades.js";
 import type * as auth from "../auth.js";
 import type * as backtesting from "../backtesting.js";
+import type * as copyTrade from "../copyTrade.js";
 import type * as crons from "../crons.js";
 import type * as documents from "../documents.js";
 import type * as experiments from "../experiments.js";
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   arbPaperTrades: typeof arbPaperTrades;
   auth: typeof auth;
   backtesting: typeof backtesting;
+  copyTrade: typeof copyTrade;
   crons: typeof crons;
   documents: typeof documents;
   experiments: typeof experiments;
