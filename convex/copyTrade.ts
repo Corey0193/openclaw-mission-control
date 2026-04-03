@@ -118,6 +118,17 @@ export const syncPositions = mutation({
 	},
 	returns: v.null(),
 	handler: async (ctx, args) => {
+		const existingRows = await ctx.db
+			.query("copyTradePositions")
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.collect();
+		const incomingIds = new Set(args.positions.map((pos) => pos.positionId));
+		for (const row of existingRows) {
+			if (!incomingIds.has(row.positionId)) {
+				await ctx.db.delete("copyTradePositions", row._id);
+			}
+		}
+
 		for (const pos of args.positions) {
 			const existing = await ctx.db
 				.query("copyTradePositions")
