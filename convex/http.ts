@@ -7,6 +7,108 @@ const http = httpRouter();
 
 auth.addHttpRoutes(http);
 
+async function upsertWalletIngestorStatus(ctx: any, body: any) {
+	await ctx.runMutation(api.walletIngestor.upsertStatus, {
+		tenantId: body.tenant_id ?? "default",
+		running: body.running ?? false,
+		pid: body.pid,
+		walletCount: body.wallet_count ?? 0,
+		tradeCount: body.trade_count ?? 0,
+		status: body.status ?? "unknown",
+	});
+}
+
+async function upsertWallet(ctx: any, body: any) {
+	await ctx.runMutation(api.wallets.upsert, {
+		address: String(body.address ?? ""),
+		username:
+			body.username != null && body.username !== ""
+				? String(body.username)
+				: undefined,
+		totalPnl: Number(body.totalPnl ?? body.total_pnl ?? 0),
+		performanceScore: Number(
+			body.performanceScore ?? body.performance_score ?? 0,
+		),
+		winRate:
+			body.winRate != null
+				? Number(body.winRate)
+				: body.win_rate != null
+					? Number(body.win_rate)
+					: undefined,
+		tradeCount:
+			body.tradeCount != null
+				? Number(body.tradeCount)
+				: body.trade_count != null
+					? Number(body.trade_count)
+					: undefined,
+		firstTradeAt:
+			body.firstTradeAt != null
+				? String(body.firstTradeAt)
+				: body.first_trade_at != null
+					? String(body.first_trade_at)
+					: undefined,
+		isInsider: Boolean(body.isInsider ?? body.is_insider ?? false),
+		tags: Array.isArray(body.tags)
+			? body.tags.map((tag: unknown) => String(tag))
+			: [],
+		tenantId: body.tenantId ?? body.tenant_id ?? "default",
+		copyTradingScore:
+			body.copyTradingScore != null
+				? Number(body.copyTradingScore)
+				: body.copy_trading_score != null
+					? Number(body.copy_trading_score)
+					: undefined,
+		ctsConsistency:
+			body.ctsConsistency != null
+				? Number(body.ctsConsistency)
+				: body.cts_consistency != null
+					? Number(body.cts_consistency)
+					: undefined,
+		ctsWinRate:
+			body.ctsWinRate != null
+				? Number(body.ctsWinRate)
+				: body.cts_win_rate != null
+					? Number(body.cts_win_rate)
+					: undefined,
+		pnl7d:
+			body.pnl7d != null
+				? Number(body.pnl7d)
+				: body.pnl_7d != null
+					? Number(body.pnl_7d)
+					: undefined,
+		pnl30d:
+			body.pnl30d != null
+				? Number(body.pnl30d)
+				: body.pnl_30d != null
+					? Number(body.pnl_30d)
+					: undefined,
+		pnl90d:
+			body.pnl90d != null
+				? Number(body.pnl90d)
+				: body.pnl_90d != null
+					? Number(body.pnl_90d)
+					: undefined,
+		maxDrawdownPct:
+			body.maxDrawdownPct != null
+				? Number(body.maxDrawdownPct)
+				: body.max_drawdown_pct != null
+					? Number(body.max_drawdown_pct)
+					: undefined,
+		profitableWeeksRatio:
+			body.profitableWeeksRatio != null
+				? Number(body.profitableWeeksRatio)
+				: body.profitable_weeks_ratio != null
+					? Number(body.profitable_weeks_ratio)
+					: undefined,
+		computedWinRate:
+			body.computedWinRate != null
+				? Number(body.computedWinRate)
+				: body.computed_win_rate != null
+					? Number(body.computed_win_rate)
+					: undefined,
+	});
+}
+
 // OpenClaw webhook endpoint
 http.route({
 	path: "/openclaw/event",
@@ -313,14 +415,35 @@ http.route({
 	method: "POST",
 	handler: httpAction(async (ctx, request) => {
 		const body = await request.json();
-		await ctx.runMutation(api.walletIngestor.upsertStatus, {
-			tenantId: body.tenant_id ?? "default",
-			running: body.running ?? false,
-			pid: body.pid,
-			walletCount: body.wallet_count ?? 0,
-			tradeCount: body.trade_count ?? 0,
-			status: body.status ?? "unknown",
+		await upsertWalletIngestorStatus(ctx, body);
+		return new Response(JSON.stringify({ ok: true }), {
+			status: 200,
+			headers: { "Content-Type": "application/json" },
 		});
+	}),
+});
+
+// Backward-compatible alias used by existing wallet_ingestor.py deployments.
+http.route({
+	path: "/wallet/ingestor-status",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		await upsertWalletIngestorStatus(ctx, body);
+		return new Response(JSON.stringify({ ok: true }), {
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		});
+	}),
+});
+
+// Backward-compatible wallet sync endpoint used by existing sync scripts.
+http.route({
+	path: "/wallet/upsert",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		await upsertWallet(ctx, body);
 		return new Response(JSON.stringify({ ok: true }), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
