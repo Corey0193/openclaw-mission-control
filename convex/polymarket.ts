@@ -21,6 +21,7 @@ const positionValidator = v.object({
 	unrealizedPnl: v.number(),
 	marketClosed: v.boolean(),
 	marketResolved: v.boolean(),
+	isOpen: v.optional(v.boolean()),
 	winner: v.optional(v.boolean()),
 });
 

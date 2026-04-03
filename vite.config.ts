@@ -206,13 +206,22 @@ function loadOpportunityDossiers(): Map<string, Record<string, unknown>> {
 
 function buildMergedLedgerRows(
 	rows: Record<string, unknown>[],
+	mode: "paper" | "live",
 ): Record<string, Record<string, unknown>> {
 	const deduped = new Map<string, Record<string, unknown>>();
 	for (const row of rows) {
 		const tradeId = firstNonEmptyString(row.trade_id);
-		if (!tradeId) continue;
-		const current = deduped.get(tradeId);
-		deduped.set(tradeId, current ? mergeLedgerRows(current, row) : { ...row });
+		const orderId = firstNonEmptyString(row.order_id, row.polymarket_order_id);
+		const dedupeKey =
+			mode === "live"
+				? firstNonEmptyString(orderId, tradeId)
+				: tradeId;
+		if (!dedupeKey) continue;
+		const current = deduped.get(dedupeKey);
+		deduped.set(
+			dedupeKey,
+			current ? mergeLedgerRows(current, row) : { ...row },
+		);
 	}
 	return deduped;
 }
@@ -928,8 +937,8 @@ async function getSoftArbTrades(): Promise<{
 	const paperRaw = readJsonlSafe(SOFT_ARB_TRADES_PATH);
 	const liveRaw = readJsonlSafe(SOFT_ARB_LIVE_TRADES_PATH);
 	const dossierByOpportunity = loadOpportunityDossiers();
-	const paperTrades = buildMergedLedgerRows(paperRaw);
-	const liveTrades = buildMergedLedgerRows(liveRaw);
+	const paperTrades = buildMergedLedgerRows(paperRaw, "paper");
+	const liveTrades = buildMergedLedgerRows(liveRaw, "live");
 	const rawTrades = [
 		...paperTrades.values(),
 		...liveTrades.values(),
@@ -1004,12 +1013,15 @@ async function getSoftArbTrades(): Promise<{
 
 	// Merge trades with MTM overlay
 	const trades: SoftArbTrade[] = rawTrades.map((t) => {
-		const tradeId = firstNonEmptyString(t.trade_id);
+		const rawTradeId = firstNonEmptyString(t.trade_id);
+		const orderId = firstNonEmptyString(t.order_id, t.polymarket_order_id);
 		const opportunityId = firstNonEmptyString(t.opportunity_id);
-		const isReal = !!t.real_trade || tradeId.startsWith("live-");
-		const rowKey = `${isReal ? "live" : "paper"}-${tradeId}-${opportunityId}`;
-		const mtmData = mtm?.trades?.[rowKey] ?? mtm?.trades?.[tradeId];
-		const shieldData = shieldTradeState[rowKey] ?? shieldTradeState[tradeId];
+		const isReal = !!t.real_trade || rawTradeId.startsWith("live-");
+		const tradeId =
+			isReal && orderId ? `${rawTradeId}:${orderId}` : rawTradeId;
+		const rowKey = `${isReal ? "live" : "paper"}-${rawTradeId}-${opportunityId}`;
+		const mtmData = mtm?.trades?.[rowKey] ?? mtm?.trades?.[rawTradeId];
+		const shieldData = shieldTradeState[rowKey] ?? shieldTradeState[rawTradeId];
 		const dossier = dossierByOpportunity.get(opportunityId) ?? null;
 		const dossierDecision =
 			dossier && typeof dossier.decision === "object" && dossier.decision
@@ -1024,6 +1036,7 @@ async function getSoftArbTrades(): Promise<{
 			pair: firstNonEmptyString(
 				t.pair,
 				t.event_name,
+				t.market_question,
 				t.polymarket_question,
 				t.target_outcome,
 				t.polymarket_slug,
@@ -1072,7 +1085,7 @@ async function getSoftArbTrades(): Promise<{
 			event_slug:
 				mtmData?.event_slug != null ? String(mtmData.event_slug) : null,
 			is_real: isReal,
-			order_id: t.order_id != null ? String(t.order_id) : null,
+			order_id: orderId || null,
 			order_status:
 				t.order_status != null
 					? String(t.order_status)

@@ -164,6 +164,7 @@ export const refreshPrices = internalAction({
 		await ctx.runMutation(api.polymarket.syncPositions, {
 			walletAddress,
 			balanceUsdc: balanceUsdc ?? data.balanceUsdc,
+			openOrders: data.openOrders ?? [],
 			positions,
 			trades,
 			totalInvested: Math.round(totalInvested * 100) / 100,

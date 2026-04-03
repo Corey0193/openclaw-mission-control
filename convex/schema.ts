@@ -212,24 +212,26 @@ export default defineSchema({
 	polymarketPositions: defineTable({
 		walletAddress: v.string(),
 		balanceUsdc: v.number(),
-		openOrders: v.array(
-			v.object({
-				id: v.string(),
-				status: v.string(),
-				market: v.string(),
-				marketQuestion: v.string(),
-				marketSlug: v.string(),
-				assetId: v.string(),
-				outcome: v.string(),
-				side: v.string(),
-				originalSize: v.number(),
-				sizeMatched: v.number(),
-				sizeRemaining: v.number(),
-				price: v.number(),
-				orderType: v.string(),
-				createdAt: v.number(),
-				expiration: v.optional(v.number()),
-			}),
+		openOrders: v.optional(
+			v.array(
+				v.object({
+					id: v.string(),
+					status: v.string(),
+					market: v.string(),
+					marketQuestion: v.string(),
+					marketSlug: v.string(),
+					assetId: v.string(),
+					outcome: v.string(),
+					side: v.string(),
+					originalSize: v.number(),
+					sizeMatched: v.number(),
+					sizeRemaining: v.number(),
+					price: v.number(),
+					orderType: v.string(),
+					createdAt: v.number(),
+					expiration: v.optional(v.number()),
+				}),
+			),
 		),
 		positions: v.array(
 			v.object({
@@ -246,6 +248,7 @@ export default defineSchema({
 				unrealizedPnl: v.number(),
 				marketClosed: v.boolean(),
 				marketResolved: v.boolean(),
+				isOpen: v.optional(v.boolean()),
 				winner: v.optional(v.boolean()),
 			}),
 		),

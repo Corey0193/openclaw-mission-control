@@ -28,8 +28,90 @@ http.route({
 	handler: httpAction(async (ctx, request) => {
 		const body = await request.json();
 		await ctx.runMutation(api.polymarket.syncPositions, {
-			...body,
-			openOrders: body.openOrders ?? body.open_orders ?? [],
+			walletAddress: String(body.walletAddress ?? body.wallet_address ?? ""),
+			balanceUsdc: Number(body.balanceUsdc ?? body.balance_usdc ?? 0),
+			openOrders: (body.openOrders ?? body.open_orders ?? []).map(
+				(order: Record<string, unknown>) => ({
+					id: String(order.id ?? ""),
+					status: String(order.status ?? "LIVE"),
+					market: String(order.market ?? ""),
+					marketQuestion: String(
+						order.marketQuestion ?? order.market_question ?? "",
+					),
+					marketSlug: String(order.marketSlug ?? order.market_slug ?? ""),
+					assetId: String(order.assetId ?? order.asset_id ?? ""),
+					outcome: String(order.outcome ?? ""),
+					side: String(order.side ?? ""),
+					originalSize: Number(
+						order.originalSize ?? order.original_size ?? 0,
+					),
+					sizeMatched: Number(order.sizeMatched ?? order.size_matched ?? 0),
+					sizeRemaining: Number(
+						order.sizeRemaining ?? order.size_remaining ?? 0,
+					),
+					price: Number(order.price ?? 0),
+					orderType: String(order.orderType ?? order.order_type ?? ""),
+					createdAt: Number(order.createdAt ?? order.created_at ?? Date.now()),
+					...(order.expiration != null && order.expiration !== ""
+						? { expiration: Number(order.expiration) }
+						: {}),
+				}),
+			),
+			positions: (body.positions ?? []).map((position: Record<string, unknown>) => ({
+				market: String(position.market ?? ""),
+				marketQuestion: String(
+					position.marketQuestion ?? position.market_question ?? "",
+				),
+				marketSlug: String(position.marketSlug ?? position.market_slug ?? ""),
+				outcome: String(position.outcome ?? ""),
+				shares: Number(position.shares ?? 0),
+				entryPrice: Number(position.entryPrice ?? position.entry_price ?? 0),
+				currentPrice: Number(
+					position.currentPrice ?? position.current_price ?? 0,
+				),
+				costBasis: Number(position.costBasis ?? position.cost_basis ?? 0),
+				currentValue: Number(
+					position.currentValue ?? position.current_value ?? 0,
+				),
+				payout: Number(position.payout ?? 0),
+				unrealizedPnl: Number(
+					position.unrealizedPnl ?? position.unrealized_pnl ?? 0,
+				),
+				marketClosed: Boolean(
+					position.marketClosed ?? position.market_closed ?? false,
+				),
+				marketResolved: Boolean(
+					position.marketResolved ?? position.market_resolved ?? false,
+				),
+				...(position.winner != null
+					? { winner: Boolean(position.winner) }
+					: {}),
+			})),
+			trades: (body.trades ?? []).map((trade: Record<string, unknown>) => ({
+				id: String(trade.id ?? ""),
+				market: String(trade.market ?? ""),
+				marketQuestion: String(
+					trade.marketQuestion ?? trade.market_question ?? "",
+				),
+				side: String(trade.side ?? ""),
+				outcome: String(trade.outcome ?? ""),
+				shares: Number(trade.shares ?? 0),
+				price: Number(trade.price ?? 0),
+				cost: Number(trade.cost ?? 0),
+				payout: Number(trade.payout ?? 0),
+				timestamp: Number(trade.timestamp ?? 0),
+				status: String(trade.status ?? "CONFIRMED"),
+				...(trade.txHash != null || trade.tx_hash != null
+					? { txHash: String(trade.txHash ?? trade.tx_hash) }
+					: {}),
+			})),
+			totalInvested: Number(body.totalInvested ?? body.total_invested ?? 0),
+			totalCurrentValue: Number(
+				body.totalCurrentValue ?? body.total_current_value ?? 0,
+			),
+			totalPnl: Number(body.totalPnl ?? body.total_pnl ?? 0),
+			lastSyncedAt: Number(body.lastSyncedAt ?? body.last_synced_at ?? Date.now()),
+			tenantId: String(body.tenantId ?? body.tenant_id ?? "default"),
 		});
 		return new Response(JSON.stringify({ ok: true }), {
 			status: 200,
