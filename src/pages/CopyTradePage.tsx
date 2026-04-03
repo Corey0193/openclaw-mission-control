@@ -401,22 +401,34 @@ export default function CopyTradePage() {
 										                        {fmtUsd(unrealPnl, true)}
 										                        </td>
 										                        <td className="px-4 py-2.5 tabular-nums">
-										                                <div className="flex flex-col gap-0.5">
-										                                        {pos.takeProfitPrice && (
-										                                                <div className="text-[10px] text-emerald-600 font-bold">
-										                                                        TP: {pos.takeProfitPrice.toFixed(3)}
-										                                                </div>
-										                                        )}
-										                                        {pos.stopLossPrice && (
-										                                                <div className="text-[10px] text-red-500 font-bold">
-										                                                        SL: {pos.stopLossPrice.toFixed(3)}
-										                                                </div>
-										                                        )}
-										                                        {!pos.takeProfitPrice && !pos.stopLossPrice && (
-										                                                <div className="text-[10px] text-muted-foreground">
-										                                                        Mirror Only
-										                                                </div>
-										                                        )}
+										                                <div className="flex flex-col gap-1">
+										                                        {/* Price Targets */}
+										                                        <div className="flex flex-col gap-0.5">
+										                                                {pos.takeProfitPrice && (
+										                                                        <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+										                                                                <span className="w-4">TP</span> {pos.takeProfitPrice.toFixed(3)}
+										                                                        </div>
+										                                                )}
+										                                                {pos.stopLossPrice && (
+										                                                        <div className="text-[10px] text-red-500 font-bold flex items-center gap-1">
+										                                                                <span className="w-4">SL</span> {pos.stopLossPrice.toFixed(3)}
+										                                                        </div>
+										                                                )}
+										                                        </div>
+
+										                                        {/* Strategy Indicators */}
+										                                        <div className="flex flex-wrap gap-1">
+										                                                {(pos.exitStrategy === "MIRROR" || pos.exitStrategy === "MIRROR_WITH_SL") && (
+										                                                        <span className="px-1 py-0.5 bg-violet-50 text-violet-600 rounded text-[9px] font-bold border border-violet-100 uppercase">
+										                                                                Mirroring {pos.leaderLabel || "Leader"}
+										                                                        </span>
+										                                                )}
+										                                                {pos.timeLimitAt && (
+										                                                        <span className="px-1 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-bold border border-blue-100 uppercase" title={`Expires at ${new Date(pos.timeLimitAt * 1000).toLocaleString()}`}>
+										                                                                Max {Math.round((pos.timeLimitAt - Date.now() / 1000) / 3600)}h left
+										                                                        </span>
+										                                                )}
+										                                        </div>
 										                                </div>
 										                        </td>													<td className="px-4 py-2.5 text-muted-foreground">
 														{holdTime(pos.entryTimestamp)}

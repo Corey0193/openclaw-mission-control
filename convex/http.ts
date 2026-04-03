@@ -274,6 +274,8 @@ http.route({
 			currentPrice: p.current_price != null ? Number(p.current_price) : undefined,
 			stopLossPrice: p.stop_loss_price != null ? Number(p.stop_loss_price) : undefined,
 			takeProfitPrice: p.take_profit_price != null ? Number(p.take_profit_price) : undefined,
+			exitStrategy: p.exit_strategy as string | undefined,
+			timeLimitAt: p.time_limit_at != null ? Number(p.time_limit_at) : undefined,
 			exitPrice: p.exit_price != null ? Number(p.exit_price) : undefined,			exitTimestamp: p.exit_timestamp != null ? Number(p.exit_timestamp) : undefined,
 			exitReason:
 				typeof p.exit_reason === "string"
