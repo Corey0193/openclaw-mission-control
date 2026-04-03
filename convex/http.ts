@@ -245,6 +245,8 @@ http.route({
 			openPositions: body.open_positions ?? 0,
 			totalPaperPnl: body.total_paper_pnl ?? 0,
 			status: body.status ?? "unknown",
+			leaderLabel: body.leader_label != null ? String(body.leader_label) : undefined,
+			marketTitle: body.market_title != null ? String(body.market_title) : undefined,
 		});
 		return new Response(JSON.stringify({ ok: true }), {
 			status: 200,
@@ -259,11 +261,12 @@ http.route({
 	method: "POST",
 	handler: httpAction(async (ctx, request) => {
 		const body = await request.json();
-		const positions = (body.positions ?? []).map((p: Record<string, unknown>) => ({
-			positionId: p.position_id as string,
-			leaderAddress: p.leader_address as string,
-			marketId: p.market_id as string,
-			tokenId: p.token_id as string,
+		console.log("SYNC DEBUG: Received", (body.positions ?? []).length, "positions");
+		const positions = (body.positions ?? []).map((p: Record<string, any>) => ({
+			positionId: String(p.position_id),
+			leaderAddress: String(p.leader_address),
+			marketId: String(p.market_id),
+			tokenId: String(p.token_id),
 			outcomeIndex: Number(p.outcome_index),
 			shares: Number(p.shares),
 			entryPrice: Number(p.entry_price),
@@ -274,9 +277,10 @@ http.route({
 			currentPrice: p.current_price != null ? Number(p.current_price) : undefined,
 			stopLossPrice: p.stop_loss_price != null ? Number(p.stop_loss_price) : undefined,
 			takeProfitPrice: p.take_profit_price != null ? Number(p.take_profit_price) : undefined,
-			exitStrategy: p.exit_strategy as string | undefined,
+			exitStrategy: p.exit_strategy != null ? String(p.exit_strategy) : undefined,
 			timeLimitAt: p.time_limit_at != null ? Number(p.time_limit_at) : undefined,
-			exitPrice: p.exit_price != null ? Number(p.exit_price) : undefined,			exitTimestamp: p.exit_timestamp != null ? Number(p.exit_timestamp) : undefined,
+			exitPrice: p.exit_price != null ? Number(p.exit_price) : undefined,
+			exitTimestamp: p.exit_timestamp != null ? Number(p.exit_timestamp) : undefined,
 			exitReason:
 				typeof p.exit_reason === "string"
 					? p.exit_reason
@@ -284,12 +288,14 @@ http.route({
 						? JSON.stringify(p.exit_reason)
 						: undefined,
 			pnl: p.pnl != null ? Number(p.pnl) : undefined,
-			mode: (p.mode as string) ?? "PAPER",
-			leaderLabel: p.leader_label as string | undefined,
-			marketTitle: p.market_title as string | undefined,
-			}));		if (positions.length > 0) {
+			mode: String(p.mode ?? "PAPER"),
+			leaderLabel: p.leader_label != null ? String(p.leader_label) : undefined,
+			marketTitle: p.market_title != null ? String(p.market_title) : undefined,
+		}));
+		if (positions.length > 0) {
+			console.log("SYNC DEBUG: Calling syncPositions for", positions.length, "mapped positions");
 			await ctx.runMutation(api.copyTrade.syncPositions, {
-				tenantId: body.tenant_id ?? "default",
+				tenantId: String(body.tenant_id ?? "default"),
 				positions,
 			});
 		}
@@ -302,7 +308,7 @@ http.route({
 
 // Wallet ingestor status endpoint
 http.route({
-	path: "/wallet/ingestor-status",
+	path: "/wallet-ingestor/status",
 	method: "POST",
 	handler: httpAction(async (ctx, request) => {
 		const body = await request.json();
@@ -319,77 +325,6 @@ http.route({
 			headers: { "Content-Type": "application/json" },
 		});
 	}),
-});
-
-// Wallet upsert endpoint
-http.route({
-	path: "/wallet/upsert",
-	method: "POST",
-	handler: httpAction(async (ctx, request) => {
-		const body = await request.json();
-		await ctx.runMutation(api.wallets.upsert, {
-			address: body.address,
-			username: body.username,
-			totalPnl: body.totalPnl ?? 0,
-			performanceScore: body.performanceScore ?? 0,
-			winRate: body.winRate,
-			tradeCount: body.tradeCount,
-			firstTradeAt: body.firstTradeAt,
-			isInsider: body.isInsider ?? false,
-			tags: body.tags ?? [],
-			tenantId: body.tenantId ?? "default",
-			// CTS fields
-			copyTradingScore: body.copyTradingScore,
-			ctsConsistency: body.ctsConsistency,
-			ctsWinRate: body.ctsWinRate,
-			pnl7d: body.pnl7d,
-			pnl30d: body.pnl30d,
-			pnl90d: body.pnl90d,
-			maxDrawdownPct: body.maxDrawdownPct,
-			profitableWeeksRatio: body.profitableWeeksRatio,
-			computedWinRate: body.computedWinRate,
-		});
-		return new Response(JSON.stringify({ ok: true }), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		});
-	}),
-});
-// Token telemetry endpoint
-http.route({
-	path: "/telemetry/tokens",
-	method: "POST",
-	handler: httpAction(async (ctx, request) => {
-		const body = await request.json();
-		await ctx.runMutation(api.tokens.logTokenUsage, {
-			agentId: body.agentId,
-			agentName: body.agentName,
-			skillName: body.skillName,
-			inputTokens: body.inputTokens ?? 0,
-			outputTokens: body.outputTokens ?? 0,
-			totalTokens: body.totalTokens ?? body.inputTokens + body.outputTokens,
-			runId: body.runId,
-			tenantId: body.tenantId ?? "default",
-		});
-		return new Response(JSON.stringify({ ok: true }), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		});
-	}),
-});
-
-// Experiment sync endpoint
-http.route({
-        path: "/experiments/sync",
-        method: "POST",
-        handler: httpAction(async (ctx, request) => {
-                const body = await request.json();
-                await ctx.runMutation(api.experiments.syncExperiment, body);
-                return new Response(JSON.stringify({ ok: true }), {
-                        status: 200,
-                        headers: { "Content-Type": "application/json" },
-                });
-        }),
 });
 
 export default http;
