@@ -1,6 +1,23 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+const canaryStatusValidator = v.object({
+	session_id: v.string(),
+	session_started_at: v.string(),
+	attempts: v.number(),
+	rejected: v.number(),
+	posted: v.number(),
+	maker_fills: v.number(),
+	maker_timeouts: v.number(),
+	successes: v.number(),
+	fok_kills: v.number(),
+	emergency_dump_failures: v.number(),
+	modeled_pnl: v.number(),
+	last_reject_reason: v.string(),
+	last_halt_reason: v.string(),
+	last_event_at: v.string(),
+});
+
 export const upsertDaemonStatus = mutation({
 	args: {
 		tenantId: v.string(),
@@ -9,6 +26,7 @@ export const upsertDaemonStatus = mutation({
 		processCount: v.number(),
 		pid: v.optional(v.number()),
 		event: v.string(),
+		canary: v.optional(canaryStatusValidator),
 	},
 	returns: v.null(),
 	handler: async (ctx, args) => {
@@ -25,6 +43,7 @@ export const upsertDaemonStatus = mutation({
 			pid: args.pid,
 			lastHeartbeatAt: now,
 			event: args.event,
+			canary: args.canary,
 		};
 
 		if (existing) {
@@ -55,6 +74,7 @@ export const getDaemonStatus = query({
 			startedAt: v.optional(v.number()),
 			lastHeartbeatAt: v.number(),
 			event: v.string(),
+			canary: v.optional(canaryStatusValidator),
 		}),
 		v.null(),
 	),
@@ -72,6 +92,7 @@ export const getDaemonStatus = query({
 			startedAt: status.startedAt,
 			lastHeartbeatAt: status.lastHeartbeatAt,
 			event: status.event,
+			canary: status.canary,
 		};
 	},
 });

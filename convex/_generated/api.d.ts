@@ -9,6 +9,7 @@
  */
 
 import type * as agents from "../agents.js";
+import type * as arbCanary from "../arbCanary.js";
 import type * as arbDaemon from "../arbDaemon.js";
 import type * as arbPaperTradeActions from "../arbPaperTradeActions.js";
 import type * as arbPaperTrades from "../arbPaperTrades.js";
@@ -39,6 +40,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   agents: typeof agents;
+  arbCanary: typeof arbCanary;
   arbDaemon: typeof arbDaemon;
   arbPaperTradeActions: typeof arbPaperTradeActions;
   arbPaperTrades: typeof arbPaperTrades;

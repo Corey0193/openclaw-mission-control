@@ -10,6 +10,7 @@ type Variant =
 	| "unknown"
 	| "offline"
 	| "paper"
+	| "canary"
 	| "live"
 	| "multiple"
 	| "stale";
@@ -34,6 +35,12 @@ const STYLES: Record<Variant, Style> = {
 	},
 	offline: { bg: "bg-muted", text: "text-[#495057]", dot: "bg-[#868e96]" },
 	paper: { bg: "bg-[#e6fcf5]", text: "text-[#0ca678]", dot: "bg-[#0ca678]" },
+	canary: {
+		bg: "bg-[#fff9db]",
+		text: "text-[#e67700]",
+		dot: "bg-[#e67700]",
+		pulse: true,
+	},
 	live: {
 		bg: "bg-[#fff5f5]",
 		text: "text-[#e03131]",
@@ -68,6 +75,7 @@ function resolveVariant(
 	if (status.running && now - status.lastHeartbeatAt > STALE_MS) return "stale";
 	if (!status.running) return "offline";
 	if (status.processCount > 1) return "multiple";
+	if (status.mode === "live-canary") return "canary";
 	if (status.mode === "live") return "live";
 	return "paper";
 }
@@ -85,6 +93,8 @@ function resolveLabel(
 			return "ARB OFF";
 		case "paper":
 			return "ARB — PAPER";
+		case "canary":
+			return "ARB — CANARY";
 		case "live":
 			return "ARB — LIVE ⚠";
 		case "multiple":

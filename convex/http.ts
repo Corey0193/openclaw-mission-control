@@ -222,6 +222,7 @@ http.route({
 			processCount: body.process_count ?? 0,
 			pid: body.pid,
 			event: body.event ?? "heartbeat",
+			canary: body.canary,
 		});
 		return new Response(JSON.stringify({ ok: true }), {
 			status: 200,

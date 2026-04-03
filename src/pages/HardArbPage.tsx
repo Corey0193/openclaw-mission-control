@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
@@ -13,6 +13,7 @@ import {
 	IconShieldCheck,
 	IconAlertTriangle,
 	IconChevronDown,
+	IconActivityHeartbeat,
 } from "@tabler/icons-react";
 import {
 	ResponsiveContainer,
@@ -172,6 +173,58 @@ function ScatterTooltip({ active, payload }: ChartTooltipProps) {
 
 type PaperTrade = Doc<"arbPaperTrades">;
 type StrategyTradeType = "spread" | "complement_lock" | "market_making";
+type CanaryTrade = {
+	timestamp: string;
+	event: string;
+	mode: string;
+	pair_name?: string;
+	maker_exchange?: string;
+	taker_exchange?: string;
+	maker_price?: number;
+	taker_price?: number;
+	viable_size?: number;
+	estimated_profit?: number;
+	trade_value?: number;
+	token_id?: string;
+	lmts_slug?: string;
+	expiration_ts?: number;
+	reason?: string;
+	maker_order_id?: string;
+	taker_tx?: string;
+	realized_profit?: number;
+	estimated_loss?: number;
+	dump_type?: string;
+	order_id?: string;
+};
+
+function formatCanaryEvent(event: string): string {
+	if (event === "maker_fill") return "Maker Fill";
+	if (event === "maker_timeout") return "Maker Timeout";
+	if (event === "fok_kill") return "FOK Kill";
+	if (event === "emergency_dump") return "Emergency Dump";
+	if (event === "emergency_dump_failure") return "Dump Failure";
+	return event
+		.split("_")
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+		.join(" ");
+}
+
+function formatCanaryEventTone(event: string): string {
+	if (event === "success" || event === "maker_fill") {
+		return "bg-emerald-50 text-emerald-700";
+	}
+	if (event === "reject" || event === "maker_timeout") {
+		return "bg-amber-50 text-amber-700";
+	}
+	if (
+		event === "fok_kill" ||
+		event === "emergency_dump_failure" ||
+		event === "halt"
+	) {
+		return "bg-red-50 text-red-700";
+	}
+	return "bg-slate-100 text-slate-700";
+}
 
 function getTradeType(trade: PaperTrade): StrategyTradeType {
 	if (
@@ -310,10 +363,14 @@ export default function HardArbPage() {
 	const daemonStatus = useQuery(api.arbDaemon.getDaemonStatus, {
 		tenantId: DEFAULT_TENANT_ID,
 	});
+	const getRecentCanaryTrades = useAction(
+		api.arbCanary.getRecentCanaryTradesAction,
+	);
 
 	const [hardArbOpen, setHardArbOpen] = useState(true);
 	const [showLowConf, setShowLowConf] = useState(false);
 	const [nowMs, setNowMs] = useState(0);
+	const [canaryTrades, setCanaryTrades] = useState<CanaryTrade[] | null>(null);
 
 	useEffect(() => {
 		const updateNow = () => setNowMs(Date.now());
@@ -321,6 +378,31 @@ export default function HardArbPage() {
 		const intervalId = window.setInterval(updateNow, 30_000);
 		return () => window.clearInterval(intervalId);
 	}, []);
+
+	const refreshCanaryTrades = useCallback(async () => {
+		try {
+			const rows = await getRecentCanaryTrades({
+				tenantId: DEFAULT_TENANT_ID,
+				limit: 25,
+			});
+			setCanaryTrades(rows as CanaryTrade[]);
+		} catch (error) {
+			console.error("Failed to load canary trades", error);
+			setCanaryTrades([]);
+		}
+	}, [getRecentCanaryTrades]);
+
+	useEffect(() => {
+		if (daemonStatus?.mode !== "live-canary") {
+			setCanaryTrades(null);
+			return;
+		}
+		void refreshCanaryTrades();
+		const intervalId = window.setInterval(() => {
+			void refreshCanaryTrades();
+		}, 30_000);
+		return () => window.clearInterval(intervalId);
+	}, [daemonStatus?.mode, refreshCanaryTrades]);
 
 	const allTrades = useMemo(() => trades ?? [], [trades]);
 
@@ -381,6 +463,8 @@ export default function HardArbPage() {
 		daemonStatus !== undefined &&
 		nowMs > 0 &&
 		nowMs - daemonStatus.lastHeartbeatAt > 2 * 60 * 1000;
+	const canaryStatus = daemonStatus?.canary;
+	const isCanaryMode = daemonStatus?.mode === "live-canary";
 	const staleHeartbeatLabel = daemonStatus
 		? timeAgo(daemonStatus.lastHeartbeatAt)
 		: "";
@@ -578,7 +662,7 @@ export default function HardArbPage() {
 									<div className="flex flex-col gap-2 rounded-xl border border-blue-100 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
 										<div>
 											<div className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-												Paper Mode Status
+												Daemon Status
 											</div>
 											<div className="text-sm font-semibold text-slate-900">
 												{daemonHeartbeatStale
@@ -586,16 +670,170 @@ export default function HardArbPage() {
 													: daemonStatus?.running
 														? daemonStatus.mode === "live"
 															? "Daemon connected in LIVE mode"
-															: "Daemon connected in PAPER mode"
+															: daemonStatus.mode === "live-canary"
+																? "Daemon connected in LIVE CANARY mode"
+																: "Daemon connected in PAPER mode"
 														: "Using paper-trade history from Mission Control"}
 											</div>
 										</div>
 										<div className="text-xs text-muted-foreground">
-											Headline hard-arb totals exclude market making. Open paper
-											edge is still simulated until settlement updates actual
-											P&L.
+											Headline hard-arb totals exclude market making. Paper
+											charts remain simulation-based; live canary progress is
+											tracked separately below.
 										</div>
 									</div>
+
+									{isCanaryMode && (
+										<section className="space-y-4">
+											<div className="flex items-center gap-2">
+												<div className="w-1 h-4 bg-amber-500 rounded-full" />
+												<h3 className="text-sm font-bold text-foreground tracking-wide uppercase">
+													Live Canary
+												</h3>
+											</div>
+
+											<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+												<SummaryCard
+													label="Canary Attempts"
+													value={canaryStatus?.attempts ?? 0}
+													icon={<IconActivityHeartbeat size={20} />}
+												/>
+												<SummaryCard
+													label="Posted Orders"
+													value={canaryStatus?.posted ?? 0}
+													icon={<IconArrowsExchange size={20} />}
+												/>
+												<SummaryCard
+													label="Successful Hedges"
+													value={canaryStatus?.successes ?? 0}
+													icon={<IconShieldCheck size={20} />}
+												/>
+												<SummaryCard
+													label="Modeled Canary P&L"
+													value={canaryStatus?.modeled_pnl ?? 0}
+													icon={<IconChartBar size={20} />}
+													isPnl
+												/>
+											</div>
+
+											<div className="rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-3 shadow-sm">
+												<div className="flex flex-col gap-2 text-xs text-amber-950 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+													<span>
+														Rejected: <strong>{canaryStatus?.rejected ?? 0}</strong>
+													</span>
+													<span>
+														Maker fills: <strong>{canaryStatus?.maker_fills ?? 0}</strong>
+													</span>
+													<span>
+														Maker timeouts: <strong>{canaryStatus?.maker_timeouts ?? 0}</strong>
+													</span>
+													<span>
+														FOK kills: <strong>{canaryStatus?.fok_kills ?? 0}</strong>
+													</span>
+													<span>
+														Dump failures:{" "}
+														<strong>{canaryStatus?.emergency_dump_failures ?? 0}</strong>
+													</span>
+												</div>
+												<div className="mt-2 text-xs text-amber-900">
+													{canaryStatus?.last_halt_reason
+														? `Last halt: ${canaryStatus.last_halt_reason}`
+														: canaryStatus?.last_reject_reason
+															? `Last reject: ${canaryStatus.last_reject_reason}`
+															: "Live canary is active. P&L here is modeled execution tracking, not settled realized profit."}
+												</div>
+											</div>
+
+											<div className="bg-white border border-border rounded-2xl p-6 shadow-sm">
+												<div className="flex items-center justify-between mb-4">
+													<div className="text-xs font-bold text-muted-foreground tracking-widest uppercase">
+														Recent Canary Attempts
+													</div>
+													<div className="text-[11px] text-muted-foreground">
+														{canaryTrades === null
+															? "Loading..."
+															: `${canaryTrades.length} recent rows`}
+													</div>
+												</div>
+
+												{canaryTrades === null ? (
+													<div className="text-sm text-muted-foreground">
+														Loading canary journal...
+													</div>
+												) : canaryTrades.length === 0 ? (
+													<div className="text-sm text-muted-foreground">
+														No canary journal rows yet. The daemon is live, but it
+														has not recorded any canary events yet.
+													</div>
+												) : (
+													<div className="overflow-x-auto">
+														<table className="min-w-full text-sm">
+															<thead>
+																<tr className="border-b border-border text-left text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+																	<th className="py-2 pr-4">Time</th>
+																	<th className="py-2 pr-4">Event</th>
+																	<th className="py-2 pr-4">Pair</th>
+																	<th className="py-2 pr-4">Edge</th>
+																	<th className="py-2 pr-4">Detail</th>
+																</tr>
+															</thead>
+															<tbody>
+																{canaryTrades.map((trade, index) => (
+																	<tr
+																		key={`${trade.timestamp}-${trade.event}-${index}`}
+																		className="border-b border-border/60 align-top"
+																	>
+																		<td className="py-3 pr-4 whitespace-nowrap text-muted-foreground">
+																			{timeAgo(trade.timestamp)}
+																		</td>
+																		<td className="py-3 pr-4 whitespace-nowrap">
+																			<span
+																				className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${formatCanaryEventTone(trade.event)}`}
+																			>
+																				{formatCanaryEvent(trade.event)}
+																			</span>
+																		</td>
+																		<td className="py-3 pr-4 max-w-[260px]">
+																			<div className="font-medium text-foreground">
+																				{trade.pair_name ?? "Session event"}
+																			</div>
+																			{trade.maker_exchange && trade.taker_exchange && (
+																				<div className="text-xs text-muted-foreground">
+																					{trade.maker_exchange} → {trade.taker_exchange}
+																				</div>
+																			)}
+																		</td>
+																		<td className="py-3 pr-4 whitespace-nowrap">
+																			{typeof trade.realized_profit === "number" ? (
+																				<PnlBadge value={trade.realized_profit} />
+																			) : typeof trade.estimated_loss === "number" ? (
+																				<PnlBadge value={trade.estimated_loss} />
+																			) : typeof trade.estimated_profit === "number" ? (
+																				<span className="font-semibold text-slate-900">
+																					{formatPnl(trade.estimated_profit)}
+																				</span>
+																			) : (
+																				<span className="text-muted-foreground">-</span>
+																			)}
+																		</td>
+																		<td className="py-3 pr-4 text-muted-foreground">
+																			{trade.reason ??
+																				trade.taker_tx ??
+																				trade.maker_order_id ??
+																				trade.order_id ??
+																				(typeof trade.trade_value === "number"
+																					? `Trade value ${formatUsd(trade.trade_value)}`
+																					: "-")}
+																		</td>
+																	</tr>
+																))}
+															</tbody>
+														</table>
+													</div>
+												)}
+											</div>
+										</section>
+									)}
 
 									{/* Historical Performance Charts */}
 									<section className="space-y-4">
