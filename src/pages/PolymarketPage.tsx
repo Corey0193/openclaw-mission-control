@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
@@ -11,7 +11,6 @@ import {
 	IconTrendingDown,
 	IconCoin,
 	IconWallet,
-	IconClockHour4,
 } from "@tabler/icons-react";
 
 function formatUsd(n: number): string {
@@ -90,117 +89,138 @@ function EmptyState() {
 			<IconChartBar size={48} strokeWidth={1.2} className="mb-4 opacity-40" />
 			<p className="text-sm font-medium">No position data yet</p>
 			<p className="text-xs mt-1">
-				Run the sync script to push positions to Mission Control
+				Run the sync script to push positions and open orders to Mission Control
 			</p>
 		</div>
 	);
 }
 
-interface SoftArbTrade {
-	trade_id: string;
-	rowKey: string;
-	pair: string;
-	direction: string;
-	entry_price: number;
-	position_size_usd: number;
+interface PolymarketPosition {
+	market: string;
+	marketQuestion: string;
+	marketSlug: string;
+	outcome: string;
 	shares: number;
-	opened_at: string;
-	polymarket_slug: string;
+	entryPrice: number;
+	currentPrice: number;
+	costBasis: number;
+	currentValue: number;
+	payout: number;
+	unrealizedPnl: number;
+	marketClosed: boolean;
+	marketResolved: boolean;
+	winner?: boolean;
+}
+
+interface PolymarketTrade {
+	id: string;
+	market: string;
+	marketQuestion: string;
+	side: string;
+	outcome: string;
+	shares: number;
+	price: number;
+	cost: number;
+	payout: number;
+	timestamp: number;
+	txHash?: string;
 	status: string;
-	current_price: number | null;
-	unrealized_pnl: number | null;
-	is_real: boolean;
-	order_status: string | null;
-	mark_source: "mtm" | "gamma_fallback" | "unavailable";
 }
 
-function directionToOutcome(direction: string): "Yes" | "No" | null {
-	const normalized = direction.trim().toUpperCase();
-	if (normalized === "BUY_POLYMARKET_YES" || normalized === "BUY_YES") {
-		return "Yes";
-	}
-	if (normalized === "BUY_POLYMARKET_NO" || normalized === "BUY_NO") {
-		return "No";
-	}
-	return null;
+interface PolymarketOpenOrder {
+	id: string;
+	status: string;
+	market: string;
+	marketQuestion: string;
+	marketSlug: string;
+	assetId: string;
+	outcome: string;
+	side: string;
+	originalSize: number;
+	sizeMatched: number;
+	sizeRemaining: number;
+	price: number;
+	orderType: string;
+	createdAt: number;
+	expiration?: number;
 }
 
-function formatSoftArbMark(value: number | null): string {
-	if (value == null) return "Awaiting mark";
-	return `$${value.toFixed(3)}`;
+interface PolymarketData {
+	walletAddress: string;
+	balanceUsdc: number;
+	openOrders: PolymarketOpenOrder[];
+	positions: PolymarketPosition[];
+	trades: PolymarketTrade[];
+	totalInvested: number;
+	totalCurrentValue: number;
+	totalPnl: number;
+	lastSyncedAt: number;
 }
 
-function SoftArbStatusBadge({
-	orderStatus,
-	markSource,
+function formatRemainingSize(n: number): string {
+	return n.toLocaleString("en-US", {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 4,
+	});
+}
+
+function formatOrderAge(ts: number): string {
+	const diffMs = Date.now() - ts;
+	const mins = Math.floor(diffMs / 60000);
+	if (mins < 1) return "just now";
+	if (mins < 60) return `${mins}m ago`;
+	const hrs = Math.floor(mins / 60);
+	if (hrs < 24) return `${hrs}h ago`;
+	const days = Math.floor(hrs / 24);
+	return `${days}d ago`;
+}
+
+function PolymarketOrderBadge({
+	status,
 }: {
-	orderStatus: string | null;
-	markSource: SoftArbTrade["mark_source"];
+	status: string;
 }) {
-	const normalizedStatus = orderStatus?.trim().toUpperCase() ?? "";
-	const label =
-		normalizedStatus === "LIVE"
-			? "LIVE ORDER"
-			: normalizedStatus === "OPEN"
-				? "OPEN"
-				: normalizedStatus || "LEDGER";
+	const normalized = status.trim().toUpperCase();
 	const cls =
-		normalizedStatus === "LIVE"
+		normalized === "LIVE"
 			? "bg-blue-100 text-blue-700"
-			: normalizedStatus === "OPEN"
+			: normalized === "MATCHED"
+				? "bg-emerald-100 text-emerald-700"
+				: normalized === "UNMATCHED"
+					? "bg-amber-100 text-amber-700"
+					: "bg-slate-100 text-slate-600";
+	return (
+		<span
+			className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold tracking-wide ${cls}`}
+		>
+			{normalized || "LIVE"}
+		</span>
+	);
+}
+
+function PolymarketSideBadge({ side }: { side: string }) {
+	const normalized = side.trim().toUpperCase();
+	const cls =
+		normalized === "BUY"
+			? "bg-emerald-100 text-emerald-700"
+			: normalized === "SELL"
 				? "bg-amber-100 text-amber-700"
 				: "bg-slate-100 text-slate-600";
-
 	return (
-		<div className="flex items-center justify-end gap-2">
-			{markSource === "gamma_fallback" && (
-				<span className="inline-block rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold tracking-wide text-emerald-700">
-					GAMMA MARK
-				</span>
-			)}
-			<span
-				className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold tracking-wide ${cls}`}
-			>
-				{label}
-			</span>
-		</div>
+		<span
+			className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold tracking-wide ${cls}`}
+		>
+			{normalized || "---"}
+		</span>
 	);
 }
 
 export default function PolymarketPage() {
 	const data = useQuery(api.polymarket.getPositions, {
 		tenantId: DEFAULT_TENANT_ID,
-	});
+	}) as PolymarketData | undefined;
 	const scheduleRefresh = useMutation(api.polymarket.scheduleRefresh);
 	const [isRefreshing, setIsRefreshing] = useState(false);
-	const [softArbTrades, setSoftArbTrades] = useState<SoftArbTrade[] | null>(null);
-
-	useEffect(() => {
-		let cancelled = false;
-
-		const refreshSoftArbTrades = async () => {
-			try {
-				const res = await fetch("/api/soft-arb/trades");
-				if (!res.ok) return;
-				const json = (await res.json()) as { trades?: SoftArbTrade[] };
-				if (!cancelled) {
-					setSoftArbTrades(Array.isArray(json.trades) ? json.trades : []);
-				}
-			} catch {
-				if (!cancelled) setSoftArbTrades([]);
-			}
-		};
-
-		void refreshSoftArbTrades();
-		const interval = setInterval(() => {
-			void refreshSoftArbTrades();
-		}, 30000);
-
-		return () => {
-			cancelled = true;
-			clearInterval(interval);
-		};
-	}, []);
 
 	const handleRefresh = () => {
 		if (isRefreshing) return;
@@ -215,6 +235,7 @@ export default function PolymarketPage() {
 			data?.positions.filter((p) => !p.marketResolved && p.shares > 0) ?? [],
 		[data?.positions],
 	);
+	const openOrders = useMemo(() => data?.openOrders ?? [], [data?.openOrders]);
 	const closedMarkets = useMemo(
 		() =>
 			new Set(
@@ -243,28 +264,6 @@ export default function PolymarketPage() {
 			),
 		[data?.positions, recentMarkets],
 	);
-	const walletOpenKeys = useMemo(
-		() =>
-			new Set(
-				openPositions.map((p) => `${p.marketSlug}|${p.outcome.toUpperCase()}`),
-			),
-		[openPositions],
-	);
-	const pendingSoftArbTrades = useMemo(() => {
-		return (softArbTrades ?? [])
-			.filter((trade) => trade.is_real && trade.status === "OPEN")
-			.filter((trade) => {
-				const outcome = directionToOutcome(trade.direction);
-				if (!trade.polymarket_slug || !outcome) return true;
-				return !walletOpenKeys.has(
-					`${trade.polymarket_slug}|${outcome.toUpperCase()}`,
-				);
-			})
-			.sort(
-				(a, b) =>
-					new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
-			);
-	}, [softArbTrades, walletOpenKeys]);
 
 	return (
 		<div className="org-page bg-[#f8f9fa]">
@@ -349,6 +348,104 @@ export default function PolymarketPage() {
 									isPnl
 								/>
 							</div>
+
+							{/* Open orders */}
+							<section>
+								<div className="mb-3 flex items-center gap-2">
+									<h3 className="text-sm font-bold text-foreground tracking-wide uppercase">
+										Open Orders
+										{openOrders.length > 0 && (
+											<span className="ml-2 text-muted-foreground font-normal normal-case">
+												({openOrders.length})
+											</span>
+										)}
+									</h3>
+								</div>
+								<p className="mb-3 text-xs text-muted-foreground">
+									Resting limit orders pulled from the authenticated Polymarket
+									sync, separate from filled wallet positions.
+								</p>
+								{openOrders.length === 0 ? (
+									<div className="bg-white border border-border rounded-xl p-6 text-center text-sm text-muted-foreground">
+										No open orders found
+									</div>
+								) : (
+									<div className="bg-white border border-border rounded-xl overflow-x-auto">
+										<table className="w-full text-sm">
+											<thead>
+												<tr className="border-b border-border text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
+													<th className="text-left px-4 py-3">Placed</th>
+													<th className="text-left px-3 py-3">Market</th>
+													<th className="text-left px-3 py-3">Side</th>
+													<th className="text-left px-3 py-3">Outcome</th>
+													<th className="text-right px-3 py-3">Price</th>
+													<th className="text-right px-3 py-3">Remaining</th>
+													<th className="text-right px-3 py-3">Matched</th>
+													<th className="text-right px-4 py-3">Status</th>
+												</tr>
+											</thead>
+											<tbody>
+												{openOrders.map((order, i) => (
+													<tr
+														key={order.id}
+														className={
+															i < openOrders.length - 1
+																? "border-b border-border/50"
+																: ""
+														}
+													>
+														<td className="px-4 py-3 text-muted-foreground tabular-nums whitespace-nowrap">
+															{formatOrderAge(order.createdAt)}
+														</td>
+														<td className="px-3 py-3 max-w-[260px]">
+															{order.marketSlug ? (
+																<a
+																	href={`https://polymarket.com/event/${order.marketSlug}`}
+																	target="_blank"
+																	rel="noopener noreferrer"
+																	className="text-foreground hover:text-[var(--accent-orange)] transition-colors font-medium flex items-center gap-1"
+																>
+																	<span className="truncate">
+																		{order.marketQuestion}
+																	</span>
+																	<IconExternalLink
+																		size={12}
+																		className="shrink-0 opacity-40"
+																	/>
+																</a>
+															) : (
+																<span className="font-medium text-foreground">
+																	{order.marketQuestion}
+																</span>
+															)}
+														</td>
+														<td className="px-3 py-3">
+															<PolymarketSideBadge side={order.side} />
+														</td>
+														<td className="px-3 py-3">
+															<span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide bg-slate-100 text-slate-600">
+																{order.outcome.toUpperCase()}
+															</span>
+														</td>
+														<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
+															${order.price.toFixed(3)}
+														</td>
+														<td className="text-right px-3 py-3 tabular-nums font-medium">
+															{formatRemainingSize(order.sizeRemaining)}
+														</td>
+														<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
+															{formatRemainingSize(order.sizeMatched)}
+														</td>
+														<td className="text-right px-4 py-3">
+															<PolymarketOrderBadge status={order.status} />
+														</td>
+													</tr>
+												))}
+											</tbody>
+										</table>
+									</div>
+								)}
+							</section>
 
 							{/* Open positions */}
 							<section>
@@ -447,120 +544,6 @@ export default function PolymarketPage() {
 									</div>
 								)}
 							</section>
-
-							{pendingSoftArbTrades.length > 0 && (
-								<section>
-									<div className="mb-3 flex items-center gap-2">
-										<h3 className="text-sm font-bold text-foreground tracking-wide uppercase">
-											Soft Arb Orders Awaiting Wallet Sync
-										</h3>
-										<span className="text-muted-foreground normal-case">
-											({pendingSoftArbTrades.length})
-										</span>
-									</div>
-									<div className="mb-3 flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900">
-										<IconClockHour4 size={16} className="mt-0.5 shrink-0" />
-										<p>
-											These rows come from Hustle&apos;s live soft-arb ledger.
-											Resting limit orders do not appear in wallet positions until
-											they match and the Polymarket sync sees the fill.
-										</p>
-									</div>
-									<div className="bg-white border border-border rounded-xl overflow-x-auto">
-										<table className="w-full text-sm">
-											<thead>
-												<tr className="border-b border-border text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
-													<th className="text-left px-4 py-3">Opened</th>
-													<th className="text-left px-3 py-3">Market</th>
-													<th className="text-left px-3 py-3">Side</th>
-													<th className="text-right px-3 py-3">Shares</th>
-													<th className="text-right px-3 py-3">Entry</th>
-													<th className="text-right px-3 py-3">Current</th>
-													<th className="text-right px-3 py-3">Stake</th>
-													<th className="text-right px-3 py-3">P&L</th>
-													<th className="text-right px-4 py-3">Status</th>
-												</tr>
-											</thead>
-											<tbody>
-												{pendingSoftArbTrades.map((trade, i) => (
-													<tr
-														key={trade.rowKey}
-														className={
-															i < pendingSoftArbTrades.length - 1
-																? "border-b border-border/50"
-																: ""
-														}
-													>
-														<td className="px-4 py-3 text-muted-foreground tabular-nums whitespace-nowrap">
-															{new Date(trade.opened_at).toLocaleDateString(
-																"en-US",
-																{
-																	month: "short",
-																	day: "numeric",
-																	hour: "2-digit",
-																	minute: "2-digit",
-																},
-															)}
-														</td>
-														<td className="px-3 py-3 max-w-[240px]">
-															{trade.polymarket_slug ? (
-																<a
-																	href={`https://polymarket.com/event/${trade.polymarket_slug}`}
-																	target="_blank"
-																	rel="noopener noreferrer"
-																	className="flex items-center gap-1 font-medium text-foreground transition-colors hover:text-[var(--accent-orange)]"
-																>
-																	<span className="truncate">{trade.pair}</span>
-																	<IconExternalLink
-																		size={12}
-																		className="shrink-0 opacity-40"
-																	/>
-																</a>
-															) : (
-																<span className="font-medium text-foreground">
-																	{trade.pair}
-																</span>
-															)}
-														</td>
-														<td className="px-3 py-3">
-															<span className="inline-block rounded px-2 py-0.5 text-[10px] font-bold tracking-wide bg-slate-100 text-slate-700">
-																{trade.direction}
-															</span>
-														</td>
-														<td className="text-right px-3 py-3 tabular-nums">
-															{trade.shares.toFixed(2)}
-														</td>
-														<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
-															${trade.entry_price.toFixed(3)}
-														</td>
-														<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
-															{formatSoftArbMark(trade.current_price)}
-														</td>
-														<td className="text-right px-3 py-3 tabular-nums">
-															{formatUsd(trade.position_size_usd)}
-														</td>
-														<td className="text-right px-3 py-3 tabular-nums">
-															{trade.unrealized_pnl == null ? (
-																<span className="text-muted-foreground">
-																	Awaiting mark
-																</span>
-															) : (
-																<PnlBadge value={trade.unrealized_pnl} />
-															)}
-														</td>
-														<td className="text-right px-4 py-3">
-															<SoftArbStatusBadge
-																orderStatus={trade.order_status}
-																markSource={trade.mark_source}
-															/>
-														</td>
-													</tr>
-												))}
-											</tbody>
-										</table>
-									</div>
-								</section>
-							)}
 
 							{/* Resolved positions */}
 							{resolvedPositions.length > 0 && (

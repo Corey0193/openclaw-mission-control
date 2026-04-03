@@ -27,7 +27,10 @@ http.route({
 	method: "POST",
 	handler: httpAction(async (ctx, request) => {
 		const body = await request.json();
-		await ctx.runMutation(api.polymarket.syncPositions, body);
+		await ctx.runMutation(api.polymarket.syncPositions, {
+			...body,
+			openOrders: body.openOrders ?? body.open_orders ?? [],
+		});
 		return new Response(JSON.stringify({ ok: true }), {
 			status: 200,
 			headers: { "Content-Type": "application/json" },
@@ -188,7 +191,12 @@ http.route({
 			peakPrice: Number(p.peak_price),
 			exitPrice: p.exit_price != null ? Number(p.exit_price) : undefined,
 			exitTimestamp: p.exit_timestamp != null ? Number(p.exit_timestamp) : undefined,
-			exitReason: p.exit_reason != null ? String(p.exit_reason) : undefined,
+			exitReason:
+				typeof p.exit_reason === "string"
+					? p.exit_reason
+					: p.exit_reason != null
+						? JSON.stringify(p.exit_reason)
+						: undefined,
 			pnl: p.pnl != null ? Number(p.pnl) : undefined,
 			mode: (p.mode as string) ?? "PAPER",
 		}));

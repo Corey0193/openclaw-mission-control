@@ -39,10 +39,29 @@ const tradeValidator = v.object({
 	status: v.string(),
 });
 
+const openOrderValidator = v.object({
+	id: v.string(),
+	status: v.string(),
+	market: v.string(),
+	marketQuestion: v.string(),
+	marketSlug: v.string(),
+	assetId: v.string(),
+	outcome: v.string(),
+	side: v.string(),
+	originalSize: v.number(),
+	sizeMatched: v.number(),
+	sizeRemaining: v.number(),
+	price: v.number(),
+	orderType: v.string(),
+	createdAt: v.number(),
+	expiration: v.optional(v.number()),
+});
+
 export const syncPositions = mutation({
 	args: {
 		walletAddress: v.string(),
 		balanceUsdc: v.number(),
+		openOrders: v.array(openOrderValidator),
 		positions: v.array(positionValidator),
 		trades: v.array(tradeValidator),
 		totalInvested: v.number(),
@@ -64,6 +83,7 @@ export const syncPositions = mutation({
 			await ctx.db.patch("polymarketPositions", existing._id, {
 				walletAddress: args.walletAddress,
 				balanceUsdc: args.balanceUsdc,
+				openOrders: args.openOrders,
 				positions: args.positions,
 				trades: args.trades,
 				totalInvested: args.totalInvested,
@@ -75,6 +95,7 @@ export const syncPositions = mutation({
 			await ctx.db.insert("polymarketPositions", {
 				walletAddress: args.walletAddress,
 				balanceUsdc: args.balanceUsdc,
+				openOrders: args.openOrders,
 				positions: args.positions,
 				trades: args.trades,
 				totalInvested: args.totalInvested,
