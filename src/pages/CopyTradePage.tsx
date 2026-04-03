@@ -643,12 +643,9 @@ export default function CopyTradePage() {
 											const marketName =
 												firstNonEmptyString(pos.marketTitle, marketMeta?.question) ??
 												shortMarket(pos.marketId);
-											const marketUrl = buildPolymarketMarketUrl(
-												pos.marketSlug ??
-													marketMeta?.marketSlug ??
-													polymarketSlugCache.get(pos.marketId) ??
-													null,
-											);
+												const marketUrl = buildPolymarketMarketUrl(
+													pos.marketSlug ?? marketMeta?.marketSlug ?? null,
+												);
 											return (
 												<tr key={pos.positionId} className="hover:bg-slate-50/50">
 													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
@@ -717,6 +714,7 @@ export default function CopyTradePage() {
 						No positions synced yet — daemon syncs every 60 s once it finds qualifying leader trades.
 					</div>
 				)}
+
 			</main>
 		</div>
 	);
