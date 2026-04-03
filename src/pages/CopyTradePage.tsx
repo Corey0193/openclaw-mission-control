@@ -68,8 +68,18 @@ function shortMarket(id: string): string {
 	return id.slice(0, 8) + "…";
 }
 
+function firstNonEmptyString(...values: Array<string | null | undefined>): string | null {
+	for (const value of values) {
+		if (typeof value === "string" && value.trim()) {
+			return value.trim();
+		}
+	}
+	return null;
+}
+
 type PolymarketMarketMeta = {
 	marketSlug: string | null;
+	question: string | null;
 	outcomesByTokenId: Record<string, string>;
 	pricesByTokenId: Record<string, number>;
 };
@@ -147,11 +157,19 @@ function ReasonBadge({ reason }: { reason: string | undefined | null }) {
 export default function CopyTradePage() {
 	const status = useQuery(api.copyTrade.getStatus, { tenantId: DEFAULT_TENANT_ID });
 	const allPositions = useQuery(api.copyTrade.listPositions, { tenantId: DEFAULT_TENANT_ID });
+	const wallets = useQuery(api.wallets.list, { tenantId: DEFAULT_TENANT_ID });
 	const [tab, setTab] = useState<"open" | "closed">("open");
 	const [nowMs, setNowMs] = useState(() => Date.now());
 	const [resolvedMarketMeta, setResolvedMarketMeta] = useState<
 		Record<string, PolymarketMarketMeta>
 	>({});
+
+	const walletNameByAddress = useMemo(() => {
+		const entries = (wallets ?? [])
+			.map((wallet) => [wallet.address, firstNonEmptyString(wallet.username)] as const)
+			.filter(([, username]) => Boolean(username));
+		return Object.fromEntries(entries) as Record<string, string>;
+	}, [wallets]);
 
 	const open = useMemo(
 		() => (allPositions ?? []).filter((p) => p.exitPrice == null),
@@ -241,9 +259,14 @@ export default function CopyTradePage() {
 						return [marketId, null] as const;
 					}
 					const payload = (await resp.json()) as {
+						question?: unknown;
 						market_slug?: unknown;
 						tokens?: Array<{ token_id?: unknown; outcome?: unknown; price?: unknown }>;
 					};
+					const question =
+						typeof payload.question === "string" && payload.question.trim()
+							? payload.question.trim()
+							: null;
 					const marketSlug =
 						typeof payload.market_slug === "string" && payload.market_slug.trim()
 							? payload.market_slug.trim()
@@ -278,7 +301,7 @@ export default function CopyTradePage() {
 								: [];
 						}),
 					);
-					const meta = { marketSlug, outcomesByTokenId, pricesByTokenId };
+					const meta = { marketSlug, question, outcomesByTokenId, pricesByTokenId };
 					polymarketMarketMetaCache.set(marketId, meta);
 					return [marketId, meta] as const;
 				} catch {
@@ -464,118 +487,125 @@ export default function CopyTradePage() {
 							</div>
 						) : (
 								<div className="overflow-x-auto">
-									<table className="w-full text-xs"><thead><tr className="bg-slate-50 border-b border-border">{["Leader", "Market", "Side", "Entry", "Cost", "Price", "Unreal. PnL", "Exit Targets", "Held", ""].map((h) => (
-										<th
-											key={h}
-											className="px-4 py-2.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap"
-										>
-											{h}
-										</th>
-									))}</tr></thead><tbody className="divide-y divide-slate-100">{open.map((pos) => {
-										const marketMeta =
-											resolvedMarketMeta[pos.marketId] ??
-											polymarketMarketMetaCache.get(pos.marketId) ??
-											null;
-										const currentPrice =
-											marketMeta?.pricesByTokenId[pos.tokenId] ??
-											pos.currentPrice ??
-											pos.peakPrice;
-										const unrealPnl = pos.shares * currentPrice - pos.entryUsd;
-										const marketUrl = buildPolymarketMarketUrl(
-											pos.marketSlug ??
-												marketMeta?.marketSlug ??
-												null,
-										);
-										const outcomeLabel =
-											marketMeta?.outcomesByTokenId[pos.tokenId] ??
-											fallbackOutcomeLabel(pos.outcomeIndex);
-										return (
-											<tr key={pos.positionId} className="hover:bg-slate-50/50">
-												<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-													<a
-														href={`https://polymarket.com/profile/${pos.leaderAddress}`}
-														target="_blank"
-														rel="noopener noreferrer"
-														className="hover:underline hover:text-[#7048e8] transition-colors"
-														title={pos.leaderAddress}
+									<table className="w-full text-xs">
+										<thead>
+											<tr className="bg-slate-50 border-b border-border">
+												{["Leader", "Market", "Side", "Entry", "Cost", "Price", "Unreal. PnL", "Exit Targets", "Held", ""].map((h) => (
+													<th
+														key={h}
+														className="px-4 py-2.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap"
 													>
-														{pos.leaderLabel || shortAddr(pos.leaderAddress)}
-													</a>
-												</td>
-												<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-													{marketUrl ? (
-														<a
-															href={marketUrl}
-															target="_blank"
-															rel="noopener noreferrer"
-															className="hover:underline hover:text-[#7048e8] transition-colors"
-															title={pos.marketTitle || pos.marketId}
-														>
-															{pos.marketTitle
-																? pos.marketTitle.length > 25
-																	? pos.marketTitle.slice(0, 25) + "…"
-																	: pos.marketTitle
-																: shortMarket(pos.marketId)}
-														</a>
-													) : (
-														<span title={pos.marketTitle || pos.marketId}>
-															{pos.marketTitle
-																? pos.marketTitle.length > 25
-																	? pos.marketTitle.slice(0, 25) + "…"
-																	: pos.marketTitle
-																: shortMarket(pos.marketId)}
-														</span>
-													)}
-												</td>
-												<td className="px-4 py-2.5">
-													<span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold">
-														{outcomeLabel}
-													</span>
-												</td>
-												<td className="px-4 py-2.5 tabular-nums">{pos.entryPrice.toFixed(3)}</td>
-												<td className="px-4 py-2.5 tabular-nums">{fmtUsd(pos.entryUsd)}</td>
-												<td className="px-4 py-2.5 tabular-nums">{currentPrice.toFixed(3)}</td>
-												<td className={`px-4 py-2.5 tabular-nums font-bold ${unrealPnl >= 0 ? "text-emerald-600" : "text-red-500"}`}>
-													{fmtUsd(unrealPnl, true)}
-												</td>
-												<td className="px-4 py-2.5 tabular-nums">
-													<div className="flex flex-col gap-1">
-														<div className="flex flex-col gap-0.5">
-															{pos.takeProfitPrice && (
-																<div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-																	<span className="w-4">TP</span> {pos.takeProfitPrice.toFixed(3)}
-																</div>
-															)}
-															{pos.stopLossPrice && (
-																<div className="text-[10px] text-red-500 font-bold flex items-center gap-1">
-																	<span className="w-4">SL</span> {pos.stopLossPrice.toFixed(3)}
-																</div>
-															)}
-														</div>
-														<div className="flex flex-wrap gap-1">
-															{(pos.exitStrategy === "MIRROR" || pos.exitStrategy === "MIRROR_WITH_SL") && (
-																<span className="px-1 py-0.5 bg-violet-50 text-violet-600 rounded text-[9px] font-bold border border-violet-100 uppercase">
-																	Mirroring {pos.leaderLabel || "Leader"}
-																</span>
-															)}
-															{pos.timeLimitAt && (
-																<span
-																	className="px-1 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-bold border border-blue-100 uppercase"
-																	title={`Expires at ${new Date(pos.timeLimitAt * 1000).toLocaleString()}`}
-																>
-																	Max {Math.round((pos.timeLimitAt - nowMs / 1000) / 3600)}h left
-																</span>
-															)}
-														</div>
-													</div>
-												</td>
-												<td className="px-4 py-2.5 text-muted-foreground">{holdTime(pos.entryTimestamp)}</td>
-												<td className="px-4 py-2.5">
-													<IconClock size={13} className="text-muted-foreground" />
-												</td>
+														{h}
+													</th>
+												))}
 											</tr>
-										);
-									})}</tbody></table>
+										</thead>
+										<tbody className="divide-y divide-slate-100">
+											{open.map((pos) => {
+												const marketMeta =
+													resolvedMarketMeta[pos.marketId] ??
+													polymarketMarketMetaCache.get(pos.marketId) ??
+													null;
+												const currentPrice =
+													marketMeta?.pricesByTokenId[pos.tokenId] ??
+													pos.currentPrice ??
+													pos.peakPrice;
+												const leaderName =
+													firstNonEmptyString(
+														walletNameByAddress[pos.leaderAddress],
+														pos.leaderLabel,
+													) ?? shortAddr(pos.leaderAddress);
+												const marketName =
+													firstNonEmptyString(pos.marketTitle, marketMeta?.question) ??
+													shortMarket(pos.marketId);
+												const unrealPnl = pos.shares * currentPrice - pos.entryUsd;
+												const marketUrl = buildPolymarketMarketUrl(
+													pos.marketSlug ?? marketMeta?.marketSlug ?? null,
+												);
+												const outcomeLabel =
+													marketMeta?.outcomesByTokenId[pos.tokenId] ??
+													fallbackOutcomeLabel(pos.outcomeIndex);
+												return (
+													<tr key={pos.positionId} className="hover:bg-slate-50/50">
+														<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+															<a
+																href={`https://polymarket.com/profile/${pos.leaderAddress}`}
+																target="_blank"
+																rel="noopener noreferrer"
+																className="hover:underline hover:text-[#7048e8] transition-colors"
+																title={pos.leaderAddress}
+															>
+																{leaderName}
+															</a>
+														</td>
+														<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+															{marketUrl ? (
+																<a
+																	href={marketUrl}
+																	target="_blank"
+																	rel="noopener noreferrer"
+																	className="hover:underline hover:text-[#7048e8] transition-colors"
+																	title={firstNonEmptyString(pos.marketTitle, marketMeta?.question) || pos.marketId}
+																>
+																	{marketName.length > 25 ? marketName.slice(0, 25) + "…" : marketName}
+																</a>
+															) : (
+																<span title={firstNonEmptyString(pos.marketTitle, marketMeta?.question) || pos.marketId}>
+																	{marketName.length > 25 ? marketName.slice(0, 25) + "…" : marketName}
+																</span>
+															)}
+														</td>
+														<td className="px-4 py-2.5">
+															<span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold">
+																{outcomeLabel}
+															</span>
+														</td>
+														<td className="px-4 py-2.5 tabular-nums">{pos.entryPrice.toFixed(3)}</td>
+														<td className="px-4 py-2.5 tabular-nums">{fmtUsd(pos.entryUsd)}</td>
+														<td className="px-4 py-2.5 tabular-nums">{currentPrice.toFixed(3)}</td>
+														<td className={`px-4 py-2.5 tabular-nums font-bold ${unrealPnl >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+															{fmtUsd(unrealPnl, true)}
+														</td>
+														<td className="px-4 py-2.5 tabular-nums">
+															<div className="flex flex-col gap-1">
+																<div className="flex flex-col gap-0.5">
+																	{pos.takeProfitPrice && (
+																		<div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+																			<span className="w-4">TP</span> {pos.takeProfitPrice.toFixed(3)}
+																		</div>
+																	)}
+																	{pos.stopLossPrice && (
+																		<div className="text-[10px] text-red-500 font-bold flex items-center gap-1">
+																			<span className="w-4">SL</span> {pos.stopLossPrice.toFixed(3)}
+																		</div>
+																	)}
+																</div>
+																<div className="flex flex-wrap gap-1">
+																	{(pos.exitStrategy === "MIRROR" || pos.exitStrategy === "MIRROR_WITH_SL") && (
+																		<span className="px-1 py-0.5 bg-violet-50 text-violet-600 rounded text-[9px] font-bold border border-violet-100 uppercase">
+																			Mirroring {leaderName}
+																		</span>
+																	)}
+																	{pos.timeLimitAt && (
+																		<span
+																			className="px-1 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-bold border border-blue-100 uppercase"
+																			title={`Expires at ${new Date(pos.timeLimitAt * 1000).toLocaleString()}`}
+																		>
+																			Max {Math.round((pos.timeLimitAt - nowMs / 1000) / 3600)}h left
+																		</span>
+																	)}
+																</div>
+															</div>
+														</td>
+														<td className="px-4 py-2.5 text-muted-foreground">{holdTime(pos.entryTimestamp)}</td>
+														<td className="px-4 py-2.5">
+															<IconClock size={13} className="text-muted-foreground" />
+														</td>
+													</tr>
+												);
+											})}
+										</tbody>
+									</table>
 								</div>
 							)
 						) : closed.length === 0 ? (
@@ -584,89 +614,98 @@ export default function CopyTradePage() {
 						</div>
 					) : (
 							<div className="overflow-x-auto">
-								<table className="w-full text-xs"><thead><tr className="bg-slate-50 border-b border-border">{["Leader", "Market", "Entry", "Exit", "Cost", "PnL", "ROI", "Hold", "Reason", ""].map((h) => (
-									<th
-										key={h}
-										className="px-4 py-2.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap"
-									>
-										{h}
-									</th>
-								))}</tr></thead><tbody className="divide-y divide-slate-100">{closed.map((pos) => {
-									const roi = pos.entryUsd > 0 ? (pos.pnl ?? 0) / pos.entryUsd : 0;
-									const isWin = (pos.pnl ?? 0) > 0;
-									const marketMeta =
-										resolvedMarketMeta[pos.marketId] ??
-										polymarketMarketMetaCache.get(pos.marketId) ??
-										null;
-									const marketUrl = buildPolymarketMarketUrl(
-										pos.marketSlug ??
-											marketMeta?.marketSlug ??
-											polymarketSlugCache.get(pos.marketId) ??
-											null,
-									);
-									return (
-										<tr key={pos.positionId} className="hover:bg-slate-50/50">
-											<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-												<a
-													href={`https://polymarket.com/profile/${pos.leaderAddress}`}
-													target="_blank"
-													rel="noopener noreferrer"
-													className="hover:underline hover:text-[#7048e8] transition-colors"
-													title={pos.leaderAddress}
+								<table className="w-full text-xs">
+									<thead>
+										<tr className="bg-slate-50 border-b border-border">
+											{["Leader", "Market", "Entry", "Exit", "Cost", "PnL", "ROI", "Hold", "Reason", ""].map((h) => (
+												<th
+													key={h}
+													className="px-4 py-2.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap"
 												>
-													{pos.leaderLabel || shortAddr(pos.leaderAddress)}
-												</a>
-											</td>
-											<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-												{marketUrl ? (
-													<a
-														href={marketUrl}
-														target="_blank"
-														rel="noopener noreferrer"
-														className="hover:underline hover:text-[#7048e8] transition-colors"
-														title={pos.marketTitle || pos.marketId}
-													>
-														{pos.marketTitle
-															? pos.marketTitle.length > 25
-																? pos.marketTitle.slice(0, 25) + "…"
-																: pos.marketTitle
-															: shortMarket(pos.marketId)}
-													</a>
-												) : (
-													<span title={pos.marketTitle || pos.marketId}>
-														{pos.marketTitle
-															? pos.marketTitle.length > 25
-																? pos.marketTitle.slice(0, 25) + "…"
-																: pos.marketTitle
-															: shortMarket(pos.marketId)}
-													</span>
-												)}
-											</td>
-											<td className="px-4 py-2.5 tabular-nums">{pos.entryPrice.toFixed(3)}</td>
-											<td className="px-4 py-2.5 tabular-nums">{(pos.exitPrice ?? 0).toFixed(3)}</td>
-											<td className="px-4 py-2.5 tabular-nums text-muted-foreground">{fmtUsd(pos.entryUsd)}</td>
-											<td className={`px-4 py-2.5 tabular-nums font-bold ${isWin ? "text-emerald-600" : "text-red-500"}`}>
-												{fmtUsd(pos.pnl, true)}
-											</td>
-											<td className={`px-4 py-2.5 tabular-nums ${isWin ? "text-emerald-600" : "text-red-500"}`}>
-												{fmtPct(roi)}
-											</td>
-											<td className="px-4 py-2.5 text-muted-foreground">
-												{holdTime(pos.entryTimestamp, pos.exitTimestamp)}
-											</td>
-											<td className="px-4 py-2.5">
-												<ReasonBadge reason={pos.exitReason} />
-											</td>
-											<td className="px-4 py-2.5">
-												{isWin ? (
-													<IconCircleCheck size={13} className="text-emerald-500" />
-												) : (
-													<IconTrendingDown size={13} className="text-red-400" />
-												)}
-											</td>
+													{h}
+												</th>
+											))}
 										</tr>
-									);
-								})}</tbody></table>
+									</thead>
+									<tbody className="divide-y divide-slate-100">
+										{closed.map((pos) => {
+											const roi = pos.entryUsd > 0 ? (pos.pnl ?? 0) / pos.entryUsd : 0;
+											const isWin = (pos.pnl ?? 0) > 0;
+											const marketMeta =
+												resolvedMarketMeta[pos.marketId] ??
+												polymarketMarketMetaCache.get(pos.marketId) ??
+												null;
+											const leaderName =
+												firstNonEmptyString(
+													walletNameByAddress[pos.leaderAddress],
+													pos.leaderLabel,
+												) ?? shortAddr(pos.leaderAddress);
+											const marketName =
+												firstNonEmptyString(pos.marketTitle, marketMeta?.question) ??
+												shortMarket(pos.marketId);
+											const marketUrl = buildPolymarketMarketUrl(
+												pos.marketSlug ??
+													marketMeta?.marketSlug ??
+													polymarketSlugCache.get(pos.marketId) ??
+													null,
+											);
+											return (
+												<tr key={pos.positionId} className="hover:bg-slate-50/50">
+													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+														<a
+															href={`https://polymarket.com/profile/${pos.leaderAddress}`}
+															target="_blank"
+															rel="noopener noreferrer"
+															className="hover:underline hover:text-[#7048e8] transition-colors"
+															title={pos.leaderAddress}
+														>
+															{leaderName}
+														</a>
+													</td>
+													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+														{marketUrl ? (
+															<a
+																href={marketUrl}
+																target="_blank"
+																rel="noopener noreferrer"
+																className="hover:underline hover:text-[#7048e8] transition-colors"
+																title={firstNonEmptyString(pos.marketTitle, marketMeta?.question) || pos.marketId}
+															>
+																{marketName.length > 25 ? marketName.slice(0, 25) + "…" : marketName}
+															</a>
+														) : (
+															<span title={firstNonEmptyString(pos.marketTitle, marketMeta?.question) || pos.marketId}>
+																{marketName.length > 25 ? marketName.slice(0, 25) + "…" : marketName}
+															</span>
+														)}
+													</td>
+													<td className="px-4 py-2.5 tabular-nums">{pos.entryPrice.toFixed(3)}</td>
+													<td className="px-4 py-2.5 tabular-nums">{(pos.exitPrice ?? 0).toFixed(3)}</td>
+													<td className="px-4 py-2.5 tabular-nums text-muted-foreground">{fmtUsd(pos.entryUsd)}</td>
+													<td className={`px-4 py-2.5 tabular-nums font-bold ${isWin ? "text-emerald-600" : "text-red-500"}`}>
+														{fmtUsd(pos.pnl, true)}
+													</td>
+													<td className={`px-4 py-2.5 tabular-nums ${isWin ? "text-emerald-600" : "text-red-500"}`}>
+														{fmtPct(roi)}
+													</td>
+													<td className="px-4 py-2.5 text-muted-foreground">
+														{holdTime(pos.entryTimestamp, pos.exitTimestamp)}
+													</td>
+													<td className="px-4 py-2.5">
+														<ReasonBadge reason={pos.exitReason} />
+													</td>
+													<td className="px-4 py-2.5">
+														{isWin ? (
+															<IconCircleCheck size={13} className="text-emerald-500" />
+														) : (
+															<IconTrendingDown size={13} className="text-red-400" />
+														)}
+													</td>
+												</tr>
+											);
+										})}
+									</tbody>
+								</table>
 							</div>
 						)}
 				</div>
