@@ -86,7 +86,7 @@ export const ORG_MEMBERS: OrgMember[] = [
 		avatar: "\u{1F9E2}",
 		reportsTo: "clawdbot",
 		convexAgentName: "Gary",
-		model: { primary: "GLM-4.7", fallback: "GLM-5" },
+		model: { primary: "GLM-4.7", fallback: "GPT-5.4-mini" },
 		profile: {
 			role: "Chief Marketing Officer. Attention-driven brand strategist inspired by Gary Vaynerchuk's frameworks. Focuses on content strategy, platform-specific storytelling, and community building.",
 			responsibilities: [
@@ -110,7 +110,7 @@ export const ORG_MEMBERS: OrgMember[] = [
 		avatar: "\u{1F4B0}",
 		reportsTo: "clawdbot",
 		convexAgentName: "Hormozi",
-		model: { primary: "GLM-4.7", fallback: "GLM-5" },
+		model: { primary: "GLM-4.7", fallback: "GPT-5.4-mini" },
 		profile: {
 			role: "Chief Strategy Officer. Business growth strategist inspired by Alex Hormozi's frameworks. Focuses on offer creation, lead generation, and revenue optimization.",
 			responsibilities: [
@@ -134,7 +134,7 @@ export const ORG_MEMBERS: OrgMember[] = [
 		avatar: "\u{1F451}",
 		reportsTo: "clawdbot",
 		convexAgentName: "Leila",
-		model: { primary: "GLM-4.7", fallback: "GLM-5" },
+		model: { primary: "GLM-4.7", fallback: "GPT-5.4-mini" },
 		profile: {
 			role: "Chief Operating Officer. Operations strategist inspired by Leila Hormozi's frameworks. Focuses on team building, systems, hiring, management, and operational excellence.",
 			responsibilities: [
@@ -158,7 +158,7 @@ export const ORG_MEMBERS: OrgMember[] = [
 		avatar: "\u{1F50D}",
 		reportsTo: "hormozi",
 		convexAgentName: "Scout",
-		model: { primary: "GLM-4.7", fallback: "GLM-5" },
+		model: { primary: "GLM-4.7", fallback: "GPT-5.4-mini" },
 		profile: {
 			role: "Competitive Intelligence Analyst. Runs daily scanning operations across social media, corporate registries, and industry sources. Feeds intelligence to Hormozi for strategic analysis.",
 			responsibilities: [
@@ -200,7 +200,7 @@ export const ORG_MEMBERS: OrgMember[] = [
 		avatar: "\u{1F6E1}\u{FE0F}",
 		reportsTo: "scout",
 		convexAgentName: "Sentry",
-		model: { primary: "GLM-4.7", fallback: "GLM-5" },
+		model: { primary: "GLM-4.7", fallback: "GPT-5.4-mini" },
 		profile: {
 			role: "Procurement Intelligence Analyst. Headless agent (no Telegram). Scans government procurement portals, predicts contract expiries, monitors awards, and audits corporate registries. Writes findings to workspace for Scout to pick up.",
 			responsibilities: [
