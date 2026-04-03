@@ -71,6 +71,7 @@ function shortMarket(id: string): string {
 type PolymarketMarketMeta = {
 	marketSlug: string | null;
 	outcomesByTokenId: Record<string, string>;
+	pricesByTokenId: Record<string, number>;
 };
 
 const polymarketMarketMetaCache = new Map<string, PolymarketMarketMeta | null>();
@@ -241,7 +242,7 @@ export default function CopyTradePage() {
 					}
 					const payload = (await resp.json()) as {
 						market_slug?: unknown;
-						tokens?: Array<{ token_id?: unknown; outcome?: unknown }>;
+						tokens?: Array<{ token_id?: unknown; outcome?: unknown; price?: unknown }>;
 					};
 					const marketSlug =
 						typeof payload.market_slug === "string" && payload.market_slug.trim()
@@ -260,7 +261,24 @@ export default function CopyTradePage() {
 							return tokenId && outcome ? [[tokenId, outcome] as const] : [];
 						}),
 					);
-					const meta = { marketSlug, outcomesByTokenId };
+					const pricesByTokenId = Object.fromEntries(
+						(payload.tokens ?? []).flatMap((token) => {
+							const tokenId =
+								typeof token.token_id === "string" && token.token_id.trim()
+									? token.token_id.trim()
+									: null;
+							const price =
+								typeof token.price === "number"
+									? token.price
+									: typeof token.price === "string" && token.price.trim()
+										? Number(token.price)
+										: null;
+							return tokenId && price != null && Number.isFinite(price)
+								? [[tokenId, price] as const]
+								: [];
+						}),
+					);
+					const meta = { marketSlug, outcomesByTokenId, pricesByTokenId };
 					polymarketMarketMetaCache.set(marketId, meta);
 					return [marketId, meta] as const;
 				} catch {
@@ -461,12 +479,15 @@ export default function CopyTradePage() {
 										</thead>
 										<tbody className="divide-y divide-slate-100">
 										{open.map((pos) => {
-											const currentPrice = pos.currentPrice ?? pos.peakPrice;
-											const unrealPnl = pos.shares * currentPrice - pos.entryUsd;
 											const marketMeta =
 												resolvedMarketMeta[pos.marketId] ??
 												polymarketMarketMetaCache.get(pos.marketId) ??
 												null;
+											const currentPrice =
+												marketMeta?.pricesByTokenId[pos.tokenId] ??
+												pos.currentPrice ??
+												pos.peakPrice;
+											const unrealPnl = pos.shares * currentPrice - pos.entryUsd;
 											const marketUrl = buildPolymarketMarketUrl(
 												pos.marketSlug ??
 													marketMeta?.marketSlug ??
