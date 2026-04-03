@@ -67,6 +67,7 @@ export const refreshPrices = internalAction({
 		const rawPositions: Array<{
 			conditionId: string;
 			title: string;
+			slug?: string;
 			eventSlug: string;
 			outcome: string;
 			size: number;
@@ -119,7 +120,7 @@ export const refreshPrices = internalAction({
 			} = {
 				market: p.conditionId,
 				marketQuestion: p.title,
-				marketSlug: p.eventSlug,
+				marketSlug: p.slug ?? p.eventSlug,
 				outcome: p.outcome,
 				shares: p.size,
 				entryPrice: p.avgPrice,

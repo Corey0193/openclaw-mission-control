@@ -583,13 +583,22 @@ export default function SoftArbPage() {
 		setSectionsOpen((prev) => ({ ...prev, [s]: !prev[s] }));
 	};
 
+	const matchesTradeSlug = (candidateSlug?: string | null, tradeSlug?: string | null) => {
+		if (!candidateSlug || !tradeSlug) return false;
+		return candidateSlug === tradeSlug || tradeSlug.startsWith(candidateSlug);
+	};
+
 	const activePositions = useMemo(() => {
 		const softTrades = softArbData?.trades.filter((t) => t.status === "OPEN") || [];
 		
 		// Map soft trades to actual Convex positions if available
 		return softTrades.map(t => {
-			const actualPos = polymarketData?.positions?.find((p: any) => p.marketSlug === t.polymarket_slug);
-			const actualOrder = polymarketData?.openOrders?.find((o: any) => o.marketSlug === t.polymarket_slug);
+			const actualPos = polymarketData?.positions?.find((p: any) =>
+				matchesTradeSlug(p.marketSlug, t.polymarket_slug),
+			);
+			const actualOrder = polymarketData?.openOrders?.find((o: any) =>
+				matchesTradeSlug(o.marketSlug, t.polymarket_slug),
+			);
 			
 			return {
 				...t,
@@ -607,7 +616,7 @@ export default function SoftArbPage() {
 		if (!polymarketData?.positions) return [];
 		return polymarketData.positions.filter((p: any) => 
 			!p.marketResolved && p.shares > 0 && 
-			!softArbData?.trades.some(t => t.polymarket_slug === p.marketSlug)
+			!softArbData?.trades.some(t => matchesTradeSlug(p.marketSlug, t.polymarket_slug))
 		);
 	}, [polymarketData, softArbData]);
 
