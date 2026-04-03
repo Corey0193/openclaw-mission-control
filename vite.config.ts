@@ -208,6 +208,21 @@ function loadOpportunityDossiers(): Map<string, Record<string, unknown>> {
 	return dossiers;
 }
 
+function getPrimaryMatchedPair(
+	dossier: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+	if (!dossier) return null;
+	const matchedPairs = Array.isArray(dossier.matched_pairs)
+		? dossier.matched_pairs
+		: [];
+	for (const pair of matchedPairs) {
+		if (pair && typeof pair === "object") {
+			return pair as Record<string, unknown>;
+		}
+	}
+	return null;
+}
+
 function buildMergedLedgerRows(
 	rows: Record<string, unknown>[],
 	mode: "paper" | "live",
@@ -1030,6 +1045,7 @@ async function getSoftArbTrades(): Promise<{
 		const mtmData = mtm?.trades?.[rowKey] ?? mtm?.trades?.[rawTradeId];
 		const shieldData = shieldTradeState[rowKey] ?? shieldTradeState[rawTradeId];
 		const dossier = dossierByOpportunity.get(opportunityId) ?? null;
+		const matchedPair = getPrimaryMatchedPair(dossier);
 		const dossierDecision =
 			dossier && typeof dossier.decision === "object" && dossier.decision
 				? (dossier.decision as Record<string, unknown>)
@@ -1066,10 +1082,17 @@ async function getSoftArbTrades(): Promise<{
 			),
 			resolves_by: firstNonEmptyString(
 				t.resolves_by,
+				matchedPair?.event_deadline,
 				dossier?.event_date_utc,
 				dossier?.scan_timestamp,
 			),
-			polymarket_slug: String(t.polymarket_slug ?? ""),
+			polymarket_slug: firstNonEmptyString(
+				t.polymarket_slug,
+				t.polymarket_market_slug,
+				matchedPair?.polymarket_market_slug,
+				matchedPair?.polymarket_slug,
+				dossier?.polymarket_slug,
+			),
 			metaculus_id: Number(t.metaculus_id ?? 0),
 			status: String(mtmData?.status ?? t.status ?? "OPEN"),
 			current_price:
