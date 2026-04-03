@@ -25,16 +25,17 @@ export const upsertStatus = mutation({
 
 		const now = Date.now();
 		const base = {
-			running: args.running,
-			pid: args.pid,
-			mode: args.mode,
-			bankroll: args.bankroll,
-			openPositions: args.openPositions,
-			totalPaperPnl: args.totalPaperPnl,
-			status: args.status,
-			lastHeartbeatAt: now,
+		        running: args.running,
+		        pid: args.pid,
+		        mode: args.mode,
+		        leaderLabel: args.leaderLabel,
+		        marketTitle: args.marketTitle,
+		        bankroll: args.bankroll,
+		        openPositions: args.openPositions,
+		        totalPaperPnl: args.totalPaperPnl,
+		        status: args.status,
+		        lastHeartbeatAt: now,
 		};
-
 		if (existing) {
 			await ctx.db.patch("copyTradeDaemonStatus", existing._id, base);
 		} else {
@@ -68,16 +69,17 @@ export const getStatus = query({
 			.first();
 		if (!row) return null;
 		return {
-			running: row.running,
-			pid: row.pid,
-			mode: row.mode,
-			bankroll: row.bankroll,
-			openPositions: row.openPositions,
-			totalPaperPnl: row.totalPaperPnl,
-			status: row.status,
-			lastHeartbeatAt: row.lastHeartbeatAt,
-		};
-	},
+		        running: row.running,
+		        pid: row.pid,
+		        mode: row.mode,
+		        leaderLabel: row.leaderLabel,
+		        marketTitle: row.marketTitle,
+		        bankroll: row.bankroll,
+		        openPositions: row.openPositions,
+		        totalPaperPnl: row.totalPaperPnl,
+		        status: row.status,
+		        lastHeartbeatAt: row.lastHeartbeatAt,
+		};	},
 });
 
 // ── Positions ─────────────────────────────────────────────────────────────────
