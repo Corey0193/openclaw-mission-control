@@ -163,8 +163,7 @@ export default function AgentProfilePanel({
 					) : (
 						<div className="bg-muted/50 rounded-lg overflow-hidden divide-y divide-border">
 							{member.profile.skills.map((s) => {
-								const modelLabel = s.model ?? member.model?.primary;
-								const isOverride = !!s.model;
+								const modelLabel = s.model;
 								return (
 									<div
 										key={s.name}
@@ -174,9 +173,7 @@ export default function AgentProfilePanel({
 										{modelLabel && (
 											<span
 												className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap border ${
-													isOverride
-														? "bg-[var(--accent-orange)]/10 text-[var(--accent-orange)] border-[var(--accent-orange)]/20"
-														: "bg-[var(--accent-blue)]/10 text-[var(--accent-blue)] border-[var(--accent-blue)]/20"
+													"bg-[var(--accent-orange)]/10 text-[var(--accent-orange)] border-[var(--accent-orange)]/20"
 												}`}
 											>
 												{modelLabel}
