@@ -219,6 +219,7 @@ function arbPipelinePlugin() {
 
 interface SoftArbTrade {
 	trade_id: string;
+	rowKey: string;
 	pair: string;
 	signal_family: string;
 	signal_source: string;
@@ -242,6 +243,9 @@ interface SoftArbTrade {
 	resolved_outcome: string | null;
 	event_slug: string | null;
 	is_real: boolean;
+	order_id: string | null;
+	order_status: string | null;
+	mark_source: "mtm" | "gamma_fallback" | "unavailable";
 	shield_coin: string | null;
 	shield_state: string | null;
 	shield_reason: string | null;
@@ -384,6 +388,16 @@ type LatestSoftArbDossierCache = {
 
 let latestSoftArbDossierCache: LatestSoftArbDossierCache | null = null;
 let latestMetaculusDossierCache: LatestSoftArbDossierCache | null = null;
+const SOFT_ARB_GAMMA_CACHE_TTL_MS = 30_000;
+const softArbGammaCache = new Map<
+	string,
+	{
+		currentYesPrice: number;
+		currentNoPrice: number;
+		eventSlug: string | null;
+		fetchedAt: number;
+	}
+>();
 
 function normalizeSoftArbPct(value: unknown): number {
 	const n = Number(value ?? 0);
@@ -419,6 +433,143 @@ function getSignalSource(row: Record<string, unknown>): string {
 function toFiniteNumber(value: unknown): number {
 	const n = Number(value ?? 0);
 	return Number.isFinite(n) ? n : 0;
+}
+
+function roundTo(value: number, decimals: number): number {
+	const factor = 10 ** decimals;
+	return Math.round(value * factor) / factor;
+}
+
+function resolveSoftArbCurrentPrice(
+	direction: string,
+	currentYesPrice: number,
+	currentNoPrice: number,
+): number | null {
+	const normalized = String(direction ?? "").toUpperCase();
+	if (normalized === "BUY_POLYMARKET_NO" || normalized === "BUY_NO") {
+		return currentNoPrice;
+	}
+	if (normalized === "BUY_POLYMARKET_YES" || normalized === "BUY_YES") {
+		return currentYesPrice;
+	}
+	return null;
+}
+
+async function fetchSoftArbGammaQuote(slug: string): Promise<{
+	currentYesPrice: number;
+	currentNoPrice: number;
+	eventSlug: string | null;
+} | null> {
+	if (!slug.trim()) return null;
+
+	const cached = softArbGammaCache.get(slug);
+	if (cached && Date.now() - cached.fetchedAt < SOFT_ARB_GAMMA_CACHE_TTL_MS) {
+		return cached;
+	}
+
+	try {
+		const resp = await fetch(
+			`https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`,
+			{
+				headers: {
+					Accept: "application/json",
+				},
+			},
+		);
+		if (!resp.ok) return null;
+
+		const payload = (await resp.json()) as Array<Record<string, unknown>>;
+		const market = Array.isArray(payload) ? payload[0] : null;
+		if (!market) return null;
+
+		const rawPrices = market.outcomePrices;
+		const prices =
+			typeof rawPrices === "string" ? JSON.parse(rawPrices) : rawPrices;
+		if (!Array.isArray(prices) || prices.length < 2) return null;
+
+		const currentYesPrice = Number(prices[0]);
+		const currentNoPrice = Number(prices[1]);
+		if (
+			!Number.isFinite(currentYesPrice) ||
+			!Number.isFinite(currentNoPrice)
+		) {
+			return null;
+		}
+
+		const events = Array.isArray(market.events)
+			? (market.events as Array<Record<string, unknown>>)
+			: [];
+		const quote = {
+			currentYesPrice,
+			currentNoPrice,
+			eventSlug:
+				events[0]?.slug != null ? String(events[0].slug) : null,
+			fetchedAt: Date.now(),
+		};
+		softArbGammaCache.set(slug, quote);
+		return quote;
+	} catch {
+		return null;
+	}
+}
+
+async function enrichSoftArbTradesWithFallbackMarks(
+	trades: SoftArbTrade[],
+): Promise<SoftArbTrade[]> {
+	const slugsToFetch = Array.from(
+		new Set(
+			trades
+				.filter(
+					(trade) =>
+						trade.status === "OPEN" &&
+						trade.polymarket_slug &&
+						(trade.current_price == null || trade.unrealized_pnl == null),
+				)
+				.map((trade) => trade.polymarket_slug),
+		),
+	);
+
+	if (slugsToFetch.length === 0) return trades;
+
+	const quoteEntries = await Promise.all(
+		slugsToFetch.map(async (slug) => [slug, await fetchSoftArbGammaQuote(slug)] as const),
+	);
+	const quoteMap = new Map(quoteEntries);
+
+	return trades.map((trade) => {
+		if (
+			trade.status !== "OPEN" ||
+			!trade.polymarket_slug ||
+			(trade.current_price != null && trade.unrealized_pnl != null)
+		) {
+			return trade;
+		}
+
+		const quote = quoteMap.get(trade.polymarket_slug);
+		if (!quote) {
+			return {
+				...trade,
+				mark_source: trade.current_price != null ? trade.mark_source : "unavailable",
+			};
+		}
+
+		const currentPrice = resolveSoftArbCurrentPrice(
+			trade.direction,
+			quote.currentYesPrice,
+			quote.currentNoPrice,
+		);
+		if (currentPrice == null) {
+			return trade;
+		}
+
+		return {
+			...trade,
+			current_price: roundTo(currentPrice, 4),
+			unrealized_pnl: roundTo((currentPrice - trade.entry_price) * trade.shares, 2),
+			event_slug: trade.event_slug ?? quote.eventSlug,
+			mark_source: "gamma_fallback",
+		};
+	});
 }
 
 function resolveLatestDossier(
@@ -648,7 +799,7 @@ function getSoftArbDiscoverySummary(): SoftArbDiscoverySummary {
 	};
 }
 
-function getSoftArbTrades(): {
+async function getSoftArbTrades(): Promise<{
 	trades: SoftArbTrade[];
 	summary: Record<string, unknown>;
 	outcomes: SoftArbOutcome[];
@@ -657,7 +808,7 @@ function getSoftArbTrades(): {
 	shield: SoftArbShieldState | null;
 	discovery: SoftArbDiscoverySummary;
 	lastUpdated: string | null;
-} {
+}> {
 	const paperRaw = readJsonlSafe(SOFT_ARB_TRADES_PATH);
 	const liveRaw = readJsonlSafe(SOFT_ARB_LIVE_TRADES_PATH);
 
@@ -789,6 +940,14 @@ function getSoftArbTrades(): {
 		        event_slug:
 		                mtmData?.event_slug != null ? String(mtmData.event_slug) : null,
 		        is_real: isReal,
+			order_id: t.order_id != null ? String(t.order_id) : null,
+			order_status:
+				t.order_status != null
+					? String(t.order_status)
+					: t.status != null
+						? String(t.status)
+						: null,
+			mark_source: mtmData ? "mtm" : "unavailable",
 			shield_coin:
 				shieldData?.shield_coin != null ? String(shieldData.shield_coin) : null,
 			shield_state:
@@ -805,6 +964,8 @@ function getSoftArbTrades(): {
 					: null,
 		};
 	});
+
+	const enrichedTrades = await enrichSoftArbTradesWithFallbackMarks(trades);
 
 	const outcomes: SoftArbOutcome[] = rawOutcomes
 		.map((row) => ({
@@ -854,12 +1015,18 @@ function getSoftArbTrades(): {
 	// Summary: use MTM summary if available, else compute basic stats
 	const summary = {
 		...(mtm?.summary ?? {}),
-		total_trades: trades.length,
-		open_trades: trades.filter((t) => t.status === "OPEN").length,
-		resolved_trades: trades.filter((t) => t.status.startsWith("RESOLVED") || t.status.startsWith("CLOSED")).length,
-		total_invested: Math.round(trades.reduce((s, t) => s + t.position_size_usd, 0) * 100) / 100,
-		total_unrealized_pnl: trades.reduce((s, t) => s + (t.unrealized_pnl ?? 0), 0),
-		total_realized_pnl: Math.round(trades.reduce((s, t) => s + (t.realized_pnl ?? 0), 0) * 100) / 100,
+		total_trades: enrichedTrades.length,
+		open_trades: enrichedTrades.filter((t) => t.status === "OPEN").length,
+		resolved_trades: enrichedTrades.filter((t) => t.status.startsWith("RESOLVED") || t.status.startsWith("CLOSED")).length,
+		total_invested: Math.round(enrichedTrades.reduce((s, t) => s + t.position_size_usd, 0) * 100) / 100,
+		total_unrealized_pnl:
+			Math.round(
+				enrichedTrades.reduce((s, t) => s + (t.unrealized_pnl ?? 0), 0) * 100,
+			) / 100,
+		total_realized_pnl:
+			Math.round(
+				enrichedTrades.reduce((s, t) => s + (t.realized_pnl ?? 0), 0) * 100,
+			) / 100,
 	};
 
 	const outcomeSummary = outcomes.reduce(
@@ -887,7 +1054,7 @@ function getSoftArbTrades(): {
 			: 0;
 
 	return {
-		trades,
+		trades: enrichedTrades,
 		summary,
 		outcomes,
 		outcomeSummary: {
@@ -923,14 +1090,16 @@ function softArbTradesPlugin() {
 						req.method === "GET" &&
 						(url === "/api/soft-arb-trades" || url === "/api/soft-arb/trades")
 					) {
-						try {
-							const data = getSoftArbTrades();
+						void (async () => {
+							try {
+								const data = await getSoftArbTrades();
 							res.setHeader("Content-Type", "application/json");
 							res.end(JSON.stringify(data));
-						} catch {
-							res.statusCode = 500;
-							res.end("Internal server error");
-						}
+							} catch {
+								res.statusCode = 500;
+								res.end("Internal server error");
+							}
+						})();
 						return;
 					}
 					next();
