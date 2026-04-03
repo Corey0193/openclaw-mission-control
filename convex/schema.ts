@@ -162,6 +162,8 @@ export default defineSchema({
 		tenantId: v.string(),
 		running: v.boolean(),
 		mode: v.string(),
+		leaderLabel: v.optional(v.string()),
+		marketTitle: v.optional(v.string()),
 		processCount: v.number(),
 		pid: v.optional(v.number()),
 		startedAt: v.optional(v.number()),
@@ -195,6 +197,8 @@ export default defineSchema({
 		exitReason: v.optional(v.string()),
 		pnl: v.optional(v.number()),
 		mode: v.string(),
+		leaderLabel: v.optional(v.string()),
+		marketTitle: v.optional(v.string()),
 	})
 		.index("by_tenant", ["tenantId"])
 		.index("by_position_id", ["positionId"]),
@@ -202,7 +206,9 @@ export default defineSchema({
 		tenantId: v.string(),
 		running: v.boolean(),
 		pid: v.optional(v.number()),
-		mode: v.string(), // "PAPER" | "LIVE"
+		mode: v.string(),
+		leaderLabel: v.optional(v.string()),
+		marketTitle: v.optional(v.string()), // "PAPER" | "LIVE"
 		bankroll: v.number(),
 		openPositions: v.number(),
 		totalPaperPnl: v.number(),

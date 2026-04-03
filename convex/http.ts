@@ -281,8 +281,9 @@ http.route({
 						: undefined,
 			pnl: p.pnl != null ? Number(p.pnl) : undefined,
 			mode: (p.mode as string) ?? "PAPER",
-		}));
-		if (positions.length > 0) {
+			leaderLabel: p.leader_label as string | undefined,
+			marketTitle: p.market_title as string | undefined,
+			}));		if (positions.length > 0) {
 			await ctx.runMutation(api.copyTrade.syncPositions, {
 				tenantId: body.tenant_id ?? "default",
 				positions,

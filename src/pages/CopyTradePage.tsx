@@ -12,15 +12,16 @@ import {
 	IconAlertCircle,
 	IconCircleCheck,
 	IconClock,
-} from "@tabler/icons-react";
+	IconActivity,
+	} from "@tabler/icons-react";
 import {
-	LineChart,
-	Line,
-	XAxis,
-	YAxis,
-	Tooltip,
-	ResponsiveContainer,
-	ReferenceLine,
+        LineChart,
+        Line,
+        XAxis,
+        YAxis,
+        Tooltip,
+        ResponsiveContainer,
+        ReferenceLine,
 } from "recharts";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -155,20 +156,20 @@ export default function CopyTradePage() {
 
 	// Cumulative PnL chart data
 	const pnlChartData = useMemo(() => {
-		const sorted = [...closed]
-			.filter((p) => p.exitTimestamp != null)
-			.sort((a, b) => (a.exitTimestamp ?? 0) - (b.exitTimestamp ?? 0));
-		let cum = 0;
-		return sorted.map((p) => {
-			cum += p.pnl ?? 0;
-			return {
-				ts: fmtTs(p.exitTimestamp!),
-				cumPnl: parseFloat(cum.toFixed(2)),
-				pnl: parseFloat((p.pnl ?? 0).toFixed(2)),
-			};
-		});
-	}, [closed]);
+	        const sorted = [...closed]
+	                .filter((p) => p.exitTimestamp != null)
+	                .sort((a, b) => (a.exitTimestamp ?? 0) - (b.exitTimestamp ?? 0));
 
+	        let runningCum = 0;
+	        return sorted.map((p) => {
+	                runningCum += p.pnl ?? 0;
+	                return {
+	                        ts: fmtTs(p.exitTimestamp!),
+	                        cumPnl: parseFloat(runningCum.toFixed(2)),
+	                        pnl: parseFloat((p.pnl ?? 0).toFixed(2)),
+	                };
+	        });
+	}, [closed]);
 	const totalPnl = status?.totalPaperPnl ?? 0;
 	const bankroll = status?.bankroll ?? 0;
 	const loading = allPositions === undefined;
@@ -189,56 +190,69 @@ export default function CopyTradePage() {
 						</p>
 					</div>
 					{status && (
-						<div
-							className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider border ${
-								status.running
-									? "bg-[#f3f0ff] text-[#7048e8] border-violet-200"
-									: "bg-muted text-muted-foreground border-border"
-							}`}
-						>
-							<span
-								className={`w-2 h-2 rounded-full ${status.running ? "bg-[#7048e8] animate-pulse" : "bg-gray-400"}`}
-							/>
-							{status.running ? `RUNNING · PID ${status.pid ?? "?"}` : "STOPPED"}
-						</div>
+					        <div className="flex flex-col items-end gap-1">
+					                <div
+					                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider border ${
+					                                status.running
+					                                        ? "bg-[#f3f0ff] text-[#7048e8] border-violet-200"
+					                                        : "bg-muted text-muted-foreground border-border"
+					                        }`}
+					                >
+					                        <span
+					                                className={`w-2 h-2 rounded-full ${status.running ? "bg-[#7048e8] animate-pulse" : "bg-gray-400"}`}
+					                        />
+					                        {status.running ? `RUNNING · PID ${status.pid ?? "?"}` : "STOPPED"}
+					                        <span className="mx-1 opacity-20">|</span>
+					                        <span className="uppercase">{status.mode}</span>
+					                </div>
+					                <div className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5 mr-2">
+					                        <IconClock size={10} />
+					                        Last heartbeat: {fmtTs(status.lastHeartbeatAt / 1000)}
+					                </div>
+					        </div>
 					)}
-				</div>
+					</div>
 
-				{/* Summary cards */}
-				<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+					{/* Summary cards */}
+					<div className="grid grid-cols-2 md:grid-cols-5 gap-3">
 					<StatCard
-						label="Bankroll"
-						value={fmtUsd(bankroll)}
-						sub="Paper USD"
-						icon={<IconWallet size={20} />}
+					        label="Bankroll"
+					        value={fmtUsd(bankroll)}
+					        sub="Paper USD"
+					        icon={<IconWallet size={20} />}
 					/>
 					<StatCard
-						label="Total PnL"
-						value={fmtUsd(totalPnl, true)}
-						sub={closed.length > 0 ? `${closed.length} closed trades` : "no trades yet"}
-						icon={<IconCurrencyDollar size={20} />}
-						positive={totalPnl >= 0}
+					        label="Open Positions"
+					        value={open.length.toString()}
+					        sub={status?.status || "active"}
+					        icon={<IconActivity size={20} className="text-violet-500" />}
 					/>
 					<StatCard
-						label="Win Rate"
-						value={winRate != null ? `${(winRate * 100).toFixed(0)}%` : "—"}
-						sub={`${wins}W / ${losses}L`}
-						icon={<IconChartLine size={20} />}
-						positive={winRate != null ? winRate >= 0.5 : undefined}
+					        label="Total PnL"
+					        value={fmtUsd(totalPnl, true)}
+					        sub={closed.length > 0 ? `${closed.length} closed trades` : "no trades yet"}
+					        icon={<IconCurrencyDollar size={20} />}
+					        positive={totalPnl >= 0}
 					/>
 					<StatCard
-						label="Avg W / L"
-						value={
-							avgWin != null && avgLoss != null
-								? `${fmtUsd(avgWin, true)}`
-								: "—"
-						}
-						sub={avgLoss != null ? `Avg loss ${fmtUsd(avgLoss, true)}` : undefined}
-						icon={<IconTrendingUp size={20} />}
-						positive={avgWin != null && avgLoss != null ? Math.abs(avgWin) > Math.abs(avgLoss) : undefined}
+					        label="Win Rate"
+					        value={winRate != null ? `${(winRate * 100).toFixed(0)}%` : "—"}
+					        sub={`${wins}W / ${losses}L`}
+					        icon={<IconChartLine size={20} />}
+					        positive={winRate != null ? winRate >= 0.5 : undefined}
 					/>
-				</div>
-
+					<StatCard
+					        label="Avg W / L"
+					        value={
+					                avgWin != null && avgLoss != null
+					                        ? `${fmtUsd(avgWin, true)}`
+					                        : "—"
+					        }
+					        sub={avgLoss != null ? `Avg loss ${fmtUsd(avgLoss, true)}` : undefined}
+					        icon={<IconTrendingUp size={20} />}
+					        positive={avgWin != null && avgLoss != null ? Math.abs(avgWin) > Math.abs(avgLoss) : undefined}
+					/>
+					</div>
 				{/* PnL chart (only when there are closed trades) */}
 				{pnlChartData.length > 1 && (
 					<div className="bg-white border border-border rounded-xl p-5 shadow-sm">
@@ -262,10 +276,9 @@ export default function CopyTradePage() {
 									width={48}
 								/>
 								<Tooltip
-									formatter={(v: number) => [fmtUsd(v, true), "Cum. PnL"]}
-									contentStyle={{ fontSize: 11, borderRadius: 8 }}
-								/>
-								<ReferenceLine y={0} stroke="#dee2e6" strokeDasharray="4 2" />
+								        formatter={(v: any) => [fmtUsd(v, true), "Cum. PnL"]}
+								        contentStyle={{ fontSize: 11, borderRadius: 8 }}
+								/>								<ReferenceLine y={0} stroke="#dee2e6" strokeDasharray="4 2" />
 								<Line
 									type="monotone"
 									dataKey="cumPnl"
@@ -344,12 +357,31 @@ export default function CopyTradePage() {
 											return (
 												<tr key={pos.positionId} className="hover:bg-slate-50/50">
 													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-														{shortAddr(pos.leaderAddress)}
+													     <a
+													             href={`https://polymarket.com/profile/${pos.leaderAddress}`}
+													             target="_blank"
+													             rel="noopener noreferrer"
+													             className="hover:underline hover:text-[#7048e8] transition-colors"
+													             title={pos.leaderAddress}
+													     >
+													             {pos.leaderLabel || shortAddr(pos.leaderAddress)}
+													     </a>
 													</td>
 													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-														{shortMarket(pos.marketId)}
-													</td>
-													<td className="px-4 py-2.5">
+													     <a
+													             href={`https://polymarket.com/market/${pos.marketId}`}
+													             target="_blank"
+													             rel="noopener noreferrer"
+													             className="hover:underline hover:text-[#7048e8] transition-colors"
+													             title={pos.marketTitle || pos.marketId}
+													     >
+													             {pos.marketTitle
+													                     ? pos.marketTitle.length > 25
+													                             ? pos.marketTitle.slice(0, 25) + "…"
+													                             : pos.marketTitle
+													                     : shortMarket(pos.marketId)}
+													     </a>
+													</td>													<td className="px-4 py-2.5">
 														<span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold">
 															YES {pos.outcomeIndex === 0 ? "" : "(NO)"}
 														</span>
@@ -408,12 +440,31 @@ export default function CopyTradePage() {
 										return (
 											<tr key={pos.positionId} className="hover:bg-slate-50/50">
 												<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-													{shortAddr(pos.leaderAddress)}
+												     <a
+												             href={`https://polymarket.com/profile/${pos.leaderAddress}`}
+												             target="_blank"
+												             rel="noopener noreferrer"
+												             className="hover:underline hover:text-[#7048e8] transition-colors"
+												             title={pos.leaderAddress}
+												     >
+												             {pos.leaderLabel || shortAddr(pos.leaderAddress)}
+												     </a>
 												</td>
 												<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-													{shortMarket(pos.marketId)}
-												</td>
-												<td className="px-4 py-2.5 tabular-nums">
+												     <a
+												             href={`https://polymarket.com/market/${pos.marketId}`}
+												             target="_blank"
+												             rel="noopener noreferrer"
+												             className="hover:underline hover:text-[#7048e8] transition-colors"
+												             title={pos.marketTitle || pos.marketId}
+												     >
+												             {pos.marketTitle
+												                     ? pos.marketTitle.length > 25
+												                             ? pos.marketTitle.slice(0, 25) + "…"
+												                             : pos.marketTitle
+												                     : shortMarket(pos.marketId)}
+												     </a>
+												</td>												<td className="px-4 py-2.5 tabular-nums">
 													{pos.entryPrice.toFixed(3)}
 												</td>
 												<td className="px-4 py-2.5 tabular-nums">

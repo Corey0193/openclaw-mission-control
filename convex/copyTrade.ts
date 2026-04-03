@@ -9,6 +9,8 @@ export const upsertStatus = mutation({
 		running: v.boolean(),
 		pid: v.optional(v.number()),
 		mode: v.string(),
+	leaderLabel: v.optional(v.string()),
+	marketTitle: v.optional(v.string()),
 		bankroll: v.number(),
 		openPositions: v.number(),
 		totalPaperPnl: v.number(),
@@ -49,6 +51,8 @@ export const getStatus = query({
 			running: v.boolean(),
 			pid: v.optional(v.number()),
 			mode: v.string(),
+	leaderLabel: v.optional(v.string()),
+	marketTitle: v.optional(v.string()),
 			bankroll: v.number(),
 			openPositions: v.number(),
 			totalPaperPnl: v.number(),
@@ -95,6 +99,8 @@ const positionShape = v.object({
 	exitReason: v.optional(v.string()),
 	pnl: v.optional(v.number()),
 	mode: v.string(),
+	leaderLabel: v.optional(v.string()),
+	marketTitle: v.optional(v.string()),
 });
 
 export const syncPositions = mutation({
@@ -142,6 +148,8 @@ export const listPositions = query({
 			exitReason: v.optional(v.string()),
 			pnl: v.optional(v.number()),
 			mode: v.string(),
+	leaderLabel: v.optional(v.string()),
+	marketTitle: v.optional(v.string()),
 		}),
 	),
 	handler: async (ctx, args) => {
@@ -168,6 +176,8 @@ export const listPositions = query({
 				exitReason: r.exitReason,
 				pnl: r.pnl,
 				mode: r.mode,
+				leaderLabel: r.leaderLabel,
+				marketTitle: r.marketTitle,
 			}));
 	},
 });
