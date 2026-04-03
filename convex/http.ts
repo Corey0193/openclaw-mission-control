@@ -369,6 +369,10 @@ http.route({
 			positionId: String(p.position_id),
 			leaderAddress: String(p.leader_address),
 			marketId: String(p.market_id),
+			marketSlug:
+				p.market_slug != null && String(p.market_slug).trim()
+					? String(p.market_slug).trim()
+					: undefined,
 			tokenId: String(p.token_id),
 			outcomeIndex: Number(p.outcome_index),
 			shares: Number(p.shares),

@@ -202,6 +202,7 @@ export default defineSchema({
 		positionId: v.string(),
 		leaderAddress: v.string(),
 		marketId: v.string(),
+		marketSlug: v.optional(v.string()),
 		tokenId: v.string(),
 		outcomeIndex: v.number(),
 		shares: v.number(),

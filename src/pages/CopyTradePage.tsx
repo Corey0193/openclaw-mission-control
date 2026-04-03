@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
@@ -68,6 +68,13 @@ function shortMarket(id: string): string {
 	return id.slice(0, 8) + "…";
 }
 
+const polymarketSlugCache = new Map<string, string | null>();
+
+function buildPolymarketMarketUrl(marketSlug?: string | null): string | null {
+	if (!marketSlug) return null;
+	return `https://polymarket.com/market/${marketSlug}`;
+}
+
 // ── Summary card ─────────────────────────────────────────────────────────────
 
 function StatCard({
@@ -131,6 +138,8 @@ export default function CopyTradePage() {
 	const status = useQuery(api.copyTrade.getStatus, { tenantId: DEFAULT_TENANT_ID });
 	const allPositions = useQuery(api.copyTrade.listPositions, { tenantId: DEFAULT_TENANT_ID });
 	const [tab, setTab] = useState<"open" | "closed">("open");
+	const [nowMs, setNowMs] = useState(() => Date.now());
+	const [resolvedMarketSlugs, setResolvedMarketSlugs] = useState<Record<string, string>>({});
 
 	const open = useMemo(
 		() => (allPositions ?? []).filter((p) => p.exitPrice == null),
@@ -156,23 +165,95 @@ export default function CopyTradePage() {
 
 	// Cumulative PnL chart data
 	const pnlChartData = useMemo(() => {
-	        const sorted = [...closed]
-	                .filter((p) => p.exitTimestamp != null)
-	                .sort((a, b) => (a.exitTimestamp ?? 0) - (b.exitTimestamp ?? 0));
+		const sorted = [...closed]
+			.filter((p) => p.exitTimestamp != null)
+			.sort((a, b) => (a.exitTimestamp ?? 0) - (b.exitTimestamp ?? 0));
 
-	        let runningCum = 0;
-	        return sorted.map((p) => {
-	                runningCum += p.pnl ?? 0;
-	                return {
-	                        ts: fmtTs(p.exitTimestamp!),
-	                        cumPnl: parseFloat(runningCum.toFixed(2)),
-	                        pnl: parseFloat((p.pnl ?? 0).toFixed(2)),
-	                };
-	        });
+		return sorted.reduce<
+			Array<{
+				ts: string;
+				cumPnl: number;
+				pnl: number;
+			}>
+		>((points, p) => {
+			const priorCumPnl = points.length > 0 ? points[points.length - 1].cumPnl : 0;
+			const nextCumPnl = priorCumPnl + (p.pnl ?? 0);
+			points.push({
+				ts: fmtTs(p.exitTimestamp!),
+				cumPnl: parseFloat(nextCumPnl.toFixed(2)),
+				pnl: parseFloat((p.pnl ?? 0).toFixed(2)),
+			});
+			return points;
+		}, []);
 	}, [closed]);
 	const totalPnl = status?.totalPaperPnl ?? 0;
 	const bankroll = status?.bankroll ?? 0;
 	const loading = allPositions === undefined;
+
+	useEffect(() => {
+		const intervalId = window.setInterval(() => {
+			setNowMs(Date.now());
+		}, 60000);
+		return () => {
+			window.clearInterval(intervalId);
+		};
+	}, []);
+
+	useEffect(() => {
+		if (!allPositions?.length) return;
+
+		const unresolvedIds = Array.from(
+			new Set(
+				allPositions
+					.filter(
+						(pos) =>
+							!pos.marketSlug &&
+							!resolvedMarketSlugs[pos.marketId] &&
+							!polymarketSlugCache.has(pos.marketId),
+					)
+					.map((pos) => pos.marketId)
+			),
+		);
+
+		if (unresolvedIds.length === 0) return;
+
+		let cancelled = false;
+
+		void Promise.all(
+			unresolvedIds.map(async (marketId) => {
+				try {
+					const resp = await fetch(`https://clob.polymarket.com/markets/${marketId}`, {
+						headers: { Accept: "application/json" },
+					});
+					if (!resp.ok) {
+						polymarketSlugCache.set(marketId, null);
+						return [marketId, null] as const;
+					}
+					const payload = (await resp.json()) as { market_slug?: unknown };
+					const marketSlug =
+						typeof payload.market_slug === "string" && payload.market_slug.trim()
+							? payload.market_slug.trim()
+							: null;
+					polymarketSlugCache.set(marketId, marketSlug);
+					return [marketId, marketSlug] as const;
+				} catch {
+					polymarketSlugCache.set(marketId, null);
+					return [marketId, null] as const;
+				}
+			}),
+		).then((entries) => {
+			if (cancelled) return;
+			const updates = Object.fromEntries(
+				entries.filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+			);
+			if (Object.keys(updates).length === 0) return;
+			setResolvedMarketSlugs((current) => ({ ...current, ...updates }));
+		});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [allPositions, resolvedMarketSlugs]);
 
 	return (
 		<div className="h-screen overflow-y-auto bg-[#f8f9fa]">
@@ -353,6 +434,12 @@ export default function CopyTradePage() {
 										{open.map((pos) => {
 											const currentPrice = pos.currentPrice ?? pos.peakPrice;
 											const unrealPnl = pos.shares * currentPrice - pos.entryUsd;
+											const marketUrl = buildPolymarketMarketUrl(
+												pos.marketSlug ??
+													resolvedMarketSlugs[pos.marketId] ??
+													polymarketSlugCache.get(pos.marketId) ??
+													null,
+											);
 											return (
 												<tr key={pos.positionId} className="hover:bg-slate-50/50">
 													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
@@ -367,19 +454,29 @@ export default function CopyTradePage() {
 														</a>
 													</td>
 													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-														<a
-															href={`https://polymarket.com/market/${pos.marketId}`}
-															target="_blank"
-															rel="noopener noreferrer"
-															className="hover:underline hover:text-[#7048e8] transition-colors"
-															title={pos.marketTitle || pos.marketId}
-														>
-															{pos.marketTitle
-																? pos.marketTitle.length > 25
-																	? pos.marketTitle.slice(0, 25) + "…"
-																	: pos.marketTitle
-																: shortMarket(pos.marketId)}
-														</a>
+														{marketUrl ? (
+															<a
+																href={marketUrl}
+																target="_blank"
+																rel="noopener noreferrer"
+																className="hover:underline hover:text-[#7048e8] transition-colors"
+																title={pos.marketTitle || pos.marketId}
+															>
+																{pos.marketTitle
+																	? pos.marketTitle.length > 25
+																		? pos.marketTitle.slice(0, 25) + "…"
+																		: pos.marketTitle
+																	: shortMarket(pos.marketId)}
+															</a>
+														) : (
+															<span title={pos.marketTitle || pos.marketId}>
+																{pos.marketTitle
+																	? pos.marketTitle.length > 25
+																		? pos.marketTitle.slice(0, 25) + "…"
+																		: pos.marketTitle
+																	: shortMarket(pos.marketId)}
+															</span>
+														)}
 													</td>
 													<td className="px-4 py-2.5">
 														<span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold">
@@ -420,7 +517,7 @@ export default function CopyTradePage() {
 																)}
 																{pos.timeLimitAt && (
 																	<span className="px-1 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-bold border border-blue-100 uppercase" title={`Expires at ${new Date(pos.timeLimitAt * 1000).toLocaleString()}`}>
-																		Max {Math.round((pos.timeLimitAt - Date.now() / 1000) / 3600)}h left
+																		Max {Math.round((pos.timeLimitAt - nowMs / 1000) / 3600)}h left
 																	</span>
 																)}
 															</div>
@@ -462,6 +559,12 @@ export default function CopyTradePage() {
 										const roi =
 											pos.entryUsd > 0 ? (pos.pnl ?? 0) / pos.entryUsd : 0;
 										const isWin = (pos.pnl ?? 0) > 0;
+										const marketUrl = buildPolymarketMarketUrl(
+											pos.marketSlug ??
+												resolvedMarketSlugs[pos.marketId] ??
+												polymarketSlugCache.get(pos.marketId) ??
+												null,
+										);
 										return (
 											<tr key={pos.positionId} className="hover:bg-slate-50/50">
 												<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
@@ -476,19 +579,29 @@ export default function CopyTradePage() {
 												     </a>
 												</td>
 												<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-												     <a
-												             href={`https://polymarket.com/market/${pos.marketId}`}
-												             target="_blank"
-												             rel="noopener noreferrer"
-												             className="hover:underline hover:text-[#7048e8] transition-colors"
-												             title={pos.marketTitle || pos.marketId}
-												     >
-												             {pos.marketTitle
-												                     ? pos.marketTitle.length > 25
-												                             ? pos.marketTitle.slice(0, 25) + "…"
-												                             : pos.marketTitle
-												                     : shortMarket(pos.marketId)}
-												     </a>
+												     {marketUrl ? (
+												             <a
+												                     href={marketUrl}
+												                     target="_blank"
+												                     rel="noopener noreferrer"
+												                     className="hover:underline hover:text-[#7048e8] transition-colors"
+												                     title={pos.marketTitle || pos.marketId}
+												             >
+												                     {pos.marketTitle
+												                             ? pos.marketTitle.length > 25
+												                                     ? pos.marketTitle.slice(0, 25) + "…"
+												                                     : pos.marketTitle
+												                             : shortMarket(pos.marketId)}
+												             </a>
+												     ) : (
+												             <span title={pos.marketTitle || pos.marketId}>
+												                     {pos.marketTitle
+												                             ? pos.marketTitle.length > 25
+												                                     ? pos.marketTitle.slice(0, 25) + "…"
+												                                     : pos.marketTitle
+												                             : shortMarket(pos.marketId)}
+												             </span>
+												     )}
 												</td>												<td className="px-4 py-2.5 tabular-nums">
 													{pos.entryPrice.toFixed(3)}
 												</td>
