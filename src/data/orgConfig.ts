@@ -473,7 +473,7 @@ export const ORG_MEMBERS: OrgMember[] = [
 		assistantTo: "corey",
 		assistantSide: "right",
 		convexAgentName: "Nurse",
-		model: { primary: "GLM-5", fallback: "GPT-5.4" },
+		model: { primary: "GLM-4.7", fallback: "GPT-5.4-mini" },
 		profile: {
 			role: "Health protocol tracker for Corey. Owns medication and supplement adherence workflows, daily reminder loops, dose logging, and long-cycle protocol state.",
 			responsibilities: [
