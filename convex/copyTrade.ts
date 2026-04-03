@@ -171,3 +171,13 @@ export const listPositions = query({
 			}));
 	},
 });
+
+export const getDaemonStatus = query({
+	args: { tenantId: v.string() },
+	handler: async (ctx, args) => {
+		return await ctx.db
+			.query("copyTradeDaemonStatus")
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.first();
+	},
+});
