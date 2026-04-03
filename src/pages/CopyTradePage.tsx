@@ -230,11 +230,10 @@ export default function CopyTradePage() {
 					<StatCard
 					        label="Total PnL"
 					        value={fmtUsd(totalPnl, true)}
-					        sub={closed.length > 0 ? `${closed.length} closed trades` : "no trades yet"}
+					        sub={`incl. unrealized (${closed.length} closed)`}
 					        icon={<IconCurrencyDollar size={20} />}
 					        positive={totalPnl >= 0}
-					/>
-					<StatCard
+					/>					<StatCard
 					        label="Win Rate"
 					        value={winRate != null ? `${(winRate * 100).toFixed(0)}%` : "—"}
 					        sub={`${wins}W / ${losses}L`}
@@ -340,67 +339,86 @@ export default function CopyTradePage() {
 								<table className="w-full text-xs">
 									<thead>
 										<tr className="bg-slate-50 border-b border-border">
-											{["Leader", "Market", "Side", "Entry", "Cost", "Peak", "Unreal. PnL", "Held", ""].map((h) => (
-												<th
-													key={h}
-													className="px-4 py-2.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap"
-												>
-													{h}
-												</th>
-											))}
+										        {["Leader", "Market", "Side", "Entry", "Cost", "Price", "Unreal. PnL", "Exit Targets", "Held", ""].map((h) => (
+										                <th
+										                        key={h}
+										                        className="px-4 py-2.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap"
+										                >
+										                        {h}
+										                </th>
+										        ))}
 										</tr>
-									</thead>
-									<tbody className="divide-y divide-slate-100">
+										</thead>
+										<tbody className="divide-y divide-slate-100">
 										{open.map((pos) => {
-											const unrealPnl =
-												pos.shares * pos.peakPrice - pos.entryUsd;
-											return (
-												<tr key={pos.positionId} className="hover:bg-slate-50/50">
-													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-													     <a
-													             href={`https://polymarket.com/profile/${pos.leaderAddress}`}
-													             target="_blank"
-													             rel="noopener noreferrer"
-													             className="hover:underline hover:text-[#7048e8] transition-colors"
-													             title={pos.leaderAddress}
-													     >
-													             {pos.leaderLabel || shortAddr(pos.leaderAddress)}
-													     </a>
-													</td>
-													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-													     <a
-													             href={`https://polymarket.com/market/${pos.marketId}`}
-													             target="_blank"
-													             rel="noopener noreferrer"
-													             className="hover:underline hover:text-[#7048e8] transition-colors"
-													             title={pos.marketTitle || pos.marketId}
-													     >
-													             {pos.marketTitle
-													                     ? pos.marketTitle.length > 25
-													                             ? pos.marketTitle.slice(0, 25) + "…"
-													                             : pos.marketTitle
-													                     : shortMarket(pos.marketId)}
-													     </a>
-													</td>													<td className="px-4 py-2.5">
-														<span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold">
-															YES {pos.outcomeIndex === 0 ? "" : "(NO)"}
-														</span>
-													</td>
-													<td className="px-4 py-2.5 tabular-nums">
-														{pos.entryPrice.toFixed(3)}
-													</td>
-													<td className="px-4 py-2.5 tabular-nums">
-														{fmtUsd(pos.entryUsd)}
-													</td>
-													<td className="px-4 py-2.5 tabular-nums">
-														{pos.peakPrice.toFixed(3)}
-													</td>
-													<td
-														className={`px-4 py-2.5 tabular-nums font-bold ${unrealPnl >= 0 ? "text-emerald-600" : "text-red-500"}`}
-													>
-														{fmtUsd(unrealPnl, true)}
-													</td>
-													<td className="px-4 py-2.5 text-muted-foreground">
+										        const currentPrice = pos.currentPrice ?? pos.peakPrice;
+										        const unrealPnl =
+										                pos.shares * currentPrice - pos.entryUsd;
+										        return (
+										                <tr key={pos.positionId} className="hover:bg-slate-50/50">
+										                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+										                             <a
+										                                     href={`https://polymarket.com/profile/${pos.leaderAddress}`}
+										                                     target="_blank"
+										                                     rel="noopener noreferrer"
+										                                     className="hover:underline hover:text-[#7048e8] transition-colors"
+										                                     title={pos.leaderAddress}
+										                             >
+										                                     {pos.leaderLabel || shortAddr(pos.leaderAddress)}
+										                             </a>
+										                        </td>
+										                        <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+										                             <a
+										                                     href={`https://polymarket.com/market/${pos.marketId}`}
+										                                     target="_blank"
+										                                     rel="noopener noreferrer"
+										                                     className="hover:underline hover:text-[#7048e8] transition-colors"
+										                                     title={pos.marketTitle || pos.marketId}
+										                             >
+										                                     {pos.marketTitle
+										                                             ? pos.marketTitle.length > 25
+										                                                     ? pos.marketTitle.slice(0, 25) + "…"
+										                                                     : pos.marketTitle
+										                                             : shortMarket(pos.marketId)}
+										                             </a>
+										                        </td>                                                                                                    <td className="px-4 py-2.5">
+										                        <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold">
+										                        YES {pos.outcomeIndex === 0 ? "" : "(NO)"}
+										                        </span>
+										                        </td>
+										                        <td className="px-4 py-2.5 tabular-nums">
+										                        {pos.entryPrice.toFixed(3)}
+										                        </td>
+										                        <td className="px-4 py-2.5 tabular-nums">
+										                        {fmtUsd(pos.entryUsd)}
+										                        </td>
+										                        <td className="px-4 py-2.5 tabular-nums">
+										                        {currentPrice.toFixed(3)}
+										                        </td>
+										                        <td
+										                        className={`px-4 py-2.5 tabular-nums font-bold ${unrealPnl >= 0 ? "text-emerald-600" : "text-red-500"}`}
+										                        >
+										                        {fmtUsd(unrealPnl, true)}
+										                        </td>
+										                        <td className="px-4 py-2.5 tabular-nums">
+										                                <div className="flex flex-col gap-0.5">
+										                                        {pos.takeProfitPrice && (
+										                                                <div className="text-[10px] text-emerald-600 font-bold">
+										                                                        TP: {pos.takeProfitPrice.toFixed(3)}
+										                                                </div>
+										                                        )}
+										                                        {pos.stopLossPrice && (
+										                                                <div className="text-[10px] text-red-500 font-bold">
+										                                                        SL: {pos.stopLossPrice.toFixed(3)}
+										                                                </div>
+										                                        )}
+										                                        {!pos.takeProfitPrice && !pos.stopLossPrice && (
+										                                                <div className="text-[10px] text-muted-foreground">
+										                                                        Mirror Only
+										                                                </div>
+										                                        )}
+										                                </div>
+										                        </td>													<td className="px-4 py-2.5 text-muted-foreground">
 														{holdTime(pos.entryTimestamp)}
 													</td>
 													<td className="px-4 py-2.5">

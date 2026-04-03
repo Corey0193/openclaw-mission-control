@@ -271,8 +271,10 @@ http.route({
 			entryUsd: Number(p.entry_usd),
 			entryTimestamp: Number(p.entry_timestamp),
 			peakPrice: Number(p.peak_price),
-			exitPrice: p.exit_price != null ? Number(p.exit_price) : undefined,
-			exitTimestamp: p.exit_timestamp != null ? Number(p.exit_timestamp) : undefined,
+			currentPrice: p.current_price != null ? Number(p.current_price) : undefined,
+			stopLossPrice: p.stop_loss_price != null ? Number(p.stop_loss_price) : undefined,
+			takeProfitPrice: p.take_profit_price != null ? Number(p.take_profit_price) : undefined,
+			exitPrice: p.exit_price != null ? Number(p.exit_price) : undefined,			exitTimestamp: p.exit_timestamp != null ? Number(p.exit_timestamp) : undefined,
 			exitReason:
 				typeof p.exit_reason === "string"
 					? p.exit_reason

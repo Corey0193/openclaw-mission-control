@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import Header from "../components/Header";
 import {
         IconArrowsExchange,
@@ -12,6 +15,9 @@ import {
         IconTarget,
         IconRefresh,
         IconBrain,
+        IconCircleCheck,
+        IconClock,
+        IconAlertTriangle,
 } from "@tabler/icons-react";
 function formatUsd(n: number): string {
 	return n.toLocaleString("en-US", {
@@ -52,30 +58,36 @@ function familyLabel(family: string): string {
 			: family;
 }
 
-function formatTradeName(name: string): string {
-	if (!name) return "---";
-	if (name.startsWith("scan-metaculus-")) return "New Signal (Metaculus)";
+function formatTradeName(name: string, slug?: string | null): string {
+        if (!name || name === "---" || name.trim() === "") {
+                if (slug) {
+                        return slug
+                                .replace(/-/g, " ")
+                                .replace(/\b\w/g, (c) => c.toUpperCase());
+                }
+                return "---";
+        }
+        if (name.startsWith("scan-metaculus-")) return "New Signal (Metaculus)";
 
-	const splitPattern = /\s*(::|\||×|\/)\s*/;
-	const parts = name.split(splitPattern);
-	let cleaned = parts[0];
+        const splitPattern = /\s*(::|\||×|\/)\s*/;
+        const parts = name.split(splitPattern);
+        let cleaned = parts[0];
 
-	if (/^Metaculus[#\s]\d+\s*$/i.test(cleaned.trim()) && parts.length > 2) {
-		cleaned = parts[2];
-	}
+        if (/^Metaculus[#\s]\d+\s*$/i.test(cleaned.trim()) && parts.length > 2) {
+                cleaned = parts[2];
+        }
 
-	cleaned = cleaned.replace(/^Polymarket\s+/i, "");
+        cleaned = cleaned.replace(/^Polymarket\s+/i, "");
 
-	if (/^[a-z0-9-]+$/.test(cleaned.trim())) {
-		cleaned = cleaned
-			.trim()
-			.replace(/-/g, " ")
-			.replace(/\b\w/g, (c) => c.toUpperCase());
-	}
+        if (/^[a-z0-9-]+$/.test(cleaned.trim())) {
+                cleaned = cleaned
+                        .trim()
+                        .replace(/-/g, " ")
+                        .replace(/\b\w/g, (c) => c.toUpperCase());
+        }
 
-	return cleaned.trim();
+        return cleaned.trim();
 }
-
 function getPolymarketUrl(slug: string | null): string | null {
         if (!slug || slug.trim() === "") return null;
         return `https://polymarket.com/event/${slug}`;
@@ -553,8 +565,14 @@ export default function SoftArbPage() {
 	const { data: softArbData, refresh: refreshSoftArb } = useSoftArbTrades();
 	const { runs: pipelineRuns, refresh: refreshPipeline } = usePipelineRuns();
 
+	// Fetch actual wallet positions and trades from Convex
+	const polymarketData = useQuery(api.polymarket.getPositions, {
+		tenantId: DEFAULT_TENANT_ID,
+	}) as any;
+
 	const [sectionsOpen, setSectionsOpen] = useState({
 		positions: true,
+		resolved: true,
 		audit: true,
 		feedback: true,
 		shield: true,
@@ -566,9 +584,36 @@ export default function SoftArbPage() {
 	};
 
 	const activePositions = useMemo(() => {
-		return (softArbData?.trades.filter((t) => t.status === "OPEN") || []).sort(
+		const softTrades = softArbData?.trades.filter((t) => t.status === "OPEN") || [];
+		
+		// Map soft trades to actual Convex positions if available
+		return softTrades.map(t => {
+			const actualPos = polymarketData?.positions?.find((p: any) => p.marketSlug === t.polymarket_slug);
+			const actualOrder = polymarketData?.openOrders?.find((o: any) => o.marketSlug === t.polymarket_slug);
+			
+			return {
+				...t,
+				actual_shares: actualPos?.shares ?? 0,
+				actual_pnl: actualPos?.unrealizedPnl ?? null,
+				actual_status: actualPos ? "POSITION" : actualOrder ? "ORDER" : "LOG_ONLY"
+			};
+		}).sort(
 			(a, b) =>
 				new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
+		);
+	}, [softArbData, polymarketData]);
+
+	const unmappedPositions = useMemo(() => {
+		if (!polymarketData?.positions) return [];
+		return polymarketData.positions.filter((p: any) => 
+			!p.marketResolved && p.shares > 0 && 
+			!softArbData?.trades.some(t => t.polymarket_slug === p.marketSlug)
+		);
+	}, [polymarketData, softArbData]);
+
+	const resolvedTrades = useMemo(() => {
+		return (softArbData?.outcomes || []).sort(
+			(a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
 		);
 	}, [softArbData]);
 
@@ -686,90 +731,258 @@ export default function SoftArbPage() {
 							</div>
 
 							{activePositions.length > 0 ? (
-								<div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
-									<table className="w-full text-sm">
-										<thead>
-											<tr className="border-b border-border bg-muted/30 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
-												<th className="text-left px-4 py-2.5">Opened</th>
-												<th className="text-left px-3 py-2.5">Market</th>
-												<th className="text-left px-3 py-2.5">Direction</th>
-												<th className="text-right px-3 py-2.5">Entry</th>
-												<th className="text-right px-3 py-2.5">Current</th>
-												<th className="text-right px-3 py-2.5">Edge</th>
-												<th className="text-right px-4 py-2.5">
-													Unrealized P&L
-												</th>
-											</tr>
-										</thead>
-										<tbody>
-											{activePositions.map((t) => (
-												<tr
-													key={t.trade_id}
-													className="border-b border-border/50 last:border-0 hover:bg-muted/5"
-												>
-													<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-														{timeAgo(t.opened_at)}
-													</td>
-													<td className="px-3 py-3">
-														<div className="font-semibold text-foreground text-xs leading-snug">
-															{t.polymarket_slug ? (
-																<a
-																	href={getPolymarketUrl(t.polymarket_slug)!}
-																	target="_blank"
-																	rel="noopener noreferrer"
-																	className="text-blue-600 hover:underline"
-																>
-																	{formatTradeName(t.pair)}
-																</a>
-															) : (
-																formatTradeName(t.pair)
-															)}
-														</div>
-														<div className="mt-1 flex gap-1">
-															<span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-600">
-																{familyLabel(t.signal_family)}
-															</span>
-															{tradeKindBadge(t.is_real)}
-															{signalSourceBadge(t.signal_source)}
-															{shieldBadge(t)}
-														</div>
-													</td>
-													<td className="px-3 py-3 text-xs font-medium text-emerald-700">
-														{t.direction}
-													</td>
-													<td className="px-3 py-3 text-right tabular-nums font-medium">
-														{t.entry_price.toFixed(3)}
-													</td>
-													<td className="px-3 py-3 text-right tabular-nums font-medium">
-														{t.current_price?.toFixed(3) ?? "---"}
-													</td>
-													<td className="px-3 py-3 text-right tabular-nums font-bold text-emerald-600">
-														{formatPct(t.adjusted_edge_pct)}
-													</td>
-													<td className="px-4 py-3 text-right tabular-nums">
-														<PnlBadge value={t.unrealized_pnl} />
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-								</div>
+							        <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+							                <table className="w-full text-sm">
+							                        <thead>
+							                                <tr className="border-b border-border bg-muted/30 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
+							                                        <th className="text-left px-4 py-2.5">Opened</th>
+							                                        <th className="text-left px-3 py-2.5">Market</th>
+							                                        <th className="text-left px-3 py-2.5">Direction</th>
+							                                        <th className="text-right px-3 py-2.5">Entry</th>
+							                                        <th className="text-right px-3 py-2.5">Wallet</th>
+							                                        <th className="text-right px-3 py-2.5">Edge</th>
+							                                        <th className="text-right px-4 py-2.5">
+							                                                Actual P&L
+							                                        </th>
+							                                </tr>
+							                        </thead>
+							                        <tbody>
+							                                {activePositions.map((t) => (
+							                                        <tr
+							                                                key={t.trade_id}
+							                                                className="border-b border-border/50 last:border-0 hover:bg-muted/5"
+							                                        >
+							                                                <td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+							                                                {timeAgo(t.opened_at)}
+							                                                </td>
+							                                                <td className="px-3 py-3">
+							                                                <div className="font-semibold text-foreground text-xs leading-snug">
+							                                                {t.polymarket_slug ? (
+							                                                <a
+							                                                href={getPolymarketUrl(t.polymarket_slug)!}
+							                                                target="_blank"
+							                                                rel="noopener noreferrer"
+							                                                className="text-blue-600 hover:underline"
+							                                                >
+							                                                {formatTradeName(t.pair, t.polymarket_slug)}
+							                                                </a>
+							                                                ) : (
+							                                                formatTradeName(t.pair, t.polymarket_slug)
+							                                                )}
+							                                                </div>
+							                                                <div className="mt-1 flex gap-1 items-center">
+							                                                <span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-600">
+							                                                {familyLabel(t.signal_family)}
+							                                                </span>
+							                                                {tradeKindBadge(t.is_real)}
+							                                                {signalSourceBadge(t.signal_source)}
+							                                                {t.actual_status === "POSITION" ? (
+							                                                        <span className="text-[9px] font-bold px-1.5 rounded bg-emerald-100 text-emerald-700 flex items-center gap-0.5">
+							                                                                <IconCircleCheck size={8} /> LIVE
+							                                                        </span>
+							                                                ) : t.actual_status === "ORDER" ? (
+							                                                        <span className="text-[9px] font-bold px-1.5 rounded bg-blue-100 text-blue-700 flex items-center gap-0.5">
+							                                                                <IconClock size={8} /> ORDER
+							                                                        </span>
+							                                                ) : null}
+							                                                {shieldBadge(t)}
+							                                                </div>
+							                                                </td>
+							                                                <td className="px-3 py-3 text-xs font-medium text-emerald-700">
+							                                                {t.direction}
+							                                                </td>
+							                                                <td className="px-3 py-3 text-right tabular-nums font-medium">
+							                                                {t.entry_price.toFixed(3)}
+							                                                </td>
+							                                                <td className="px-3 py-3 text-right tabular-nums">
+							                                                        <div className="text-xs font-bold text-foreground">
+							                                                                {t.actual_shares > 0 ? `${t.actual_shares.toFixed(1)} sh` : "—"}
+							                                                        </div>
+							                                                        <div className="text-[10px] text-muted-foreground">
+							                                                                {t.current_price?.toFixed(3) ?? "—"}
+							                                                        </div>
+							                                                </td>
+							                                                <td className="px-3 py-3 text-right tabular-nums font-bold text-emerald-600">
+							                                                {formatPct(t.adjusted_edge_pct)}
+							                                                </td>
+							                                                <td className="px-4 py-3 text-right tabular-nums">
+							                                                <PnlBadge value={t.actual_pnl ?? t.unrealized_pnl} />
+							                                                </td>
+							                                        </tr>
+							                                ))}
+							                        </tbody>
+							                </table>
+							        </div>
 							) : (
-								<div className="bg-white border border-border rounded-xl p-8 text-center shadow-sm">
-									<IconTarget
-										size={32}
-										className="mx-auto mb-3 text-muted-foreground/40"
-									/>
-									<p className="text-sm font-medium text-muted-foreground">
-										No open positions
-									</p>
-								</div>
+							        <div className="bg-white border border-border rounded-xl p-8 text-center shadow-sm">
+							                <IconTarget
+							                        size={32}
+							                        className="mx-auto mb-3 text-muted-foreground/40"
+							                />
+							                <p className="text-sm font-medium text-muted-foreground">
+							                        No open positions
+							                </p>
+							        </div>
 							)}
-						</div>
-					)}
-				</section>
+							</div>
+							)}
+							</section>
 
-				{/* 2. Scan History & Verification Audit (MIDDLE) */}
+							{/* 1.5 Recent Resolved Trades */}
+							<section className="space-y-4">
+							<button
+							onClick={() => toggleSection("resolved")}
+							className="flex items-center gap-2 group"
+							>
+							<IconChevronDown
+							size={16}
+							className={`text-slate-500 transition-transform ${sectionsOpen.resolved ? "" : "-rotate-90"}`}
+							/>
+							<h3 className="text-sm font-bold text-slate-900 tracking-widest uppercase">
+							Recent Resolved Trades
+							</h3>
+							<span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+							{resolvedTrades.length} TOTAL
+							</span>
+							</button>
+
+							{sectionsOpen.resolved && (
+							<div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+							{resolvedTrades.length > 0 ? (
+							        <table className="w-full text-sm">
+							                <thead>
+							                        <tr className="border-b border-border bg-muted/30 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
+							                                <th className="text-left px-4 py-2.5">Resolved</th>
+							                                <th className="text-left px-3 py-2.5">Market</th>
+							                                <th className="text-left px-3 py-2.5">Direction</th>
+							                                <th className="text-right px-3 py-2.5">Result</th>
+							                                <th className="text-right px-4 py-2.5">P&L</th>
+							                        </tr>
+							                </thead>
+							                <tbody>
+							                        {resolvedTrades.slice(0, 10).map((t) => (
+							                                <tr
+							                                        key={t.trade_id}
+							                                        className="border-b border-border/50 last:border-0 hover:bg-muted/5"
+							                                >
+							                                        <td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+							                                                {timeAgo(t.timestamp)}
+							                                        </td>
+							                                        <td className="px-3 py-3">
+							                                                <div className="font-semibold text-foreground text-xs leading-snug">
+							                                                        {t.polymarket_slug ? (
+							                                                                <a
+							                                                                        href={getPolymarketUrl(t.polymarket_slug)!}
+							                                                                        target="_blank"
+							                                                                        rel="noopener noreferrer"
+							                                                                        className="text-blue-600 hover:underline"
+							                                                                >
+							                                                                        {formatTradeName(t.pair, t.polymarket_slug)}
+							                                                                </a>
+							                                                        ) : (
+							                                                                formatTradeName(t.pair, t.polymarket_slug)
+							                                                        )}
+							                                                </div>
+							                                                <div className="mt-1 flex gap-1">
+							                                                        <span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-600">
+							                                                                {familyLabel(t.signal_family)}
+							                                                        </span>
+							                                                        {tradeKindBadge(t.is_real)}
+							                                                </div>
+							                                        </td>
+							                                        <td className="px-3 py-3 text-xs font-medium text-slate-600">
+							                                                {t.direction}
+							                                        </td>
+							                                        <td className="px-3 py-3 text-right">
+							                                                <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${
+							                                                        t.actual_outcome === "WIN" ? "bg-emerald-100 text-emerald-700" :
+							                                                        t.actual_outcome === "LOSS" ? "bg-red-100 text-red-700" :
+							                                                        "bg-slate-100 text-slate-700"
+							                                                }`}>
+							                                                        {t.actual_outcome}
+							                                                </span>
+							                                        </td>
+							                                        <td className="px-4 py-3 text-right tabular-nums">
+							                                                <PnlBadge value={t.pnl_usd} />
+							                                        </td>
+							                                </tr>
+							                        ))}
+							                </tbody>
+							        </table>
+							) : (
+							        <div className="p-8 text-center text-muted-foreground text-sm">
+							                No resolved trades yet
+							        </div>
+							)}
+							</div>
+							)}
+							</section>
+                                        {/* 1.7 Unmapped Wallet Positions */}
+                                        {unmappedPositions.length > 0 && (
+                                                <section className="space-y-4">
+                                                        <div className="flex items-center gap-2">
+                                                                <IconAlertTriangle size={16} className="text-amber-500" />
+                                                                <h3 className="text-sm font-bold text-amber-900 tracking-widest uppercase">
+                                                                        Other Wallet Positions
+                                                                </h3>
+                                                                <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                                                        {unmappedPositions.length} UNMAPPED
+                                                                </span>
+                                                        </div>
+                                                        <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+                                                                <table className="w-full text-sm">
+                                                                        <thead>
+                                                                                <tr className="border-b border-border bg-muted/30 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
+                                                                                        <th className="text-left px-4 py-2.5">Market</th>
+                                                                                        <th className="text-left px-3 py-2.5">Outcome</th>
+                                                                                        <th className="text-right px-3 py-2.5">Shares</th>
+                                                                                        <th className="text-right px-3 py-2.5">Price</th>
+                                                                                        <th className="text-right px-4 py-2.5">P&L</th>
+                                                                                </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                                {unmappedPositions.map((p: any) => (
+                                                                                        <tr key={`${p.marketSlug}-${p.outcome}-${p.assetId || ""}`} className="border-b border-border/50 last:border-0 hover:bg-muted/5">
+                                                                                                <td className="px-4 py-3">
+                                                                                                        <div className="font-semibold text-foreground text-xs leading-snug">
+                                                                                                                <a
+                                                                                                                        href={getPolymarketUrl(p.marketSlug)!}
+                                                                                                                        target="_blank"
+                                                                                                                        rel="noopener noreferrer"
+                                                                                                                        className="text-blue-600 hover:underline"
+                                                                                                                >
+                                                                                                                        {p.marketQuestion}
+                                                                                                                </a>
+                                                                                                        </div>
+                                                                                                        <div className="text-[9px] text-muted-foreground mt-0.5">
+                                                                                                                Manual or other strategy
+                                                                                                        </div>
+                                                                                                </td>
+                                                                                                <td className="px-3 py-3">
+                                                                                                        <span className={`text-[10px] font-bold px-1.5 rounded-full ${
+                                                                                                                p.outcome === "Yes" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                                                                                                        }`}>
+                                                                                                                {p.outcome.toUpperCase()}
+                                                                                                        </span>
+                                                                                                </td>
+                                                                                                <td className="px-3 py-3 text-right tabular-nums font-medium">
+                                                                                                        {p.shares.toFixed(1)}
+                                                                                                </td>
+                                                                                                <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
+                                                                                                        ${p.currentPrice.toFixed(2)}
+                                                                                                </td>
+                                                                                                <td className="px-4 py-3 text-right tabular-nums">
+                                                                                                        <PnlBadge value={p.unrealizedPnl} />
+                                                                                                </td>
+                                                                                        </tr>
+                                                                                ))}
+                                                                        </tbody>
+                                                                </table>
+                                                        </div>
+                                                </section>
+                                        )}
+
+                                {/* 2. Scan History & Verification Audit (MIDDLE) */}
 				<section className="space-y-4">
 					<div className="flex items-center justify-between">
 						<button
