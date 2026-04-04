@@ -93,6 +93,26 @@ function getPolymarketUrl(slug: string | null): string | null {
         return `https://polymarket.com/event/${slug}`;
 }
 
+function normalizeDirection(direction: string | null | undefined): "YES" | "NO" | null {
+        const normalized = String(direction ?? "").toUpperCase();
+        if (normalized.includes("NO")) return "NO";
+        if (normalized.includes("YES")) return "YES";
+        return null;
+}
+
+function normalizeOutcomeLabel(outcome: string | null | undefined): "YES" | "NO" | null {
+        const normalized = String(outcome ?? "").trim().toUpperCase();
+        if (normalized === "YES") return "YES";
+        if (normalized === "NO") return "NO";
+        return null;
+}
+
+function isExpiredTrade(resolvesBy: string | null | undefined): boolean {
+        if (!resolvesBy) return false;
+        const ts = Date.parse(resolvesBy);
+        return Number.isFinite(ts) && ts <= Date.now();
+}
+
 function PnlBadge({ value }: { value: number | null }) {
         if (value === null) return <span className="text-muted-foreground">---</span>;
         const isPositive = value >= 0;
@@ -173,6 +193,7 @@ interface SoftArbTrade {
 	resolved_outcome: string | null;
 	event_slug: string | null;
 	is_real: boolean;
+	order_id?: string | null;
 	shield_coin: string | null;
 	shield_state: string | null;
 	shield_reason: string | null;
@@ -588,29 +609,96 @@ export default function SoftArbPage() {
 		return candidateSlug === tradeSlug || tradeSlug.startsWith(candidateSlug);
 	};
 
+        const matchesTradePosition = useCallback((position: any, trade: SoftArbTrade) => {
+                if (!matchesTradeSlug(position?.marketSlug, trade.polymarket_slug)) return false;
+                const tradeOutcome = normalizeDirection(trade.direction);
+                const positionOutcome = normalizeOutcomeLabel(position?.outcome);
+                if (!tradeOutcome || !positionOutcome) return true;
+                return tradeOutcome === positionOutcome;
+        }, []);
+
+        const matchesTradeOrder = useCallback((order: any, trade: SoftArbTrade) => {
+                if (trade.order_id && order?.id && trade.order_id === order.id) return true;
+                if (!matchesTradeSlug(order?.marketSlug, trade.polymarket_slug)) return false;
+                const tradeOutcome = normalizeDirection(trade.direction);
+                const orderOutcome = normalizeOutcomeLabel(order?.outcome);
+                if (!tradeOutcome || !orderOutcome) return true;
+                return tradeOutcome === orderOutcome;
+        }, []);
+
 	const activePositions = useMemo(() => {
 		const softTrades = softArbData?.trades.filter((t) => t.status === "OPEN") || [];
 		
 		// Map soft trades to actual Convex positions if available
 		return softTrades.map(t => {
 			const actualPos = polymarketData?.positions?.find((p: any) =>
-				matchesTradeSlug(p.marketSlug, t.polymarket_slug),
+				matchesTradePosition(p, t),
 			);
 			const actualOrder = polymarketData?.openOrders?.find((o: any) =>
-				matchesTradeSlug(o.marketSlug, t.polymarket_slug),
+				matchesTradeOrder(o, t),
 			);
+                        const derivedPnl =
+                                t.unrealized_pnl ??
+                                (t.current_price != null
+                                        ? Number(((t.current_price - t.entry_price) * t.shares).toFixed(2))
+                                        : null);
+                        const expired = isExpiredTrade(t.resolves_by);
 			
 			return {
 				...t,
 				actual_shares: actualPos?.shares ?? 0,
 				actual_pnl: actualPos?.unrealizedPnl ?? null,
-				actual_status: actualPos ? "POSITION" : actualOrder ? "ORDER" : "LOG_ONLY"
+				display_pnl: actualPos?.unrealizedPnl ?? derivedPnl,
+				expired,
+				actual_status: actualPos
+                                        ? "POSITION"
+                                        : actualOrder
+                                                ? "ORDER"
+                                                : expired
+                                                        ? "STALE"
+                                                        : "LOG_ONLY"
 			};
-		}).sort(
+		}).filter((t) => t.actual_status !== "STALE").sort(
 			(a, b) =>
 				new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
 		);
-	}, [softArbData, polymarketData]);
+	}, [matchesTradeOrder, matchesTradePosition, polymarketData, softArbData]);
+
+        const staleOpenTrades = useMemo(() => {
+                const softTrades = softArbData?.trades.filter((t) => t.status === "OPEN") || [];
+                return softTrades
+                        .map((t) => {
+                                const actualPos = polymarketData?.positions?.find((p: any) =>
+                                        matchesTradePosition(p, t),
+                                );
+                                const actualOrder = polymarketData?.openOrders?.find((o: any) =>
+                                        matchesTradeOrder(o, t),
+                                );
+                                const expired = isExpiredTrade(t.resolves_by);
+                                const derivedPnl =
+                                        t.unrealized_pnl ??
+                                        (t.current_price != null
+                                                ? Number(((t.current_price - t.entry_price) * t.shares).toFixed(2))
+                                                : null);
+                                return {
+                                        ...t,
+                                        expired,
+                                        display_pnl: derivedPnl,
+                                        actual_status: actualPos
+                                                ? "POSITION"
+                                                : actualOrder
+                                                        ? "ORDER"
+                                                        : expired
+                                                                ? "STALE"
+                                                                : "LOG_ONLY",
+                                };
+                        })
+                        .filter((t) => t.actual_status === "STALE")
+                        .sort(
+                                (a, b) =>
+                                        new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
+                        );
+        }, [matchesTradeOrder, matchesTradePosition, polymarketData, softArbData]);
 
 	const unmappedPositions = useMemo(() => {
 		if (!polymarketData?.positions) return [];
@@ -793,6 +881,10 @@ export default function SoftArbPage() {
 							                                                        <span className="text-[9px] font-bold px-1.5 rounded bg-blue-100 text-blue-700 flex items-center gap-0.5">
 							                                                                <IconClock size={8} /> ORDER
 							                                                        </span>
+							                                                ) : t.actual_status === "LOG_ONLY" ? (
+                                                                                                        <span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-700">
+                                                                                                                LOG ONLY
+                                                                                                        </span>
 							                                                ) : null}
 							                                                {shieldBadge(t)}
 							                                                </div>
@@ -815,7 +907,7 @@ export default function SoftArbPage() {
 							                                                {formatPct(t.adjusted_edge_pct)}
 							                                                </td>
 							                                                <td className="px-4 py-3 text-right tabular-nums">
-							                                                <PnlBadge value={t.actual_pnl ?? t.unrealized_pnl} />
+							                                                <PnlBadge value={t.display_pnl} />
 							                                                </td>
 							                                        </tr>
 							                                ))}
@@ -833,6 +925,65 @@ export default function SoftArbPage() {
 							                </p>
 							        </div>
 							)}
+                                                        {staleOpenTrades.length > 0 && (
+                                                                <div className="bg-amber-50 border border-amber-200 rounded-xl shadow-sm overflow-hidden">
+                                                                        <div className="px-4 py-3 border-b border-amber-200 bg-amber-100/60">
+                                                                                <div className="text-[10px] font-bold tracking-wide uppercase text-amber-800">
+                                                                                        Stale Open Trades
+                                                                                </div>
+                                                                                <p className="text-xs text-amber-900 mt-1">
+                                                                                        These ledger rows still say open, but the market expiry has passed and there is no live wallet position or order attached.
+                                                                                </p>
+                                                                        </div>
+                                                                        <table className="w-full text-sm">
+                                                                                <thead>
+                                                                                        <tr className="border-b border-amber-200 bg-white/70 text-[10px] font-bold text-amber-900 tracking-wide uppercase">
+                                                                                                <th className="text-left px-4 py-2.5">Opened</th>
+                                                                                                <th className="text-left px-3 py-2.5">Market</th>
+                                                                                                <th className="text-right px-3 py-2.5">Expired</th>
+                                                                                                <th className="text-right px-4 py-2.5">Last P&L</th>
+                                                                                        </tr>
+                                                                                </thead>
+                                                                                <tbody>
+                                                                                        {staleOpenTrades.map((t) => (
+                                                                                                <tr key={t.trade_id} className="border-b border-amber-200/60 last:border-0">
+                                                                                                        <td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                                                                                                                {timeAgo(t.opened_at)}
+                                                                                                        </td>
+                                                                                                        <td className="px-3 py-3">
+                                                                                                                <div className="font-semibold text-foreground text-xs leading-snug">
+                                                                                                                        {t.polymarket_slug ? (
+                                                                                                                                <a
+                                                                                                                                        href={getPolymarketUrl(t.polymarket_slug)!}
+                                                                                                                                        target="_blank"
+                                                                                                                                        rel="noopener noreferrer"
+                                                                                                                                        className="text-blue-600 hover:underline"
+                                                                                                                                >
+                                                                                                                                        {formatTradeName(t.pair, t.polymarket_slug)}
+                                                                                                                                </a>
+                                                                                                                        ) : (
+                                                                                                                                formatTradeName(t.pair, t.polymarket_slug)
+                                                                                                                        )}
+                                                                                                                </div>
+                                                                                                                <div className="mt-1 flex gap-1 items-center">
+                                                                                                                        <span className="text-[9px] font-bold px-1.5 rounded bg-amber-100 text-amber-800">
+                                                                                                                                RECONCILE
+                                                                                                                        </span>
+                                                                                                                        {signalSourceBadge(t.signal_source)}
+                                                                                                                </div>
+                                                                                                        </td>
+                                                                                                        <td className="px-3 py-3 text-right text-xs tabular-nums text-muted-foreground">
+                                                                                                                {timeAgo(t.resolves_by)}
+                                                                                                        </td>
+                                                                                                        <td className="px-4 py-3 text-right tabular-nums">
+                                                                                                                <PnlBadge value={t.display_pnl} />
+                                                                                                        </td>
+                                                                                                </tr>
+                                                                                        ))}
+                                                                                </tbody>
+                                                                        </table>
+                                                                </div>
+                                                        )}
 							</div>
 							)}
 							</section>

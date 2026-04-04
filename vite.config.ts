@@ -83,25 +83,25 @@ function readJsonlSafe(filePath: string): Record<string, unknown>[] {
         const content = fs.readFileSync(filePath, "utf-8");
         let buffer = "";
 
-        for (const line of content.split("\n")) {
-                buffer += line + "\n";
-                try {
-                        const parsed = JSON.parse(buffer);
-                        rows.append?.(parsed as any) || rows.push(parsed);
-                        buffer = "";
-                } catch {
-                        // Continue buffering
-                }
-        }
+		for (const line of content.split("\n")) {
+	                buffer += line + "\n";
+	                try {
+	                        const parsed = JSON.parse(buffer);
+	                        rows.push(parsed);
+	                        buffer = "";
+	                } catch {
+	                        // Continue buffering
+	                }
+	        }
 
-        if (buffer.trim()) {
-                try {
-                        const parsed = JSON.parse(buffer);
-                        rows.append?.(parsed as any) || rows.push(parsed);
-                } catch {
-                        // Truly malformed
-                }
-        }
+	        if (buffer.trim()) {
+	                try {
+	                        const parsed = JSON.parse(buffer);
+	                        rows.push(parsed);
+	                } catch {
+	                        // Truly malformed
+	                }
+	        }
 
         return rows;
 }
@@ -226,7 +226,7 @@ function getPrimaryMatchedPair(
 function buildMergedLedgerRows(
 	rows: Record<string, unknown>[],
 	mode: "paper" | "live",
-): Record<string, Record<string, unknown>> {
+): Map<string, Record<string, unknown>> {
 	const deduped = new Map<string, Record<string, unknown>>();
 	for (const row of rows) {
 		const tradeId = firstNonEmptyString(row.trade_id);
@@ -582,6 +582,17 @@ function toFiniteNumber(value: unknown): number {
 function roundTo(value: number, decimals: number): number {
 	const factor = 10 ** decimals;
 	return Math.round(value * factor) / factor;
+}
+
+function isSameUtcDay(timestamp: string, reference: Date): boolean {
+	const parsed = Date.parse(timestamp);
+	if (!Number.isFinite(parsed)) return false;
+	const date = new Date(parsed);
+	return (
+		date.getUTCFullYear() === reference.getUTCFullYear() &&
+		date.getUTCMonth() === reference.getUTCMonth() &&
+		date.getUTCDate() === reference.getUTCDate()
+	);
 }
 
 function resolveSoftArbCurrentPrice(
@@ -1088,6 +1099,8 @@ async function getSoftArbTrades(): Promise<{
 			),
 			polymarket_slug: firstNonEmptyString(
 				t.polymarket_slug,
+				t.slug,
+				t.market_slug,
 				t.polymarket_market_slug,
 				matchedPair?.polymarket_market_slug,
 				matchedPair?.polymarket_slug,
@@ -1188,22 +1201,32 @@ async function getSoftArbTrades(): Promise<{
 		);
 
 	// Summary: use MTM summary if available, else compute basic stats
-	const summary = {
-		...(mtm?.summary ?? {}),
-		total_trades: enrichedTrades.length,
-		open_trades: enrichedTrades.filter((t) => t.status === "OPEN").length,
-		resolved_trades: enrichedTrades.filter((t) => t.status.startsWith("RESOLVED") || t.status.startsWith("CLOSED")).length,
-		total_invested: Math.round(enrichedTrades.reduce((s, t) => s + t.position_size_usd, 0) * 100) / 100,
-		total_unrealized_pnl:
-			Math.round(
-				enrichedTrades.reduce((s, t) => s + (t.unrealized_pnl ?? 0), 0) * 100,
-			) / 100,
-		total_realized_pnl:
-			Math.round(
-				enrichedTrades.reduce((s, t) => s + (t.realized_pnl ?? 0), 0) * 100,
-			) / 100,
-	};
-
+	const now = new Date();
+	const yesterday = new Date(now);
+	yesterday.setUTCDate(now.getUTCDate() - 1);
+	const todayPnl = outcomes.reduce(
+		(sum, outcome) =>
+			sum + (isSameUtcDay(outcome.timestamp, now) ? outcome.pnl_usd : 0),
+		0,
+	);
+	const yesterdayPnl = outcomes.reduce(
+		(sum, outcome) =>
+			sum +
+			(isSameUtcDay(outcome.timestamp, yesterday) ? outcome.pnl_usd : 0),
+		0,
+	);
+	const realizedDays = new Set(
+		outcomes
+			.map((outcome) => {
+				const parsed = Date.parse(outcome.timestamp);
+				if (!Number.isFinite(parsed)) return null;
+				return new Date(parsed).toISOString().slice(0, 10);
+			})
+			.filter((value): value is string => value !== null),
+	);
+	const totalOutcomePnl =
+		Math.round(outcomes.reduce((sum, outcome) => sum + outcome.pnl_usd, 0) * 100) /
+		100;
 	const outcomeSummary = outcomes.reduce(
 		(acc, outcome) => {
 			acc.resolvedTrades += 1;
@@ -1227,6 +1250,30 @@ async function getSoftArbTrades(): Promise<{
 		outcomeSummary.resolvedTrades > 0
 			? outcomeSummary.totalAdjustedEdgePct / outcomeSummary.resolvedTrades
 			: 0;
+	const winRate =
+		outcomeSummary.resolvedTrades > 0
+			? (outcomeSummary.wins / outcomeSummary.resolvedTrades) * 100
+			: 0;
+	const summary = {
+		...(mtm?.summary ?? {}),
+		total_trades: enrichedTrades.length,
+		open_trades: enrichedTrades.filter((t) => t.status === "OPEN").length,
+		resolved_trades: enrichedTrades.filter((t) => t.status.startsWith("RESOLVED") || t.status.startsWith("CLOSED")).length,
+		total_invested: Math.round(enrichedTrades.reduce((s, t) => s + t.position_size_usd, 0) * 100) / 100,
+		total_unrealized_pnl:
+			Math.round(
+				enrichedTrades.reduce((s, t) => s + (t.unrealized_pnl ?? 0), 0) * 100,
+			) / 100,
+		total_realized_pnl:
+			Math.round(
+				enrichedTrades.reduce((s, t) => s + (t.realized_pnl ?? 0), 0) * 100,
+			) / 100,
+		win_rate: roundTo(winRate, 2),
+		daily_pnl: roundTo(todayPnl, 2),
+		yesterday_pnl: roundTo(yesterdayPnl, 2),
+		avg_daily_pnl:
+			realizedDays.size > 0 ? roundTo(totalOutcomePnl / realizedDays.size, 2) : 0,
+	};
 
 	return {
 		trades: enrichedTrades,
