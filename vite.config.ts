@@ -236,10 +236,22 @@ function buildMergedLedgerRows(
 	for (const row of rows) {
 		const tradeId = firstNonEmptyString(row.trade_id);
 		const orderId = firstNonEmptyString(row.order_id, row.polymarket_order_id);
+		const tradeKey = keysByTradeId.get(tradeId);
+		const tradeCurrent = tradeKey ? deduped.get(tradeKey) : undefined;
+		const tradeCurrentOrderId = tradeCurrent
+			? firstNonEmptyString(
+					tradeCurrent.order_id,
+					tradeCurrent.polymarket_order_id,
+				)
+			: "";
 		const dedupeKey =
 			mode === "live"
 				? keysByOrderId.get(orderId) ||
-					keysByTradeId.get(tradeId) ||
+					(!orderId ||
+					!tradeCurrentOrderId ||
+					tradeCurrentOrderId === orderId
+						? tradeKey
+						: undefined) ||
 					firstNonEmptyString(orderId, tradeId)
 				: tradeId;
 		if (!dedupeKey) continue;
