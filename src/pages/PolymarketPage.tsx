@@ -153,6 +153,7 @@ interface SoftArbTruthTrade {
 	opened_at: string;
 	resolves_by: string;
 	polymarket_slug: string;
+	event_slug?: string | null;
 	status: string;
 	settlement_state?: string | null;
 	current_price: number | null;
@@ -308,9 +309,9 @@ function mapTruthToPolymarketData(snapshot: SoftArbTruthSnapshot): PolymarketDat
 				),
 		);
 		return {
-			market: trade.polymarket_slug || trade.event_slug || trade.trade_id,
-			marketQuestion: trade.pair || trade.polymarket_slug || trade.trade_id,
-			marketSlug: trade.polymarket_slug || trade.event_slug || trade.trade_id,
+			market: trade.event_slug || trade.polymarket_slug || trade.trade_id,
+			marketQuestion: trade.pair || trade.event_slug || trade.polymarket_slug || trade.trade_id,
+			marketSlug: trade.event_slug || trade.polymarket_slug || trade.trade_id,
 			outcome: normalizeOutcome(trade.direction),
 			shares,
 			entryPrice,
@@ -337,9 +338,9 @@ function mapTruthToPolymarketData(snapshot: SoftArbTruthSnapshot): PolymarketDat
 			return {
 				id: trade.order_id || trade.trade_id,
 				status: "LIVE",
-				market: trade.polymarket_slug || trade.event_slug || trade.trade_id,
-				marketQuestion: trade.pair || trade.polymarket_slug || trade.trade_id,
-				marketSlug: trade.polymarket_slug || trade.event_slug || trade.trade_id,
+				market: trade.event_slug || trade.polymarket_slug || trade.trade_id,
+				marketQuestion: trade.pair || trade.event_slug || trade.polymarket_slug || trade.trade_id,
+				marketSlug: trade.event_slug || trade.polymarket_slug || trade.trade_id,
 				assetId: trade.trade_id,
 				outcome: normalizeOutcome(trade.direction),
 				side: normalizeSide(trade.direction),
@@ -356,8 +357,8 @@ function mapTruthToPolymarketData(snapshot: SoftArbTruthSnapshot): PolymarketDat
 	const derivedTrades = trades
 		.map((trade) => ({
 			id: trade.trade_id,
-			market: trade.polymarket_slug || trade.event_slug || trade.trade_id,
-			marketQuestion: trade.pair || trade.polymarket_slug || trade.trade_id,
+			market: trade.event_slug || trade.polymarket_slug || trade.trade_id,
+			marketQuestion: trade.pair || trade.event_slug || trade.polymarket_slug || trade.trade_id,
 			side: normalizeSide(trade.direction),
 			outcome: normalizeOutcome(trade.direction),
 			shares: Number(trade.shares ?? 0),

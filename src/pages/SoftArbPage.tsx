@@ -680,6 +680,7 @@ export default function SoftArbPage() {
 		// Map soft trades to actual Convex positions if available
 		return softTrades
 			.map((t) => {
+				const tradeUrlSlug = t.event_slug ?? t.polymarket_slug;
 				const actualPos = polymarketData?.positions?.find((p: any) =>
 					matchesTradePosition(p, t),
 				);
@@ -699,6 +700,7 @@ export default function SoftArbPage() {
 					actual_pnl: actualPos?.unrealizedPnl ?? null,
 					display_pnl: actualPos?.unrealizedPnl ?? derivedPnl,
 					expired,
+					tradeUrlSlug,
 					actual_status: actualPos
 						? "POSITION"
 						: actualOrder
@@ -720,6 +722,7 @@ export default function SoftArbPage() {
 			softArbData?.trades.filter((t) => isOpenSettlementStatus(t.status)) || [];
 		return softTrades
 			.map((t) => {
+				const tradeUrlSlug = t.event_slug ?? t.polymarket_slug;
 				const actualPos = polymarketData?.positions?.find((p: any) =>
 					matchesTradePosition(p, t),
 				);
@@ -735,6 +738,7 @@ export default function SoftArbPage() {
 				return {
 					...t,
 					expired,
+					tradeUrlSlug,
 					display_pnl: derivedPnl,
 					actual_status: actualPos
 						? "POSITION"
@@ -927,17 +931,17 @@ export default function SoftArbPage() {
 													</td>
 													<td className="px-3 py-3">
 														<div className="font-semibold text-foreground text-xs leading-snug">
-															{t.polymarket_slug ? (
+															{t.tradeUrlSlug ? (
 																<a
-																	href={getPolymarketUrl(t.polymarket_slug)!}
+																	href={getPolymarketUrl(t.tradeUrlSlug)!}
 																	target="_blank"
 																	rel="noopener noreferrer"
 																	className="text-blue-600 hover:underline"
 																>
-																	{formatTradeName(t.pair, t.polymarket_slug)}
+																	{formatTradeName(t.pair, t.tradeUrlSlug)}
 																</a>
 															) : (
-																formatTradeName(t.pair, t.polymarket_slug)
+																formatTradeName(t.pair, t.tradeUrlSlug)
 															)}
 														</div>
 														<div className="mt-1 flex gap-1 items-center">
@@ -1032,17 +1036,17 @@ export default function SoftArbPage() {
 													</td>
 													<td className="px-3 py-3">
 														<div className="font-semibold text-foreground text-xs leading-snug">
-															{t.polymarket_slug ? (
+															{t.tradeUrlSlug ? (
 																<a
-																	href={getPolymarketUrl(t.polymarket_slug)!}
+																	href={getPolymarketUrl(t.tradeUrlSlug)!}
 																	target="_blank"
 																	rel="noopener noreferrer"
 																	className="text-blue-600 hover:underline"
 																>
-																	{formatTradeName(t.pair, t.polymarket_slug)}
+																	{formatTradeName(t.pair, t.tradeUrlSlug)}
 																</a>
 															) : (
-																formatTradeName(t.pair, t.polymarket_slug)
+																formatTradeName(t.pair, t.tradeUrlSlug)
 															)}
 														</div>
 														<div className="mt-1 flex gap-1 items-center">
@@ -1108,21 +1112,21 @@ export default function SoftArbPage() {
 												<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
 													{timeAgo(t.timestamp)}
 												</td>
-												<td className="px-3 py-3">
-													<div className="font-semibold text-foreground text-xs leading-snug">
-														{t.polymarket_slug ? (
-															<a
-																href={getPolymarketUrl(t.polymarket_slug)!}
-																target="_blank"
-																rel="noopener noreferrer"
-																className="text-blue-600 hover:underline"
-															>
-																{formatTradeName(t.pair, t.polymarket_slug)}
-															</a>
-														) : (
-															formatTradeName(t.pair, t.polymarket_slug)
-														)}
-													</div>
+													<td className="px-3 py-3">
+														<div className="font-semibold text-foreground text-xs leading-snug">
+															{t.polymarket_slug ? (
+																<a
+																	href={getPolymarketUrl(t.event_slug ?? t.polymarket_slug)!}
+																	target="_blank"
+																	rel="noopener noreferrer"
+																	className="text-blue-600 hover:underline"
+																>
+																	{formatTradeName(t.pair, t.event_slug ?? t.polymarket_slug)}
+																</a>
+															) : (
+																formatTradeName(t.pair, t.event_slug ?? t.polymarket_slug)
+															)}
+														</div>
 													<div className="mt-1 flex gap-1">
 														<span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-600">
 															{familyLabel(t.signal_family)}
