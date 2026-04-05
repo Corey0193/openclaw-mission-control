@@ -1667,7 +1667,24 @@ export default function ArbPaperPage() {
 						<div className="flex items-center gap-2">
 							{softArbData?.lastUpdated && (
 								<span className="text-[10px] text-muted-foreground">
-									MTM: {timeAgo(softArbData.lastUpdated)}
+									Snapshot: {timeAgo(softArbData.lastUpdated)}
+								</span>
+							)}
+							{softArbData?.summary && (
+								<span
+									className={`text-[10px] font-bold px-2 py-1 rounded-full border ${
+										String(softArbData.summary.report_status ?? "").toUpperCase() ===
+										"DEGRADED"
+											? "bg-amber-100 text-amber-800 border-amber-200"
+											: "bg-emerald-100 text-emerald-800 border-emerald-200"
+									}`}
+								>
+									Truth {String(softArbData.summary.report_status ?? "OK").toUpperCase()}
+									{Number(softArbData.summary.market_fetch_failures ?? 0) > 0
+										? ` · ${Number(
+												softArbData.summary.market_fetch_failures ?? 0,
+											)} fetch failures`
+										: ""}
 								</span>
 							)}
 							<button

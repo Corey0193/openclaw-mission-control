@@ -793,6 +793,23 @@ export default function SoftArbPage() {
 						/>
 						Refresh Dashboard
 					</button>
+					{softArbData?.summary && (
+						<span
+							className={`text-[10px] font-bold px-2 py-1 rounded-full border ${
+								String(softArbData.summary.report_status ?? "").toUpperCase() ===
+								"DEGRADED"
+									? "bg-amber-100 text-amber-800 border-amber-200"
+									: "bg-emerald-100 text-emerald-800 border-emerald-200"
+							}`}
+						>
+							Truth {String(softArbData.summary.report_status ?? "OK").toUpperCase()}
+							{Number(softArbData.summary.market_fetch_failures ?? 0) > 0
+								? ` · ${Number(
+										softArbData.summary.market_fetch_failures ?? 0,
+									)} fetch failures`
+								: ""}
+						</span>
+					)}
 				</div>
 
 				{/* 1. Open Positions (AT THE TOP) */}
