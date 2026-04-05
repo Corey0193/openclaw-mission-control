@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DEFAULT_TENANT_ID } from "../lib/tenant";
+import { useConvexHttpQuery } from "../lib/useConvexHttpQuery";
 import Header from "../components/Header";
 import {
 	IconArrowsExchange,
@@ -627,6 +629,11 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 
 export default function SoftArbPage() {
 	const { data: softArbData, refresh: refreshSoftArb } = useSoftArbTrades();
+	const convexSnapshot = useConvexHttpQuery<any>(
+		"polymarket:getPositions",
+		{ tenantId: DEFAULT_TENANT_ID },
+		{ pollMs: 30_000 },
+	);
 	const { runs: pipelineRuns, refresh: refreshPipeline } = usePipelineRuns();
 	const polymarketData = useMemo(() => {
 		if (!softArbData) return null;
@@ -854,8 +861,14 @@ export default function SoftArbPage() {
 					: summary.available_capital_usd != null
 						? Number(summary.available_capital_usd)
 						: null,
+			fullWalletValue:
+				convexSnapshot?.balanceUsdc != null ||
+				convexSnapshot?.totalCurrentValue != null
+					? Number(convexSnapshot.balanceUsdc ?? 0) +
+						Number(convexSnapshot.totalCurrentValue ?? 0)
+					: null,
 		};
-	}, [softArbData]);
+	}, [softArbData, convexSnapshot]);
 
 	const calibrationFamilies = useMemo(() => {
 		const families =
@@ -936,7 +949,7 @@ export default function SoftArbPage() {
 					{sectionsOpen.positions && (
 						<div className="space-y-6">
 							{/* Summary stats */}
-							<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-4">
+							<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-10 gap-4">
 								<SummaryCard
 									label="Tracked Trades"
 									value={softArbData?.trades.length ?? 0}
@@ -958,6 +971,12 @@ export default function SoftArbPage() {
 									label="Soft Arb Portfolio"
 									value={walletStats.portfolioValue}
 									icon={<IconChartBar size={20} />}
+									isCurrency
+								/>
+								<SummaryCard
+									label="Full Wallet Value"
+									value={walletStats.fullWalletValue}
+									icon={<IconWallet size={20} />}
 									isCurrency
 								/>
 								<SummaryCard

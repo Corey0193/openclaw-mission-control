@@ -632,6 +632,14 @@ export default function PolymarketPage() {
 									icon={<IconTrendingUp size={20} />}
 								/>
 								<SummaryCard
+									label="Full Wallet Value"
+									value={
+										Number(convexSnapshot?.balanceUsdc ?? 0) +
+										Number(convexSnapshot?.totalCurrentValue ?? 0)
+									}
+									icon={<IconCoin size={20} />}
+								/>
+								<SummaryCard
 									label="P&L"
 									value={data.totalPnl}
 									icon={<IconChartBar size={20} />}
