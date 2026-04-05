@@ -236,31 +236,35 @@ export default defineSchema({
 		bankroll: v.number(),
 		openPositions: v.number(),
 		totalPaperPnl: v.number(),
-		activeLeaderCount: v.number(),
-		monitoredLeaderCount: v.number(),
-		skipReasons: v.array(
-			v.object({
-				reason: v.string(),
-				count: v.number(),
-			}),
+		activeLeaderCount: v.optional(v.number()),
+		monitoredLeaderCount: v.optional(v.number()),
+		skipReasons: v.optional(
+			v.array(
+				v.object({
+					reason: v.string(),
+					count: v.number(),
+				}),
+			),
 		),
-		leaderQuality: v.array(
-			v.object({
-				address: v.string(),
-				label: v.optional(v.string()),
-				leaderState: v.string(),
-				cts: v.number(),
-				copyableScore: v.number(),
-				recentBuyCount: v.number(),
-				recentBuyPassCount: v.number(),
-				recentBuyPassRate: v.number(),
-				recentBuyMedianUsd: v.number(),
-				recentBuyAvgUsd: v.number(),
-				recentQualityUpdatedAt: v.optional(v.string()),
-				lastRank: v.optional(v.number()),
-				lastHealthReason: v.optional(v.string()),
-				openPositions: v.number(),
-			}),
+		leaderQuality: v.optional(
+			v.array(
+				v.object({
+					address: v.string(),
+					label: v.optional(v.string()),
+					leaderState: v.string(),
+					cts: v.number(),
+					copyableScore: v.number(),
+					recentBuyCount: v.number(),
+					recentBuyPassCount: v.number(),
+					recentBuyPassRate: v.number(),
+					recentBuyMedianUsd: v.number(),
+					recentBuyAvgUsd: v.number(),
+					recentQualityUpdatedAt: v.optional(v.string()),
+					lastRank: v.optional(v.number()),
+					lastHealthReason: v.optional(v.string()),
+					openPositions: v.number(),
+				}),
+			),
 		),
 		status: v.string(), // "starting" | "active" | "idle" | "error" | "stopped"
 		lastHeartbeatAt: v.number(),
