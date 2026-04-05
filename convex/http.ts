@@ -581,6 +581,71 @@ http.route({
 	}),
 });
 
+// Copy-trade V2 daemon status endpoint
+http.route({
+	path: "/copy-trade-v2/status",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		await ctx.runMutation(api.copyTradeV2.upsertStatus, {
+			tenantId: body.tenant_id ?? "default",
+			running: body.running ?? false,
+			pid: body.pid,
+			mode: body.mode ?? "PAPER",
+			bankroll: body.bankroll ?? 0,
+			openPositions: body.open_positions ?? 0,
+			totalPaperPnl: body.total_paper_pnl ?? 0,
+			activeLeaderCount: body.active_leader_count ?? 0,
+			monitoredLeaderCount: body.monitored_leader_count ?? 0,
+			skipReasons: Array.isArray(body.skip_reasons)
+				? body.skip_reasons.map((item: Record<string, unknown>) => ({
+						reason: String(item.reason ?? "UNKNOWN"),
+						count: Number(item.count ?? 0),
+					}))
+				: [],
+			leaderQuality: Array.isArray(body.leader_quality)
+				? body.leader_quality.map((item: Record<string, unknown>) => ({
+						address: String(item.address ?? ""),
+						label:
+							item.label != null && String(item.label).trim()
+								? String(item.label).trim()
+								: undefined,
+						leaderState: String(item.leader_state ?? "UNKNOWN"),
+						cts: Number(item.cts ?? 0),
+						copyableScore: Number(item.copyable_score ?? 0),
+						recentBuyCount: Number(item.recent_buy_count ?? 0),
+						recentBuyPassCount: Number(item.recent_buy_pass_count ?? 0),
+						recentBuyPassRate: Number(item.recent_buy_pass_rate ?? 0),
+						recentBuyMedianUsd: Number(item.recent_buy_median_usd ?? 0),
+						recentBuyAvgUsd: Number(item.recent_buy_avg_usd ?? 0),
+						recentQualityUpdatedAt:
+							item.recent_quality_updated_at != null &&
+							String(item.recent_quality_updated_at).trim()
+								? String(item.recent_quality_updated_at).trim()
+								: undefined,
+						lastRank:
+							item.last_rank != null ? Number(item.last_rank) : undefined,
+						lastHealthReason:
+							item.last_health_reason != null &&
+							String(item.last_health_reason).trim()
+								? String(item.last_health_reason).trim()
+								: undefined,
+						openPositions: Number(item.open_positions ?? 0),
+					}))
+				: [],
+			status: body.status ?? "unknown",
+			leaderLabel:
+				body.leader_label != null ? String(body.leader_label) : undefined,
+			marketTitle:
+				body.market_title != null ? String(body.market_title) : undefined,
+		});
+		return new Response(JSON.stringify({ ok: true }), {
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		});
+	}),
+});
+
 // Copy-trade positions sync endpoint
 http.route({
 	path: "/copy-trade/sync-positions",
@@ -664,6 +729,78 @@ http.route({
 			status: 200,
 			headers: { "Content-Type": "application/json" },
 		});
+	}),
+});
+
+// Copy-trade V2 positions sync endpoint
+http.route({
+	path: "/copy-trade-v2/sync-positions",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		console.log(
+			"SYNC DEBUG V2: Received",
+			(body.positions ?? []).length,
+			"positions",
+		);
+		const positions = (body.positions ?? []).map((p: Record<string, any>) => ({
+			positionId: String(p.position_id),
+			leaderAddress: String(p.leader_address),
+			marketId: String(p.market_id),
+			marketSlug:
+				p.market_slug != null && String(p.market_slug).trim()
+					? String(p.market_slug).trim()
+					: undefined,
+			tokenId: String(p.token_id),
+			outcomeIndex: Number(p.outcome_index),
+			shares: Number(p.shares),
+			entryPrice: Number(p.entry_price),
+			leaderEntryPrice: Number(p.leader_entry_price),
+			entryUsd: Number(p.entry_usd),
+			entryTimestamp: Number(p.entry_timestamp),
+			peakPrice: Number(p.peak_price),
+			currentPrice:
+				p.current_price != null ? Number(p.current_price) : undefined,
+			stopLossPrice:
+				p.stop_loss_price != null ? Number(p.stop_loss_price) : undefined,
+			takeProfitPrice:
+				p.take_profit_price != null ? Number(p.take_profit_price) : undefined,
+			exitStrategy:
+				p.exit_strategy != null ? String(p.exit_strategy) : undefined,
+			timeLimitAt:
+				p.time_limit_at != null ? Number(p.time_limit_at) : undefined,
+			exitPrice: p.exit_price != null ? Number(p.exit_price) : undefined,
+			exitTimestamp:
+				p.exit_timestamp != null ? Number(p.exit_timestamp) : undefined,
+			exitReason:
+				typeof p.exit_reason === "string"
+					? p.exit_reason
+					: p.exit_reason != null
+						? JSON.stringify(p.exit_reason)
+						: undefined,
+			pnl: p.pnl != null ? Number(p.pnl) : undefined,
+			mode: String(p.mode ?? "PAPER"),
+			leaderLabel: p.leader_label != null ? String(p.leader_label) : undefined,
+			marketTitle: p.market_title != null ? String(p.market_title) : undefined,
+		}));
+		if (positions.length > 0) {
+			console.log(
+				"SYNC DEBUG V2: Calling syncPositions for",
+				positions.length,
+				"mapped positions",
+			);
+			await ctx.runMutation(api.copyTradeV2.syncPositions, {
+				tenantId: String(body.tenant_id ?? "default"),
+				positions,
+			});
+		}
+		return new Response(
+			JSON.stringify({ ok: true, synced: positions.length }),
+			{
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			},
+		);
 	}),
 });
 

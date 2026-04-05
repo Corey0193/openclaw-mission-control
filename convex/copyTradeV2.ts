@@ -1,0 +1,269 @@
+import { mutation, query } from "./_generated/server";
+import { v } from "convex/values";
+
+const STATUS_TABLE = "copyTradeV2DaemonStatus";
+const POSITION_TABLE = "copyTradeV2Positions";
+
+const statusShape = {
+	tenantId: v.string(),
+	running: v.boolean(),
+	pid: v.optional(v.number()),
+	mode: v.string(),
+	leaderLabel: v.optional(v.string()),
+	marketTitle: v.optional(v.string()),
+	bankroll: v.number(),
+	openPositions: v.number(),
+	totalPaperPnl: v.number(),
+	activeLeaderCount: v.optional(v.number()),
+	monitoredLeaderCount: v.optional(v.number()),
+	skipReasons: v.optional(
+		v.array(
+			v.object({
+				reason: v.string(),
+				count: v.number(),
+			}),
+		),
+	),
+	leaderQuality: v.optional(
+		v.array(
+			v.object({
+				address: v.string(),
+				label: v.optional(v.string()),
+				leaderState: v.string(),
+				cts: v.number(),
+				copyableScore: v.number(),
+				recentBuyCount: v.number(),
+				recentBuyPassCount: v.number(),
+				recentBuyPassRate: v.number(),
+				recentBuyMedianUsd: v.number(),
+				recentBuyAvgUsd: v.number(),
+				recentQualityUpdatedAt: v.optional(v.string()),
+				lastRank: v.optional(v.number()),
+				lastHealthReason: v.optional(v.string()),
+				openPositions: v.number(),
+			}),
+		),
+	),
+	status: v.string(),
+};
+
+const positionShape = v.object({
+	positionId: v.string(),
+	leaderAddress: v.string(),
+	marketId: v.string(),
+	marketSlug: v.optional(v.string()),
+	tokenId: v.string(),
+	outcomeIndex: v.number(),
+	shares: v.number(),
+	entryPrice: v.number(),
+	leaderEntryPrice: v.number(),
+	entryUsd: v.number(),
+	entryTimestamp: v.number(),
+	peakPrice: v.number(),
+	currentPrice: v.optional(v.number()),
+	stopLossPrice: v.optional(v.number()),
+	takeProfitPrice: v.optional(v.number()),
+	exitStrategy: v.optional(v.string()),
+	timeLimitAt: v.optional(v.number()),
+	exitPrice: v.optional(v.number()),
+	exitTimestamp: v.optional(v.number()),
+	exitReason: v.optional(v.string()),
+	pnl: v.optional(v.number()),
+	mode: v.string(),
+	leaderLabel: v.optional(v.string()),
+	marketTitle: v.optional(v.string()),
+});
+
+export const upsertStatus = mutation({
+	args: statusShape,
+	returns: v.null(),
+	handler: async (ctx, args) => {
+		const existing = await ctx.db
+			.query(STATUS_TABLE)
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.first();
+
+		const base = {
+			running: args.running,
+			pid: args.pid,
+			mode: args.mode,
+			leaderLabel: args.leaderLabel,
+			marketTitle: args.marketTitle,
+			bankroll: args.bankroll,
+			openPositions: args.openPositions,
+			totalPaperPnl: args.totalPaperPnl,
+			activeLeaderCount: args.activeLeaderCount ?? 0,
+			monitoredLeaderCount: args.monitoredLeaderCount ?? 0,
+			skipReasons: args.skipReasons ?? [],
+			leaderQuality: args.leaderQuality ?? [],
+			status: args.status,
+			lastHeartbeatAt: Date.now(),
+		};
+
+		if (existing) {
+			await ctx.db.patch(STATUS_TABLE, existing._id, base);
+		} else {
+			await ctx.db.insert(STATUS_TABLE, {
+				tenantId: args.tenantId,
+				...base,
+			});
+		}
+		return null;
+	},
+});
+
+export const getStatus = query({
+	args: { tenantId: v.string() },
+	returns: v.union(
+		v.object({
+			running: v.boolean(),
+			pid: v.optional(v.number()),
+			mode: v.string(),
+			leaderLabel: v.optional(v.string()),
+			marketTitle: v.optional(v.string()),
+			bankroll: v.number(),
+			openPositions: v.number(),
+			totalPaperPnl: v.number(),
+			activeLeaderCount: v.optional(v.number()),
+			monitoredLeaderCount: v.optional(v.number()),
+			skipReasons: v.optional(
+				v.array(
+					v.object({
+						reason: v.string(),
+						count: v.number(),
+					}),
+				),
+			),
+			leaderQuality: v.optional(
+				v.array(
+					v.object({
+						address: v.string(),
+						label: v.optional(v.string()),
+						leaderState: v.string(),
+						cts: v.number(),
+						copyableScore: v.number(),
+						recentBuyCount: v.number(),
+						recentBuyPassCount: v.number(),
+						recentBuyPassRate: v.number(),
+						recentBuyMedianUsd: v.number(),
+						recentBuyAvgUsd: v.number(),
+						recentQualityUpdatedAt: v.optional(v.string()),
+						lastRank: v.optional(v.number()),
+						lastHealthReason: v.optional(v.string()),
+						openPositions: v.number(),
+					}),
+				),
+			),
+			status: v.string(),
+			lastHeartbeatAt: v.number(),
+		}),
+		v.null(),
+	),
+	handler: async (ctx, args) => {
+		const row = await ctx.db
+			.query(STATUS_TABLE)
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.first();
+		if (!row) return null;
+		return {
+			running: row.running,
+			pid: row.pid,
+			mode: row.mode,
+			leaderLabel: row.leaderLabel,
+			marketTitle: row.marketTitle,
+			bankroll: row.bankroll,
+			openPositions: row.openPositions,
+			totalPaperPnl: row.totalPaperPnl,
+			activeLeaderCount: row.activeLeaderCount ?? 0,
+			monitoredLeaderCount: row.monitoredLeaderCount ?? 0,
+			skipReasons: row.skipReasons ?? [],
+			leaderQuality: row.leaderQuality ?? [],
+			status: row.status,
+			lastHeartbeatAt: row.lastHeartbeatAt,
+		};
+	},
+});
+
+export const syncPositions = mutation({
+	args: {
+		tenantId: v.string(),
+		positions: v.array(positionShape),
+	},
+	returns: v.null(),
+	handler: async (ctx, args) => {
+		const existingRows = await ctx.db
+			.query(POSITION_TABLE)
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.collect();
+		const incomingIds = new Set(args.positions.map((pos) => pos.positionId));
+		for (const row of existingRows) {
+			if (!incomingIds.has(row.positionId)) {
+				await ctx.db.delete(POSITION_TABLE, row._id);
+			}
+		}
+		for (const pos of args.positions) {
+			const existing = await ctx.db
+				.query(POSITION_TABLE)
+				.withIndex("by_position_id", (q) => q.eq("positionId", pos.positionId))
+				.first();
+			if (existing) {
+				await ctx.db.patch(POSITION_TABLE, existing._id, pos);
+			} else {
+				await ctx.db.insert(POSITION_TABLE, {
+					tenantId: args.tenantId,
+					...pos,
+				});
+			}
+		}
+		return null;
+	},
+});
+
+export const listPositions = query({
+	args: { tenantId: v.string() },
+	returns: v.array(positionShape),
+	handler: async (ctx, args) => {
+		const rows = await ctx.db
+			.query(POSITION_TABLE)
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.collect();
+		return rows
+			.sort((a, b) => b.entryTimestamp - a.entryTimestamp)
+			.map((r) => ({
+				positionId: r.positionId,
+				leaderAddress: r.leaderAddress,
+				marketId: r.marketId,
+				marketSlug: r.marketSlug,
+				tokenId: r.tokenId,
+				outcomeIndex: r.outcomeIndex,
+				shares: r.shares,
+				entryPrice: r.entryPrice,
+				leaderEntryPrice: r.leaderEntryPrice,
+				entryUsd: r.entryUsd,
+				entryTimestamp: r.entryTimestamp,
+				peakPrice: r.peakPrice,
+				currentPrice: r.currentPrice,
+				stopLossPrice: r.stopLossPrice,
+				takeProfitPrice: r.takeProfitPrice,
+				exitStrategy: r.exitStrategy,
+				timeLimitAt: r.timeLimitAt,
+				exitPrice: r.exitPrice,
+				exitTimestamp: r.exitTimestamp,
+				exitReason: r.exitReason,
+				pnl: r.pnl,
+				mode: r.mode,
+				leaderLabel: r.leaderLabel,
+				marketTitle: r.marketTitle,
+			}));
+	},
+});
+
+export const getDaemonStatus = query({
+	args: { tenantId: v.string() },
+	handler: async (ctx, args) => {
+		return await ctx.db
+			.query(STATUS_TABLE)
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.first();
+	},
+});

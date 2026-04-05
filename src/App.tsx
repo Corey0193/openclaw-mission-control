@@ -14,6 +14,7 @@ import ArbExperimentsPage from "./pages/ArbExperimentsPage";
 const SoftArbPage = lazy(() => import("./pages/SoftArbPage"));
 const HardArbPage = lazy(() => import("./pages/HardArbPage"));
 const CopyTradePage = lazy(() => import("./pages/CopyTradePage"));
+const CopyTradeV2Page = lazy(() => import("./pages/CopyTradeV2Page"));
 
 export default function App() {
 	return (
@@ -59,6 +60,14 @@ export default function App() {
 				element={
 					<Suspense fallback={<div className="min-h-screen bg-[#f8f9fa]" />}>
 						<CopyTradePage />
+					</Suspense>
+				}
+			/>
+			<Route
+				path="/copy-trade-v2"
+				element={
+					<Suspense fallback={<div className="min-h-screen bg-[#f8f9fa]" />}>
+						<CopyTradeV2Page />
 					</Suspense>
 				}
 			/>

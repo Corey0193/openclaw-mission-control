@@ -4,6 +4,7 @@ import SignOutButton from "./Signout";
 import ArbDaemonBadge from "./ArbDaemonBadge";
 import WalletIngestorBadge from "./WalletIngestorBadge";
 import CopyTradeBadge from "./CopyTradeBadge";
+import CopyTradeV2Badge from "./CopyTradeV2Badge";
 import OllamaHealthBadge from "./OllamaHealthBadge";
 
 import { IconChevronDown } from "@tabler/icons-react";
@@ -58,7 +59,9 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed, title }) 
 			.toUpperCase();
 	};
 
-	const isArbActive = location.pathname.startsWith("/arb") || location.pathname.startsWith("/copy-trade");
+	const isArbActive =
+		location.pathname.startsWith("/arb") ||
+		location.pathname.startsWith("/copy-trade");
 
 	return (
 		<header className="[grid-area:header] flex items-center justify-between px-3 md:px-6 py-2 bg-white border-b border-border z-10 shadow-sm">
@@ -207,6 +210,16 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed, title }) 
 								>
 									Copy Trade
 								</Link>
+								<Link
+									to="/copy-trade-v2"
+									onClick={() => setIsArbDropdownOpen(false)}
+									className={`
+								                block px-4 py-2 text-[12px] font-semibold hover:bg-muted transition-colors
+								                ${location.pathname === "/copy-trade-v2" ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
+								        `}
+								>
+									Copy V2
+								</Link>
 							</div>
 						)}
 					</div>
@@ -238,6 +251,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed, title }) 
 				<WalletIngestorBadge />
 				<OllamaHealthBadge />
 				<CopyTradeBadge />{" "}
+				<CopyTradeV2Badge />{" "}
 				<div className="hidden sm:flex items-center gap-2 bg-[#e6fcf5] text-[#0ca678] px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider border border-[#b2f2bb]/40 shadow-sm">
 					<span className="w-1.5 h-1.5 bg-[#0ca678] rounded-full animate-pulse" />
 					ONLINE
