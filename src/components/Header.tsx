@@ -8,17 +8,16 @@ import CopyTradeBadge from "./CopyTradeBadge";
 import { IconChevronDown } from "@tabler/icons-react";
 
 type HeaderProps = {
-	onOpenAgents?: () => void;
-	onOpenLiveFeed?: () => void;
+        onOpenAgents?: () => void;
+        onOpenLiveFeed?: () => void;
+        title?: string;
 };
 
-const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
+const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed, title }) => {
 	const [time, setTime] = useState(new Date());
 	const [isArbDropdownOpen, setIsArbDropdownOpen] = useState(false);
 	const arbDropdownRef = useRef<HTMLDivElement>(null);
 	const location = useLocation();
-
-
 
 	useEffect(() => {
 		const timer = setInterval(() => setTime(new Date()), 1000);
@@ -63,6 +62,12 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed }) => {
 	return (
 		<header className="[grid-area:header] flex items-center justify-between px-3 md:px-6 py-2 bg-white border-b border-border z-10 shadow-sm">
 			<div className="flex items-center gap-2 md:gap-4 min-w-0">
+				{title && (
+					<div className="hidden lg:flex items-center mr-2">
+						<span className="text-sm font-bold text-foreground whitespace-nowrap">{title}</span>
+						<div className="mx-3 h-4 w-[1px] bg-border" />
+					</div>
+				)}
 				<div className="flex md:hidden items-center gap-2">
 					{onOpenAgents && (
 						<button

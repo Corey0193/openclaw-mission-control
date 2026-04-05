@@ -13,11 +13,8 @@ import {
   IconCircleFilled,
   IconStarFilled,
   IconAlertCircle,
-  IconTrendingUp,
-  IconTrendingDown,
   IconFilter,
   IconArrowsSort,
-  IconCalendar,
 } from "@tabler/icons-react";
 import {
   LineChart,
@@ -38,13 +35,11 @@ function SummaryCard({
   value,
   subValue,
   icon,
-  status,
 }: {
   label: string;
   value: string | number;
   subValue?: string;
   icon: React.ReactNode;
-  status?: "success" | "warning" | "error" | "default";
 }) {
   return (
     <div className="flex items-center gap-3 bg-white border border-border rounded-xl px-5 py-4">
@@ -376,7 +371,7 @@ export default function ArbExperimentsPage() {
                                   {row.label}
                                 </td>
                                 {["train", "validate", "test"].map((phase) => {
-                                  const val = selectedExperiment.bestTrial?.[phase]?.[row.key];
+                                  const val = (selectedExperiment.bestTrial as any)?.[phase]?.[row.key];
                                   const displayVal = val !== undefined 
                                     ? (row.key === "win_rate" || row.key === "max_dd" ? (val * 100).toFixed(1) : parseFloat(val.toFixed(2)).toLocaleString())
                                     : "—";
@@ -455,9 +450,9 @@ export default function ArbExperimentsPage() {
                       <div className="flex flex-col gap-4">
                         <h4 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Exit Distribution (Test)</h4>
                         <div className="space-y-4 bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-sm">
-                          {Object.entries(selectedExperiment.bestTrial.test.exit_reasons).map(([reason, count]: [string, any]) => {
-                            const total = Object.values(selectedExperiment.bestTrial.test.exit_reasons).reduce((a: any, b: any) => a + b, 0) as number;
-                            const pct = total > 0 ? (count / total) * 100 : 0;
+                          {Object.entries((selectedExperiment.bestTrial as any).test.exit_reasons).map(([reason, count]: [string, any]) => {
+                            const total = Object.values((selectedExperiment.bestTrial as any).test.exit_reasons).reduce((a: any, b: any) => a + (b as number), 0) as number;
+                            const pct = total > 0 ? ((count as number) / total) * 100 : 0;
                             return (
                               <div key={reason} className="flex flex-col gap-2">
                                 <div className="flex justify-between items-end text-sm">
