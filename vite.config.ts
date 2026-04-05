@@ -247,9 +247,7 @@ function buildMergedLedgerRows(
 		const dedupeKey =
 			mode === "live"
 				? keysByOrderId.get(orderId) ||
-					(!orderId ||
-					!tradeCurrentOrderId ||
-					tradeCurrentOrderId === orderId
+					(!orderId || !tradeCurrentOrderId || tradeCurrentOrderId === orderId
 						? tradeKey
 						: undefined) ||
 					firstNonEmptyString(orderId, tradeId)
@@ -1111,8 +1109,8 @@ async function getSoftArbTrades(): Promise<{
 		const rowKey = `${isReal ? "live" : "paper"}-${rawTradeId}-${opportunityId}`;
 		const mtmData = mtm?.trades?.[rowKey] ?? mtm?.trades?.[rawTradeId];
 		const truthData =
-			truth?.positions?.[rawTradeId] ??
 			truth?.positions?.[tradeId] ??
+			truth?.positions?.[rawTradeId] ??
 			truth?.positions?.[rowKey] ??
 			null;
 		const shieldData = shieldTradeState[rowKey] ?? shieldTradeState[rawTradeId];
