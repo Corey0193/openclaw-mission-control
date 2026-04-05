@@ -455,7 +455,7 @@ interface SoftArbTrade {
 	signal_family: string;
 	signal_source: string;
 	direction: string;
-	entry_price: number;
+	entry_price: number | null;
 	position_size_usd: number;
 	shares: number;
 	adjusted_edge_pct: number;
@@ -855,22 +855,23 @@ async function enrichSoftArbTradesWithFallbackMarks(
 			};
 		}
 
-		const currentPrice = resolveSoftArbCurrentPrice(
-			trade.direction,
-			quote.currentYesPrice,
-			quote.currentNoPrice,
-		);
-		if (currentPrice == null) {
-			return trade;
-		}
+			const currentPrice = resolveSoftArbCurrentPrice(
+				trade.direction,
+				quote.currentYesPrice,
+				quote.currentNoPrice,
+			);
+			if (currentPrice == null) {
+				return trade;
+			}
+			const entryPrice = trade.entry_price ?? 0;
 
-		return {
-			...trade,
-			current_price: roundTo(currentPrice, 4),
-			unrealized_pnl: roundTo(
-				(currentPrice - trade.entry_price) * trade.shares,
-				2,
-			),
+			return {
+				...trade,
+				current_price: roundTo(currentPrice, 4),
+				unrealized_pnl: roundTo(
+					(currentPrice - entryPrice) * trade.shares,
+					2,
+				),
 			event_slug: trade.event_slug ?? quote.eventSlug,
 			mark_source: "gamma_fallback",
 		};

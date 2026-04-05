@@ -102,6 +102,7 @@ interface PolymarketTrade {
 	id: string;
 	market: string;
 	marketQuestion: string;
+	event_slug?: string | null;
 	side: string;
 	outcome: string;
 	shares: number;
@@ -111,6 +112,7 @@ interface PolymarketTrade {
 	timestamp: number;
 	txHash?: string;
 	status: string;
+	settlementState?: string | null;
 }
 
 interface PolymarketOpenOrder {
@@ -171,7 +173,6 @@ interface SoftArbTruthTrade {
 	tx_hash?: string | null;
 	avg_entry_price?: number | null;
 	entry_cost?: number | null;
-	event_slug: string | null;
 	is_real: boolean;
 	order_id: string | null;
 	order_status: string | null;

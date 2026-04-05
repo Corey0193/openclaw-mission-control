@@ -210,6 +210,7 @@ interface SoftArbTrade {
 	entry_price: number | null;
 	position_size_usd: number;
 	shares: number;
+	gross_payout: number | null;
 	adjusted_edge_pct: number;
 	opened_at: string;
 	resolves_by: string;
@@ -262,6 +263,7 @@ interface SoftArbOutcome {
 	trade_id: string;
 	pair: string;
 	polymarket_slug: string | null;
+	event_slug: string | null;
 	metaculus_id: number | null;
 	signal_family: string;
 	signal_source: string;
@@ -649,21 +651,22 @@ export default function SoftArbPage() {
 	const polymarketData = useMemo(() => {
 		if (!softArbData) return null;
 		const positions = softArbData.trades
-			.filter((trade) => !isExpiredTrade(trade.resolves_by))
-			.map((trade) => ({
-				marketSlug: trade.polymarket_slug,
-				outcome: normalizeDirection(trade.direction),
-				shares: Number(trade.shares ?? 0),
-				unrealizedPnl:
-					trade.unrealized_pnl ??
-					(trade.current_price != null
-						? Number(
-								(
-									(trade.current_price - trade.entry_price) *
-									trade.shares
-								).toFixed(2),
-							)
-						: null),
+				.filter((trade) => !isExpiredTrade(trade.resolves_by))
+				.map((trade) => ({
+					marketSlug: trade.polymarket_slug,
+					outcome: normalizeDirection(trade.direction),
+					shares: Number(trade.shares ?? 0),
+					entryPrice: trade.entry_price ?? 0,
+					unrealizedPnl:
+						trade.unrealized_pnl ??
+						(trade.current_price != null
+							? Number(
+									(
+										(trade.current_price - (trade.entry_price ?? 0)) *
+										trade.shares
+									).toFixed(2),
+								)
+							: null),
 				marketResolved: !isOpenSettlementStatus(trade.status),
 			}));
 		const openOrders = softArbData.trades
@@ -729,20 +732,21 @@ export default function SoftArbPage() {
 			[];
 
 		// Map soft trades to actual Convex positions if available
-		return softTrades
-			.map((t) => {
-				const tradeUrlSlug = t.event_slug ?? t.polymarket_slug;
-				const actualPos = polymarketData?.positions?.find((p: any) =>
-					matchesTradePosition(p, t),
-				);
-				const actualOrder = polymarketData?.openOrders?.find((o: any) =>
-					matchesTradeOrder(o, t),
-				);
-				const derivedPnl =
-					t.unrealized_pnl ??
-					(t.current_price != null
-						? Number(((t.current_price - t.entry_price) * t.shares).toFixed(2))
-						: null);
+			return softTrades
+				.map((t) => {
+					const tradeUrlSlug = t.event_slug ?? t.polymarket_slug;
+					const actualPos = polymarketData?.positions?.find((p: any) =>
+						matchesTradePosition(p, t),
+					);
+					const actualOrder = polymarketData?.openOrders?.find((o: any) =>
+						matchesTradeOrder(o, t),
+					);
+					const entryPrice = t.entry_price ?? 0;
+					const derivedPnl =
+						t.unrealized_pnl ??
+						(t.current_price != null
+							? Number(((t.current_price - entryPrice) * t.shares).toFixed(2))
+							: null);
 				const expired = isExpiredTrade(t.resolves_by);
 
 				return {
@@ -772,21 +776,22 @@ export default function SoftArbPage() {
 		const softTrades =
 			softArbData?.trades.filter((t) => isVisiblePositionStatus(t.status)) ||
 			[];
-		return softTrades
-			.map((t) => {
-				const tradeUrlSlug = t.event_slug ?? t.polymarket_slug;
-				const actualPos = polymarketData?.positions?.find((p: any) =>
-					matchesTradePosition(p, t),
-				);
-				const actualOrder = polymarketData?.openOrders?.find((o: any) =>
-					matchesTradeOrder(o, t),
-				);
-				const expired = isExpiredTrade(t.resolves_by);
-				const derivedPnl =
-					t.unrealized_pnl ??
-					(t.current_price != null
-						? Number(((t.current_price - t.entry_price) * t.shares).toFixed(2))
-						: null);
+			return softTrades
+				.map((t) => {
+					const tradeUrlSlug = t.event_slug ?? t.polymarket_slug;
+					const actualPos = polymarketData?.positions?.find((p: any) =>
+						matchesTradePosition(p, t),
+					);
+					const actualOrder = polymarketData?.openOrders?.find((o: any) =>
+						matchesTradeOrder(o, t),
+					);
+					const expired = isExpiredTrade(t.resolves_by);
+					const entryPrice = t.entry_price ?? 0;
+					const derivedPnl =
+						t.unrealized_pnl ??
+						(t.current_price != null
+							? Number(((t.current_price - entryPrice) * t.shares).toFixed(2))
+							: null);
 				return {
 					...t,
 					expired,
@@ -837,14 +842,14 @@ export default function SoftArbPage() {
 		return stats;
 	}, [softArbData]);
 
-	const walletStats = useMemo(() => {
-		const summary = (softArbData?.summary ?? {}) as any;
-		const positionEquity = (softArbData?.trades ?? []).reduce((sum, trade) => {
-			if (!isVisiblePositionStatus(trade.status)) return sum;
-			const status = String(trade.status ?? "").toUpperCase();
-			if (status === "PAYOUT_CLAIMABLE") {
-				return sum + Number(trade.gross_payout ?? 0);
-			}
+		const walletStats = useMemo(() => {
+			const summary = (softArbData?.summary ?? {}) as any;
+			const positionEquity = (softArbData?.trades ?? []).reduce((sum, trade) => {
+				if (!isVisiblePositionStatus(trade.status)) return sum;
+				const status = String(trade.status ?? "").toUpperCase();
+				if (status === "PAYOUT_CLAIMABLE") {
+					return sum + Number(trade.gross_payout ?? 0);
+				}
 			const currentPrice =
 				trade.current_price != null
 					? Number(trade.current_price)
