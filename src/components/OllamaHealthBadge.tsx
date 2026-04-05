@@ -119,7 +119,7 @@ const OllamaHealthBadge = () => {
 			case "loading":
 				return "OLLAMA ...";
 			case "healthy":
-				return "OLLAMA OK";
+				return "";
 			case "degraded":
 				return "OLLAMA STALE";
 			case "down":
