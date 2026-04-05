@@ -12,6 +12,7 @@ import {
 	IconTrendingDown,
 	IconShieldCheck,
 	IconAlertTriangle,
+	IconClock,
 	IconScan,
 	IconChevronDown,
 	IconChevronRight,
@@ -59,6 +60,36 @@ function timeAgo(isoOrMs: string | number): string {
 	if (hrs < 24) return `${hrs}h ago`;
 	const days = Math.floor(hrs / 24);
 	return `${days}d ago`;
+}
+
+function isOpenSettlementStatus(status: string | null | undefined): boolean {
+	const normalized = String(status ?? "").toUpperCase();
+	return (
+		normalized === "OPEN" ||
+		normalized === "POSTED" ||
+		normalized === "PARTIAL_FILL" ||
+		normalized === "FILLED"
+	);
+}
+
+function settlementStatusLabel(status: string | null | undefined): string {
+	const normalized = String(status ?? "").toUpperCase();
+	switch (normalized) {
+		case "RESOLVED_WIN":
+			return "WIN";
+		case "RESOLVED_LOSS":
+			return "LOSS";
+		case "PAYOUT_CLAIMABLE":
+			return "CLAIMABLE";
+		case "PAYOUT_CLAIMED":
+			return "CLAIMED";
+		case "CLOSED_LOSS":
+			return "LOSS";
+		case "ORDER_CANCELED":
+			return "CANCELED";
+		default:
+			return normalized || "OPEN";
+	}
 }
 
 /** Safely convert any value to a displayable string — prevents "Objects are not valid as React child" crashes */
@@ -628,8 +659,6 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 	const bestOpportunity = dossier?.best_opportunity as
 		| Record<string, unknown>
 		| undefined;
-
-
 
 	// Post-normalization: canonical field names from normalize_dossier.py
 	function normalizeItem(item: Record<string, unknown>) {
@@ -1730,8 +1759,9 @@ export default function ArbPaperPage() {
 									)}
 
 									{/* Open trades table */}
-									{softArbData.trades.filter((t) => t.status === "OPEN")
-										.length > 0 && (
+									{softArbData.trades.filter((t) =>
+										isOpenSettlementStatus(t.status),
+									).length > 0 && (
 										<section>
 											<h4 className="text-xs font-bold text-emerald-800 tracking-wide uppercase mb-2">
 												Open Positions
@@ -1755,7 +1785,7 @@ export default function ArbPaperPage() {
 													</thead>
 													<tbody>
 														{softArbData.trades
-															.filter((t) => t.status === "OPEN")
+															.filter((t) => isOpenSettlementStatus(t.status))
 															.sort(
 																(a, b) =>
 																	new Date(b.opened_at).getTime() -
@@ -1841,9 +1871,7 @@ export default function ArbPaperPage() {
 
 									{/* Resolved trades table */}
 									{softArbData.trades.filter(
-										(t) =>
-											t.status === "RESOLVED_WIN" ||
-											t.status === "RESOLVED_LOSS",
+										(t) => !isOpenSettlementStatus(t.status),
 									).length > 0 && (
 										<section>
 											<h4 className="text-xs font-bold text-emerald-800 tracking-wide uppercase mb-2">
@@ -1866,11 +1894,7 @@ export default function ArbPaperPage() {
 													</thead>
 													<tbody>
 														{softArbData.trades
-															.filter(
-																(t) =>
-																	t.status === "RESOLVED_WIN" ||
-																	t.status === "RESOLVED_LOSS",
-															)
+															.filter((t) => !isOpenSettlementStatus(t.status))
 															.map((t, i, arr) => (
 																<tr
 																	key={t.trade_id}
@@ -1901,13 +1925,29 @@ export default function ArbPaperPage() {
 																		{formatUsd(t.position_size_usd)}
 																	</td>
 																	<td className="text-center px-3 py-2">
-																		{t.status === "RESOLVED_WIN" ? (
-																			<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-emerald-100 text-emerald-700">
-																				<IconCircleCheck size={12} /> WIN
+																		{settlementStatusLabel(t.status) ===
+																		"CLAIMED" ? (
+																			<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-blue-100 text-blue-700">
+																				<IconCircleCheck size={12} /> CLAIMED
 																			</span>
-																		) : (
+																		) : settlementStatusLabel(t.status) ===
+																			"CLAIMABLE" ? (
+																			<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-amber-100 text-amber-700">
+																				<IconClock size={12} /> CLAIMABLE
+																			</span>
+																		) : settlementStatusLabel(t.status) ===
+																			"LOSS" ? (
 																			<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-red-100 text-red-700">
 																				<IconCircleX size={12} /> LOSS
+																			</span>
+																		) : settlementStatusLabel(t.status) ===
+																			"CANCELED" ? (
+																			<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-slate-100 text-slate-700">
+																				CANCELED
+																			</span>
+																		) : (
+																			<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-slate-100 text-slate-700">
+																				{settlementStatusLabel(t.status)}
 																			</span>
 																		)}
 																	</td>

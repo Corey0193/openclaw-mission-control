@@ -29,19 +29,20 @@ const ARB_PIPELINE_DIR = path.join(
 );
 
 const SOFT_ARB_TRADES_PATH = path.join(
-        ARB_PIPELINE_DIR,
-        "soft-arb-paper-trades.jsonl",
+	ARB_PIPELINE_DIR,
+	"soft-arb-paper-trades.jsonl",
 );
 const SOFT_ARB_LIVE_TRADES_PATH = path.join(
-        ARB_PIPELINE_DIR,
-        "soft-arb-live-trades.jsonl",
+	ARB_PIPELINE_DIR,
+	"soft-arb-live-trades.jsonl",
 );
 const SOFT_ARB_LIVE_TRADES_LEGACY_PATH = path.join(
-        os.homedir(),
-        ".openclaw/workspace-hustle/live-trades.jsonl",
+	os.homedir(),
+	".openclaw/workspace-hustle/live-trades.jsonl",
 );
 
 const SOFT_ARB_MTM_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-mtm.json");
+const SOFT_ARB_TRUTH_PATH = path.join(ARB_PIPELINE_DIR, "soft-arb-truth.json");
 const SOFT_ARB_OUTCOMES_PATH = path.join(
 	ARB_PIPELINE_DIR,
 	"outcome-tracking.jsonl",
@@ -77,33 +78,33 @@ function readJsonSafe(filePath: string): Record<string, unknown> | null {
 }
 
 function readJsonlSafe(filePath: string): Record<string, unknown>[] {
-        if (!fs.existsSync(filePath)) return [];
+	if (!fs.existsSync(filePath)) return [];
 
-        const rows: Record<string, unknown>[] = [];
-        const content = fs.readFileSync(filePath, "utf-8");
-        let buffer = "";
+	const rows: Record<string, unknown>[] = [];
+	const content = fs.readFileSync(filePath, "utf-8");
+	let buffer = "";
 
-		for (const line of content.split("\n")) {
-	                buffer += line + "\n";
-	                try {
-	                        const parsed = JSON.parse(buffer);
-	                        rows.push(parsed);
-	                        buffer = "";
-	                } catch {
-	                        // Continue buffering
-	                }
-	        }
+	for (const line of content.split("\n")) {
+		buffer += line + "\n";
+		try {
+			const parsed = JSON.parse(buffer);
+			rows.push(parsed);
+			buffer = "";
+		} catch {
+			// Continue buffering
+		}
+	}
 
-	        if (buffer.trim()) {
-	                try {
-	                        const parsed = JSON.parse(buffer);
-	                        rows.push(parsed);
-	                } catch {
-	                        // Truly malformed
-	                }
-	        }
+	if (buffer.trim()) {
+		try {
+			const parsed = JSON.parse(buffer);
+			rows.push(parsed);
+		} catch {
+			// Truly malformed
+		}
+	}
 
-        return rows;
+	return rows;
 }
 
 function hasValue(value: unknown): boolean {
@@ -132,7 +133,9 @@ function firstNonEmptyString(...values: unknown[]): string {
 	return "";
 }
 
-function getDossierDisplayName(dossier: Record<string, unknown> | null): string {
+function getDossierDisplayName(
+	dossier: Record<string, unknown> | null,
+): string {
 	if (!dossier) return "";
 
 	const bestOpportunity =
@@ -232,9 +235,7 @@ function buildMergedLedgerRows(
 		const tradeId = firstNonEmptyString(row.trade_id);
 		const orderId = firstNonEmptyString(row.order_id, row.polymarket_order_id);
 		const dedupeKey =
-			mode === "live"
-				? firstNonEmptyString(orderId, tradeId)
-				: tradeId;
+			mode === "live" ? firstNonEmptyString(orderId, tradeId) : tradeId;
 		if (!dedupeKey) continue;
 		const current = deduped.get(dedupeKey);
 		deduped.set(
@@ -364,6 +365,7 @@ function arbPipelinePlugin() {
 interface SoftArbTrade {
 	trade_id: string;
 	rowKey: string;
+	source_trade_id?: string;
 	pair: string;
 	signal_family: string;
 	signal_source: string;
@@ -377,6 +379,7 @@ interface SoftArbTrade {
 	polymarket_slug: string;
 	metaculus_id: number;
 	status: string;
+	settlement_state?: string | null;
 	current_price: number | null;
 	unrealized_pnl: number | null;
 	realized_pnl: number | null;
@@ -385,11 +388,21 @@ interface SoftArbTrade {
 	fair_value: number | null;
 	exit_price: number | null;
 	resolved_outcome: string | null;
+	resolved_at?: string | null;
+	claimed_at?: string | null;
+	gross_payout?: number | null;
+	fees_paid?: number | null;
+	net_realized_pnl?: number | null;
+	evidence_source?: string | null;
+	tx_hash?: string | null;
+	avg_entry_price?: number | null;
+	entry_cost?: number | null;
 	event_slug: string | null;
 	is_real: boolean;
 	order_id: string | null;
 	order_status: string | null;
-	mark_source: "mtm" | "gamma_fallback" | "unavailable";
+	mark_source: "truth" | "mtm" | "gamma_fallback" | "unavailable";
+	truth_status?: string | null;
 	shield_coin: string | null;
 	shield_state: string | null;
 	shield_reason: string | null;
@@ -498,6 +511,16 @@ interface SoftArbCalibration {
 	generated_at: string;
 	sample_policy: Record<string, unknown>;
 	families: Record<string, SoftArbCalibrationFamily>;
+}
+
+interface SoftArbTruthSnapshot {
+	schema_version?: number;
+	generated_at?: string;
+	report_status?: string;
+	market_fetch_failures?: number;
+	summary?: Record<string, unknown>;
+	positions?: Record<string, Record<string, unknown>>;
+	outcomes?: Array<Record<string, unknown>>;
 }
 
 interface SoftArbDiscoverySummary {
@@ -644,10 +667,7 @@ async function fetchSoftArbGammaQuote(slug: string): Promise<{
 
 		const currentYesPrice = Number(prices[0]);
 		const currentNoPrice = Number(prices[1]);
-		if (
-			!Number.isFinite(currentYesPrice) ||
-			!Number.isFinite(currentNoPrice)
-		) {
+		if (!Number.isFinite(currentYesPrice) || !Number.isFinite(currentNoPrice)) {
 			return null;
 		}
 
@@ -657,8 +677,7 @@ async function fetchSoftArbGammaQuote(slug: string): Promise<{
 		const quote = {
 			currentYesPrice,
 			currentNoPrice,
-			eventSlug:
-				events[0]?.slug != null ? String(events[0].slug) : null,
+			eventSlug: events[0]?.slug != null ? String(events[0].slug) : null,
 			fetchedAt: Date.now(),
 		};
 		softArbGammaCache.set(slug, quote);
@@ -687,7 +706,9 @@ async function enrichSoftArbTradesWithFallbackMarks(
 	if (slugsToFetch.length === 0) return trades;
 
 	const quoteEntries = await Promise.all(
-		slugsToFetch.map(async (slug) => [slug, await fetchSoftArbGammaQuote(slug)] as const),
+		slugsToFetch.map(
+			async (slug) => [slug, await fetchSoftArbGammaQuote(slug)] as const,
+		),
 	);
 	const quoteMap = new Map(quoteEntries);
 
@@ -704,7 +725,8 @@ async function enrichSoftArbTradesWithFallbackMarks(
 		if (!quote) {
 			return {
 				...trade,
-				mark_source: trade.current_price != null ? trade.mark_source : "unavailable",
+				mark_source:
+					trade.current_price != null ? trade.mark_source : "unavailable",
 			};
 		}
 
@@ -720,7 +742,10 @@ async function enrichSoftArbTradesWithFallbackMarks(
 		return {
 			...trade,
 			current_price: roundTo(currentPrice, 4),
-			unrealized_pnl: roundTo((currentPrice - trade.entry_price) * trade.shares, 2),
+			unrealized_pnl: roundTo(
+				(currentPrice - trade.entry_price) * trade.shares,
+				2,
+			),
 			event_slug: trade.event_slug ?? quote.eventSlug,
 			mark_source: "gamma_fallback",
 		};
@@ -972,10 +997,7 @@ async function getSoftArbTrades(): Promise<{
 	const dossierByOpportunity = loadOpportunityDossiers();
 	const paperTrades = buildMergedLedgerRows(paperRaw, "paper");
 	const liveTrades = buildMergedLedgerRows(liveRaw, "live");
-	const rawTrades = [
-		...paperTrades.values(),
-		...liveTrades.values(),
-	];
+	const rawTrades = [...paperTrades.values(), ...liveTrades.values()];
 	const rawOutcomes = readJsonlSafe(SOFT_ARB_OUTCOMES_PATH);
 
 	const calibration = readJsonSafe(
@@ -1044,16 +1066,29 @@ async function getSoftArbTrades(): Promise<{
 		}
 	}
 
+	let truth: SoftArbTruthSnapshot | null = null;
+	if (fs.existsSync(SOFT_ARB_TRUTH_PATH)) {
+		try {
+			truth = JSON.parse(fs.readFileSync(SOFT_ARB_TRUTH_PATH, "utf-8"));
+		} catch {
+			// ignore malformed truth snapshot
+		}
+	}
+
 	// Merge trades with MTM overlay
 	const trades: SoftArbTrade[] = rawTrades.map((t) => {
 		const rawTradeId = firstNonEmptyString(t.trade_id);
 		const orderId = firstNonEmptyString(t.order_id, t.polymarket_order_id);
 		const opportunityId = firstNonEmptyString(t.opportunity_id);
 		const isReal = !!t.real_trade || rawTradeId.startsWith("live-");
-		const tradeId =
-			isReal && orderId ? `${rawTradeId}:${orderId}` : rawTradeId;
+		const tradeId = isReal && orderId ? `${rawTradeId}:${orderId}` : rawTradeId;
 		const rowKey = `${isReal ? "live" : "paper"}-${rawTradeId}-${opportunityId}`;
 		const mtmData = mtm?.trades?.[rowKey] ?? mtm?.trades?.[rawTradeId];
+		const truthData =
+			truth?.positions?.[rawTradeId] ??
+			truth?.positions?.[tradeId] ??
+			truth?.positions?.[rowKey] ??
+			null;
 		const shieldData = shieldTradeState[rowKey] ?? shieldTradeState[rawTradeId];
 		const dossier = dossierByOpportunity.get(opportunityId) ?? null;
 		const matchedPair = getPrimaryMatchedPair(dossier);
@@ -1067,6 +1102,7 @@ async function getSoftArbTrades(): Promise<{
 		return {
 			trade_id: tradeId,
 			rowKey,
+			source_trade_id: rawTradeId,
 			pair: firstNonEmptyString(
 				t.pair,
 				t.event_name,
@@ -1084,6 +1120,7 @@ async function getSoftArbTrades(): Promise<{
 			shares: Number(t.shares ?? t.shares_est ?? 0),
 			adjusted_edge_pct: normalizeSoftArbPct(t.adjusted_edge_pct ?? t.edge_pct),
 			opened_at: firstNonEmptyString(
+				truthData?.opened_at,
 				t.opened_at,
 				t.timestamp,
 				t.executed_at,
@@ -1107,26 +1144,83 @@ async function getSoftArbTrades(): Promise<{
 				dossier?.polymarket_slug,
 			),
 			metaculus_id: Number(t.metaculus_id ?? 0),
-			status: String(mtmData?.status ?? t.status ?? "OPEN"),
+			status: String(
+				truthData?.settlement_state ??
+					truthData?.status ??
+					mtmData?.status ??
+					t.status ??
+					"OPEN",
+			),
+			settlement_state:
+				truthData?.settlement_state != null
+					? String(truthData.settlement_state)
+					: null,
 			current_price:
-				mtmData?.current_price != null ? Number(mtmData.current_price) : null,
+				truthData?.current_price != null
+					? Number(truthData.current_price)
+					: mtmData?.current_price != null
+						? Number(mtmData.current_price)
+						: null,
 			unrealized_pnl:
-				mtmData?.unrealized_pnl != null ? Number(mtmData.unrealized_pnl) : null,
+				truthData?.unrealized_pnl != null
+					? Number(truthData.unrealized_pnl)
+					: mtmData?.unrealized_pnl != null
+						? Number(mtmData.unrealized_pnl)
+						: null,
 			realized_pnl:
-				mtmData?.realized_pnl != null ? Number(mtmData.realized_pnl) : null,
+				truthData?.net_realized_pnl != null
+					? Number(truthData.net_realized_pnl)
+					: mtmData?.realized_pnl != null
+						? Number(mtmData.realized_pnl)
+						: null,
 			shadow_pnl:
 				mtmData?.shadow_pnl != null ? Number(mtmData.shadow_pnl) : null,
-			ready_to_close: Boolean(mtmData?.ready_to_close),
+			ready_to_close: Boolean(
+				truthData?.settlement_state === "PAYOUT_CLAIMABLE",
+			),
 			fair_value:
 				mtmData?.fair_value != null ? Number(mtmData.fair_value) : null,
 			exit_price:
-				mtmData?.exit_price != null ? Number(mtmData.exit_price) : null,
+				truthData?.current_price != null
+					? Number(truthData.current_price)
+					: mtmData?.exit_price != null
+						? Number(mtmData.exit_price)
+						: null,
 			resolved_outcome:
-				mtmData?.resolved_outcome != null
-					? String(mtmData.resolved_outcome)
+				truthData?.resolved_outcome != null
+					? String(truthData.resolved_outcome)
+					: mtmData?.resolved_outcome != null
+						? String(mtmData.resolved_outcome)
+						: null,
+			resolved_at:
+				truthData?.resolved_at != null ? String(truthData.resolved_at) : null,
+			claimed_at:
+				truthData?.claimed_at != null ? String(truthData.claimed_at) : null,
+			gross_payout:
+				truthData?.gross_payout != null ? Number(truthData.gross_payout) : null,
+			fees_paid:
+				truthData?.fees_paid != null ? Number(truthData.fees_paid) : null,
+			net_realized_pnl:
+				truthData?.net_realized_pnl != null
+					? Number(truthData.net_realized_pnl)
 					: null,
+			evidence_source:
+				truthData?.evidence_source != null
+					? String(truthData.evidence_source)
+					: null,
+			tx_hash: truthData?.tx_hash != null ? String(truthData.tx_hash) : null,
+			avg_entry_price:
+				truthData?.avg_entry_price != null
+					? Number(truthData.avg_entry_price)
+					: null,
+			entry_cost:
+				truthData?.entry_cost != null ? Number(truthData.entry_cost) : null,
 			event_slug:
-				mtmData?.event_slug != null ? String(mtmData.event_slug) : null,
+				truthData?.event_slug != null
+					? String(truthData.event_slug)
+					: mtmData?.event_slug != null
+						? String(mtmData.event_slug)
+						: null,
 			is_real: isReal,
 			order_id: orderId || null,
 			order_status:
@@ -1135,7 +1229,9 @@ async function getSoftArbTrades(): Promise<{
 					: t.status != null
 						? String(t.status)
 						: null,
-			mark_source: mtmData ? "mtm" : "unavailable",
+			mark_source: truthData ? "truth" : mtmData ? "mtm" : "unavailable",
+			truth_status:
+				truth?.report_status != null ? String(truth.report_status) : null,
 			shield_coin:
 				shieldData?.shield_coin != null ? String(shieldData.shield_coin) : null,
 			shield_state:
@@ -1154,15 +1250,18 @@ async function getSoftArbTrades(): Promise<{
 	});
 
 	const enrichedTrades = await enrichSoftArbTradesWithFallbackMarks(trades);
+	const outcomeTrades = truth?.outcomes ?? [];
 
-	const outcomes: SoftArbOutcome[] = rawOutcomes
+	const truthOutcomes: SoftArbOutcome[] = outcomeTrades
 		.map((row) => ({
-			timestamp: String(row.timestamp ?? ""),
+			timestamp: String(
+				row.timestamp ?? row.resolved_at ?? row.claimed_at ?? "",
+			),
 			opportunity_id: String(row.opportunity_id ?? ""),
 			trade_id: String(row.trade_id ?? ""),
 			pair: String(row.pair ?? ""),
 			polymarket_slug: String(row.polymarket_slug ?? ""),
-			signal_family: getSignalFamily(row),
+			signal_family: String(row.signal_family ?? getSignalFamily(row)),
 			signal_source: String(row.signal_source ?? ""),
 			direction: String(row.direction ?? ""),
 			sample_key: String(row.sample_key ?? ""),
@@ -1192,13 +1291,59 @@ async function getSoftArbTrades(): Promise<{
 			actual_outcome: String(row.actual_outcome ?? ""),
 			pnl_usd: Number(row.pnl_usd ?? 0),
 			edge_was_real: Boolean(row.edge_was_real),
-			is_real: !!row.real_trade,
+			is_real: !!row.is_real,
 			notes: String(row.notes ?? ""),
 		}))
 		.sort(
 			(a, b) =>
 				new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
 		);
+
+	const rawOutcomeEntries: SoftArbOutcome[] = rawOutcomes.map((row) => ({
+		timestamp: String(row.timestamp ?? ""),
+		opportunity_id: String(row.opportunity_id ?? ""),
+		trade_id: String(row.trade_id ?? ""),
+		pair: String(row.pair ?? ""),
+		polymarket_slug: String(row.polymarket_slug ?? ""),
+		signal_family: getSignalFamily(row),
+		signal_source: String(row.signal_source ?? ""),
+		direction: String(row.direction ?? ""),
+		sample_key: String(row.sample_key ?? ""),
+		raw_edge_pct:
+			row.raw_edge_pct != null ? normalizeSoftArbPct(row.raw_edge_pct) : null,
+		adjusted_edge_pct:
+			row.adjusted_edge_pct != null
+				? normalizeSoftArbPct(row.adjusted_edge_pct)
+				: null,
+		entry_price: row.entry_price != null ? Number(row.entry_price) : null,
+		market_prob_side_at_entry:
+			row.market_prob_side_at_entry != null
+				? Number(row.market_prob_side_at_entry)
+				: null,
+		polymarket_price:
+			row.polymarket_price != null ? Number(row.polymarket_price) : null,
+		signal_prob_yes:
+			row.signal_prob_yes != null ? Number(row.signal_prob_yes) : null,
+		signal_prob_no:
+			row.signal_prob_no != null ? Number(row.signal_prob_no) : null,
+		signal_prob_side:
+			row.signal_prob_side != null ? Number(row.signal_prob_side) : null,
+		resolves_by: String(row.resolves_by ?? ""),
+		position_size_usd:
+			row.position_size_usd != null ? Number(row.position_size_usd) : null,
+		shares: row.shares != null ? Number(row.shares) : null,
+		actual_outcome: String(row.actual_outcome ?? ""),
+		pnl_usd: Number(row.pnl_usd ?? 0),
+		edge_was_real: Boolean(row.edge_was_real),
+		is_real: !!row.real_trade,
+		notes: String(row.notes ?? ""),
+	}));
+	const outcomes: SoftArbOutcome[] = [
+		...truthOutcomes,
+		...rawOutcomeEntries,
+	].sort(
+		(a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+	);
 
 	// Summary: use MTM summary if available, else compute basic stats
 	const now = new Date();
@@ -1211,8 +1356,7 @@ async function getSoftArbTrades(): Promise<{
 	);
 	const yesterdayPnl = outcomes.reduce(
 		(sum, outcome) =>
-			sum +
-			(isSameUtcDay(outcome.timestamp, yesterday) ? outcome.pnl_usd : 0),
+			sum + (isSameUtcDay(outcome.timestamp, yesterday) ? outcome.pnl_usd : 0),
 		0,
 	);
 	const realizedDays = new Set(
@@ -1225,8 +1369,9 @@ async function getSoftArbTrades(): Promise<{
 			.filter((value): value is string => value !== null),
 	);
 	const totalOutcomePnl =
-		Math.round(outcomes.reduce((sum, outcome) => sum + outcome.pnl_usd, 0) * 100) /
-		100;
+		Math.round(
+			outcomes.reduce((sum, outcome) => sum + outcome.pnl_usd, 0) * 100,
+		) / 100;
 	const outcomeSummary = outcomes.reduce(
 		(acc, outcome) => {
 			acc.resolvedTrades += 1;
@@ -1255,24 +1400,44 @@ async function getSoftArbTrades(): Promise<{
 			? (outcomeSummary.wins / outcomeSummary.resolvedTrades) * 100
 			: 0;
 	const summary = {
-		...(mtm?.summary ?? {}),
+		...(truth?.summary ?? mtm?.summary ?? {}),
 		total_trades: enrichedTrades.length,
-		open_trades: enrichedTrades.filter((t) => t.status === "OPEN").length,
-		resolved_trades: enrichedTrades.filter((t) => t.status.startsWith("RESOLVED") || t.status.startsWith("CLOSED")).length,
-		total_invested: Math.round(enrichedTrades.reduce((s, t) => s + t.position_size_usd, 0) * 100) / 100,
-		total_unrealized_pnl:
+		open_trades: enrichedTrades.filter(
+			(t) => String(t.status).toUpperCase() === "OPEN",
+		).length,
+		resolved_trades: outcomes.length,
+		total_invested:
 			Math.round(
-				enrichedTrades.reduce((s, t) => s + (t.unrealized_pnl ?? 0), 0) * 100,
+				enrichedTrades.reduce((s, t) => s + t.position_size_usd, 0) * 100,
 			) / 100,
-		total_realized_pnl:
-			Math.round(
-				enrichedTrades.reduce((s, t) => s + (t.realized_pnl ?? 0), 0) * 100,
-			) / 100,
+		total_unrealized_pnl: Number(
+			(truth?.summary?.total_unrealized_pnl ??
+				mtm?.summary?.total_unrealized_pnl ??
+				enrichedTrades.reduce(
+					(s, t) => s + (t.unrealized_pnl ?? 0),
+					0,
+				)) as number,
+		),
+		total_realized_pnl: Number(
+			(truth?.summary?.total_realized_pnl ??
+				mtm?.summary?.total_realized_pnl ??
+				enrichedTrades.reduce(
+					(s, t) => s + (t.realized_pnl ?? 0),
+					0,
+				)) as number,
+		),
 		win_rate: roundTo(winRate, 2),
 		daily_pnl: roundTo(todayPnl, 2),
 		yesterday_pnl: roundTo(yesterdayPnl, 2),
 		avg_daily_pnl:
-			realizedDays.size > 0 ? roundTo(totalOutcomePnl / realizedDays.size, 2) : 0,
+			realizedDays.size > 0
+				? roundTo(totalOutcomePnl / realizedDays.size, 2)
+				: 0,
+		report_status:
+			truth?.report_status ??
+			(mtm?.summary?.fetch_failures ? "degraded" : "ok"),
+		market_fetch_failures:
+			truth?.market_fetch_failures ?? Number(mtm?.summary?.fetch_failures ?? 0),
 	};
 
 	return {
@@ -1293,7 +1458,7 @@ async function getSoftArbTrades(): Promise<{
 		calibration,
 		shield,
 		discovery: getSoftArbDiscoverySummary(),
-		lastUpdated: mtm?.last_updated ?? null,
+		lastUpdated: truth?.generated_at ?? mtm?.last_updated ?? null,
 	};
 }
 
@@ -1315,8 +1480,8 @@ function softArbTradesPlugin() {
 						void (async () => {
 							try {
 								const data = await getSoftArbTrades();
-							res.setHeader("Content-Type", "application/json");
-							res.end(JSON.stringify(data));
+								res.setHeader("Content-Type", "application/json");
+								res.end(JSON.stringify(data));
 							} catch {
 								res.statusCode = 500;
 								res.end("Internal server error");

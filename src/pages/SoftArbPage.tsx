@@ -4,20 +4,20 @@ import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import Header from "../components/Header";
 import {
-        IconArrowsExchange,
-        IconChartBar,
-        IconPercentage,
-        IconTrendingUp,
-        IconTrendingDown,
-        IconShieldCheck,
-        IconScan,
-        IconChevronDown,
-        IconTarget,
-        IconRefresh,
-        IconBrain,
-        IconCircleCheck,
-        IconClock,
-        IconAlertTriangle,
+	IconArrowsExchange,
+	IconChartBar,
+	IconPercentage,
+	IconTrendingUp,
+	IconTrendingDown,
+	IconShieldCheck,
+	IconScan,
+	IconChevronDown,
+	IconTarget,
+	IconRefresh,
+	IconBrain,
+	IconCircleCheck,
+	IconClock,
+	IconAlertTriangle,
 } from "@tabler/icons-react";
 function formatUsd(n: number): string {
 	return n.toLocaleString("en-US", {
@@ -59,113 +59,127 @@ function familyLabel(family: string): string {
 }
 
 function formatTradeName(name: string, slug?: string | null): string {
-        if (!name || name === "---" || name.trim() === "") {
-                if (slug) {
-                        return slug
-                                .replace(/-/g, " ")
-                                .replace(/\b\w/g, (c) => c.toUpperCase());
-                }
-                return "---";
-        }
-        if (name.startsWith("scan-metaculus-")) return "New Signal (Metaculus)";
+	if (!name || name === "---" || name.trim() === "") {
+		if (slug) {
+			return slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+		}
+		return "---";
+	}
+	if (name.startsWith("scan-metaculus-")) return "New Signal (Metaculus)";
 
-        const splitPattern = /\s*(::|\||×|\/)\s*/;
-        const parts = name.split(splitPattern);
-        let cleaned = parts[0];
+	const splitPattern = /\s*(::|\||×|\/)\s*/;
+	const parts = name.split(splitPattern);
+	let cleaned = parts[0];
 
-        if (/^Metaculus[#\s]\d+\s*$/i.test(cleaned.trim()) && parts.length > 2) {
-                cleaned = parts[2];
-        }
+	if (/^Metaculus[#\s]\d+\s*$/i.test(cleaned.trim()) && parts.length > 2) {
+		cleaned = parts[2];
+	}
 
-        cleaned = cleaned.replace(/^Polymarket\s+/i, "");
+	cleaned = cleaned.replace(/^Polymarket\s+/i, "");
 
-        if (/^[a-z0-9-]+$/.test(cleaned.trim())) {
-                cleaned = cleaned
-                        .trim()
-                        .replace(/-/g, " ")
-                        .replace(/\b\w/g, (c) => c.toUpperCase());
-        }
+	if (/^[a-z0-9-]+$/.test(cleaned.trim())) {
+		cleaned = cleaned
+			.trim()
+			.replace(/-/g, " ")
+			.replace(/\b\w/g, (c) => c.toUpperCase());
+	}
 
-        return cleaned.trim();
+	return cleaned.trim();
 }
 function getPolymarketUrl(slug: string | null): string | null {
-        if (!slug || slug.trim() === "") return null;
-        return `https://polymarket.com/event/${slug}`;
+	if (!slug || slug.trim() === "") return null;
+	return `https://polymarket.com/event/${slug}`;
 }
 
-function normalizeDirection(direction: string | null | undefined): "YES" | "NO" | null {
-        const normalized = String(direction ?? "").toUpperCase();
-        if (normalized.includes("NO")) return "NO";
-        if (normalized.includes("YES")) return "YES";
-        return null;
+function normalizeDirection(
+	direction: string | null | undefined,
+): "YES" | "NO" | null {
+	const normalized = String(direction ?? "").toUpperCase();
+	if (normalized.includes("NO")) return "NO";
+	if (normalized.includes("YES")) return "YES";
+	return null;
 }
 
-function normalizeOutcomeLabel(outcome: string | null | undefined): "YES" | "NO" | null {
-        const normalized = String(outcome ?? "").trim().toUpperCase();
-        if (normalized === "YES") return "YES";
-        if (normalized === "NO") return "NO";
-        return null;
+function normalizeOutcomeLabel(
+	outcome: string | null | undefined,
+): "YES" | "NO" | null {
+	const normalized = String(outcome ?? "")
+		.trim()
+		.toUpperCase();
+	if (normalized === "YES") return "YES";
+	if (normalized === "NO") return "NO";
+	return null;
 }
 
 function isExpiredTrade(resolvesBy: string | null | undefined): boolean {
-        if (!resolvesBy) return false;
-        const ts = Date.parse(resolvesBy);
-        return Number.isFinite(ts) && ts <= Date.now();
+	if (!resolvesBy) return false;
+	const ts = Date.parse(resolvesBy);
+	return Number.isFinite(ts) && ts <= Date.now();
+}
+
+function isOpenSettlementStatus(status: string | null | undefined): boolean {
+	const normalized = String(status ?? "").toUpperCase();
+	return (
+		normalized === "OPEN" ||
+		normalized === "POSTED" ||
+		normalized === "PARTIAL_FILL" ||
+		normalized === "FILLED"
+	);
 }
 
 function PnlBadge({ value }: { value: number | null }) {
-        if (value === null) return <span className="text-muted-foreground">---</span>;
-        const isPositive = value >= 0;
-        return (
-                <span
-                        className={`inline-flex items-center gap-1 font-semibold ${
-                                isPositive ? "text-emerald-600" : "text-red-500"
-                        }`}
-                >
-                        {isPositive ? (
-                                <IconTrendingUp size={14} />
-                        ) : (
-                                <IconTrendingDown size={14} />
-                        )}
-                        {formatPnl(value)}
-                </span>
-        );
+	if (value === null) return <span className="text-muted-foreground">---</span>;
+	const isPositive = value >= 0;
+	return (
+		<span
+			className={`inline-flex items-center gap-1 font-semibold ${
+				isPositive ? "text-emerald-600" : "text-red-500"
+			}`}
+		>
+			{isPositive ? (
+				<IconTrendingUp size={14} />
+			) : (
+				<IconTrendingDown size={14} />
+			)}
+			{formatPnl(value)}
+		</span>
+	);
 }
 
 function SummaryCard({
-        label,
-        value,
-        icon,
-        isPnl,
-        isPercent,
+	label,
+	value,
+	icon,
+	isPnl,
+	isPercent,
 }: {
-        label: string;
-        value: number;
-        icon: React.ReactNode;
-        isPnl?: boolean;
-        isPercent?: boolean;
+	label: string;
+	value: number;
+	icon: React.ReactNode;
+	isPnl?: boolean;
+	isPercent?: boolean;
 }) {
-        return (
-                <div className="flex items-center gap-3 bg-white border border-border rounded-xl px-5 py-4 shadow-sm">
-                        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground">
-                                {icon}
-                        </div>
-                        <div>
-                                <div className="text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
-                                        {label}
-                                </div>
-                                <div className="text-lg font-bold text-foreground">
-                                        {isPnl ? (
-                                                <PnlBadge value={value} />
-                                        ) : isPercent ? (
-                                                `${value.toFixed(1)}%`
-                                        ) : (
-                                                value
-                                        )}
-                                </div>
-                        </div>
-                </div>
-        );
+	return (
+		<div className="flex items-center gap-3 bg-white border border-border rounded-xl px-5 py-4 shadow-sm">
+			<div className="flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground">
+				{icon}
+			</div>
+			<div>
+				<div className="text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
+					{label}
+				</div>
+				<div className="text-lg font-bold text-foreground">
+					{isPnl ? (
+						<PnlBadge value={value} />
+					) : isPercent ? (
+						`${value.toFixed(1)}%`
+					) : (
+						value
+					)}
+				</div>
+			</div>
+		</div>
+	);
 }
 
 interface SoftArbTrade {
@@ -299,9 +313,9 @@ interface SoftArbData {
 	summary: Record<string, unknown>;
 	outcomes: SoftArbOutcome[];
 	outcomeSummary: Record<string, unknown>;
-        outcome_feedback?: {
-                families: Record<string, SoftArbCalibrationFamily>;
-        };
+	outcome_feedback?: {
+		families: Record<string, SoftArbCalibrationFamily>;
+	};
 	calibration: {
 		families: Record<string, SoftArbCalibrationFamily>;
 	} | null;
@@ -604,132 +618,151 @@ export default function SoftArbPage() {
 		setSectionsOpen((prev) => ({ ...prev, [s]: !prev[s] }));
 	};
 
-	const matchesTradeSlug = (candidateSlug?: string | null, tradeSlug?: string | null) => {
+	const matchesTradeSlug = (
+		candidateSlug?: string | null,
+		tradeSlug?: string | null,
+	) => {
 		if (!candidateSlug || !tradeSlug) return false;
 		return candidateSlug === tradeSlug || tradeSlug.startsWith(candidateSlug);
 	};
 
-        const matchesTradePosition = useCallback((position: any, trade: SoftArbTrade) => {
-                if (!matchesTradeSlug(position?.marketSlug, trade.polymarket_slug)) return false;
-                const tradeOutcome = normalizeDirection(trade.direction);
-                const positionOutcome = normalizeOutcomeLabel(position?.outcome);
-                if (!tradeOutcome || !positionOutcome) return true;
-                return tradeOutcome === positionOutcome;
-        }, []);
+	const matchesTradePosition = useCallback(
+		(position: any, trade: SoftArbTrade) => {
+			if (!matchesTradeSlug(position?.marketSlug, trade.polymarket_slug))
+				return false;
+			const tradeOutcome = normalizeDirection(trade.direction);
+			const positionOutcome = normalizeOutcomeLabel(position?.outcome);
+			if (!tradeOutcome || !positionOutcome) return true;
+			return tradeOutcome === positionOutcome;
+		},
+		[],
+	);
 
-        const matchesTradeOrder = useCallback((order: any, trade: SoftArbTrade) => {
-                if (trade.order_id && order?.id && trade.order_id === order.id) return true;
-                if (!matchesTradeSlug(order?.marketSlug, trade.polymarket_slug)) return false;
-                const tradeOutcome = normalizeDirection(trade.direction);
-                const orderOutcome = normalizeOutcomeLabel(order?.outcome);
-                if (!tradeOutcome || !orderOutcome) return true;
-                return tradeOutcome === orderOutcome;
-        }, []);
+	const matchesTradeOrder = useCallback((order: any, trade: SoftArbTrade) => {
+		if (trade.order_id && order?.id && trade.order_id === order.id) return true;
+		if (!matchesTradeSlug(order?.marketSlug, trade.polymarket_slug))
+			return false;
+		const tradeOutcome = normalizeDirection(trade.direction);
+		const orderOutcome = normalizeOutcomeLabel(order?.outcome);
+		if (!tradeOutcome || !orderOutcome) return true;
+		return tradeOutcome === orderOutcome;
+	}, []);
 
 	const activePositions = useMemo(() => {
-		const softTrades = softArbData?.trades.filter((t) => t.status === "OPEN") || [];
-		
+		const softTrades =
+			softArbData?.trades.filter((t) => isOpenSettlementStatus(t.status)) || [];
+
 		// Map soft trades to actual Convex positions if available
-		return softTrades.map(t => {
-			const actualPos = polymarketData?.positions?.find((p: any) =>
-				matchesTradePosition(p, t),
+		return softTrades
+			.map((t) => {
+				const actualPos = polymarketData?.positions?.find((p: any) =>
+					matchesTradePosition(p, t),
+				);
+				const actualOrder = polymarketData?.openOrders?.find((o: any) =>
+					matchesTradeOrder(o, t),
+				);
+				const derivedPnl =
+					t.unrealized_pnl ??
+					(t.current_price != null
+						? Number(((t.current_price - t.entry_price) * t.shares).toFixed(2))
+						: null);
+				const expired = isExpiredTrade(t.resolves_by);
+
+				return {
+					...t,
+					actual_shares: actualPos?.shares ?? 0,
+					actual_pnl: actualPos?.unrealizedPnl ?? null,
+					display_pnl: actualPos?.unrealizedPnl ?? derivedPnl,
+					expired,
+					actual_status: actualPos
+						? "POSITION"
+						: actualOrder
+							? "ORDER"
+							: expired
+								? "STALE"
+								: "LOG_ONLY",
+				};
+			})
+			.filter((t) => t.actual_status !== "STALE")
+			.sort(
+				(a, b) =>
+					new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
 			);
-			const actualOrder = polymarketData?.openOrders?.find((o: any) =>
-				matchesTradeOrder(o, t),
-			);
-                        const derivedPnl =
-                                t.unrealized_pnl ??
-                                (t.current_price != null
-                                        ? Number(((t.current_price - t.entry_price) * t.shares).toFixed(2))
-                                        : null);
-                        const expired = isExpiredTrade(t.resolves_by);
-			
-			return {
-				...t,
-				actual_shares: actualPos?.shares ?? 0,
-				actual_pnl: actualPos?.unrealizedPnl ?? null,
-				display_pnl: actualPos?.unrealizedPnl ?? derivedPnl,
-				expired,
-				actual_status: actualPos
-                                        ? "POSITION"
-                                        : actualOrder
-                                                ? "ORDER"
-                                                : expired
-                                                        ? "STALE"
-                                                        : "LOG_ONLY"
-			};
-		}).filter((t) => t.actual_status !== "STALE").sort(
-			(a, b) =>
-				new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
-		);
 	}, [matchesTradeOrder, matchesTradePosition, polymarketData, softArbData]);
 
-        const staleOpenTrades = useMemo(() => {
-                const softTrades = softArbData?.trades.filter((t) => t.status === "OPEN") || [];
-                return softTrades
-                        .map((t) => {
-                                const actualPos = polymarketData?.positions?.find((p: any) =>
-                                        matchesTradePosition(p, t),
-                                );
-                                const actualOrder = polymarketData?.openOrders?.find((o: any) =>
-                                        matchesTradeOrder(o, t),
-                                );
-                                const expired = isExpiredTrade(t.resolves_by);
-                                const derivedPnl =
-                                        t.unrealized_pnl ??
-                                        (t.current_price != null
-                                                ? Number(((t.current_price - t.entry_price) * t.shares).toFixed(2))
-                                                : null);
-                                return {
-                                        ...t,
-                                        expired,
-                                        display_pnl: derivedPnl,
-                                        actual_status: actualPos
-                                                ? "POSITION"
-                                                : actualOrder
-                                                        ? "ORDER"
-                                                        : expired
-                                                                ? "STALE"
-                                                                : "LOG_ONLY",
-                                };
-                        })
-                        .filter((t) => t.actual_status === "STALE")
-                        .sort(
-                                (a, b) =>
-                                        new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
-                        );
-        }, [matchesTradeOrder, matchesTradePosition, polymarketData, softArbData]);
+	const staleOpenTrades = useMemo(() => {
+		const softTrades =
+			softArbData?.trades.filter((t) => isOpenSettlementStatus(t.status)) || [];
+		return softTrades
+			.map((t) => {
+				const actualPos = polymarketData?.positions?.find((p: any) =>
+					matchesTradePosition(p, t),
+				);
+				const actualOrder = polymarketData?.openOrders?.find((o: any) =>
+					matchesTradeOrder(o, t),
+				);
+				const expired = isExpiredTrade(t.resolves_by);
+				const derivedPnl =
+					t.unrealized_pnl ??
+					(t.current_price != null
+						? Number(((t.current_price - t.entry_price) * t.shares).toFixed(2))
+						: null);
+				return {
+					...t,
+					expired,
+					display_pnl: derivedPnl,
+					actual_status: actualPos
+						? "POSITION"
+						: actualOrder
+							? "ORDER"
+							: expired
+								? "STALE"
+								: "LOG_ONLY",
+				};
+			})
+			.filter((t) => t.actual_status === "STALE")
+			.sort(
+				(a, b) =>
+					new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
+			);
+	}, [matchesTradeOrder, matchesTradePosition, polymarketData, softArbData]);
 
 	const unmappedPositions = useMemo(() => {
 		if (!polymarketData?.positions) return [];
-		return polymarketData.positions.filter((p: any) => 
-			!p.marketResolved && p.shares > 0 && 
-			!softArbData?.trades.some(t => matchesTradeSlug(p.marketSlug, t.polymarket_slug))
+		return polymarketData.positions.filter(
+			(p: any) =>
+				!p.marketResolved &&
+				p.shares > 0 &&
+				!softArbData?.trades.some((t) =>
+					matchesTradeSlug(p.marketSlug, t.polymarket_slug),
+				),
 		);
 	}, [polymarketData, softArbData]);
 
 	const resolvedTrades = useMemo(() => {
 		return (softArbData?.outcomes || []).sort(
-			(a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+			(a, b) =>
+				new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
 		);
 	}, [softArbData]);
 
-        const dailyStats = useMemo(() => {
-                const stats = { today: 0, yesterday: 0, avg: 0 };
-                if (!softArbData) return stats;
-                const summary = softArbData.summary as any;
-                stats.today = Number(summary?.daily_pnl ?? 0);
-                stats.yesterday = Number(summary?.yesterday_pnl ?? 0);
-                stats.avg = Number(summary?.avg_daily_pnl ?? 0);
-                return stats;
-        }, [softArbData]);
+	const dailyStats = useMemo(() => {
+		const stats = { today: 0, yesterday: 0, avg: 0 };
+		if (!softArbData) return stats;
+		const summary = softArbData.summary as any;
+		stats.today = Number(summary?.daily_pnl ?? 0);
+		stats.yesterday = Number(summary?.yesterday_pnl ?? 0);
+		stats.avg = Number(summary?.avg_daily_pnl ?? 0);
+		return stats;
+	}, [softArbData]);
 
-        const calibrationFamilies = useMemo(() => {
-                const families = softArbData?.outcome_feedback?.families || softArbData?.calibration?.families;
-                if (!families) return [];
-                return Object.entries(families) as [string, SoftArbCalibrationFamily][];
-        }, [softArbData]);
-
+	const calibrationFamilies = useMemo(() => {
+		const families =
+			softArbData?.outcome_feedback?.families ||
+			softArbData?.calibration?.families;
+		if (!families) return [];
+		return Object.entries(families) as [string, SoftArbCalibrationFamily][];
+	}, [softArbData]);
 
 	return (
 		<div className="h-screen overflow-y-auto bg-[#f8f9fa] text-slate-800">
@@ -828,321 +861,337 @@ export default function SoftArbPage() {
 							</div>
 
 							{activePositions.length > 0 ? (
-							        <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
-							                <table className="w-full text-sm">
-							                        <thead>
-							                                <tr className="border-b border-border bg-muted/30 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
-							                                        <th className="text-left px-4 py-2.5">Opened</th>
-							                                        <th className="text-left px-3 py-2.5">Market</th>
-							                                        <th className="text-left px-3 py-2.5">Direction</th>
-							                                        <th className="text-right px-3 py-2.5">Entry</th>
-							                                        <th className="text-right px-3 py-2.5">Wallet</th>
-							                                        <th className="text-right px-3 py-2.5">Edge</th>
-							                                        <th className="text-right px-4 py-2.5">
-							                                                Actual P&L
-							                                        </th>
-							                                </tr>
-							                        </thead>
-							                        <tbody>
-							                                {activePositions.map((t) => (
-							                                        <tr
-							                                                key={t.trade_id}
-							                                                className="border-b border-border/50 last:border-0 hover:bg-muted/5"
-							                                        >
-							                                                <td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-							                                                {timeAgo(t.opened_at)}
-							                                                </td>
-							                                                <td className="px-3 py-3">
-							                                                <div className="font-semibold text-foreground text-xs leading-snug">
-							                                                {t.polymarket_slug ? (
-							                                                <a
-							                                                href={getPolymarketUrl(t.polymarket_slug)!}
-							                                                target="_blank"
-							                                                rel="noopener noreferrer"
-							                                                className="text-blue-600 hover:underline"
-							                                                >
-							                                                {formatTradeName(t.pair, t.polymarket_slug)}
-							                                                </a>
-							                                                ) : (
-							                                                formatTradeName(t.pair, t.polymarket_slug)
-							                                                )}
-							                                                </div>
-							                                                <div className="mt-1 flex gap-1 items-center">
-							                                                <span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-600">
-							                                                {familyLabel(t.signal_family)}
-							                                                </span>
-							                                                {tradeKindBadge(t.is_real)}
-							                                                {signalSourceBadge(t.signal_source)}
-							                                                {t.actual_status === "POSITION" ? (
-							                                                        <span className="text-[9px] font-bold px-1.5 rounded bg-emerald-100 text-emerald-700 flex items-center gap-0.5">
-							                                                                <IconCircleCheck size={8} /> LIVE
-							                                                        </span>
-							                                                ) : t.actual_status === "ORDER" ? (
-							                                                        <span className="text-[9px] font-bold px-1.5 rounded bg-blue-100 text-blue-700 flex items-center gap-0.5">
-							                                                                <IconClock size={8} /> ORDER
-							                                                        </span>
-							                                                ) : t.actual_status === "LOG_ONLY" ? (
-                                                                                                        <span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-700">
-                                                                                                                LOG ONLY
-                                                                                                        </span>
-							                                                ) : null}
-							                                                {shieldBadge(t)}
-							                                                </div>
-							                                                </td>
-							                                                <td className="px-3 py-3 text-xs font-medium text-emerald-700">
-							                                                {t.direction}
-							                                                </td>
-							                                                <td className="px-3 py-3 text-right tabular-nums font-medium">
-							                                                {t.entry_price.toFixed(3)}
-							                                                </td>
-							                                                <td className="px-3 py-3 text-right tabular-nums">
-							                                                        <div className="text-xs font-bold text-foreground">
-							                                                                {t.actual_shares > 0 ? `${t.actual_shares.toFixed(1)} sh` : "—"}
-							                                                        </div>
-							                                                        <div className="text-[10px] text-muted-foreground">
-							                                                                {t.current_price?.toFixed(3) ?? "—"}
-							                                                        </div>
-							                                                </td>
-							                                                <td className="px-3 py-3 text-right tabular-nums font-bold text-emerald-600">
-							                                                {formatPct(t.adjusted_edge_pct)}
-							                                                </td>
-							                                                <td className="px-4 py-3 text-right tabular-nums">
-							                                                <PnlBadge value={t.display_pnl} />
-							                                                </td>
-							                                        </tr>
-							                                ))}
-							                        </tbody>
-							                </table>
-							        </div>
+								<div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+									<table className="w-full text-sm">
+										<thead>
+											<tr className="border-b border-border bg-muted/30 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
+												<th className="text-left px-4 py-2.5">Opened</th>
+												<th className="text-left px-3 py-2.5">Market</th>
+												<th className="text-left px-3 py-2.5">Direction</th>
+												<th className="text-right px-3 py-2.5">Entry</th>
+												<th className="text-right px-3 py-2.5">Wallet</th>
+												<th className="text-right px-3 py-2.5">Edge</th>
+												<th className="text-right px-4 py-2.5">Actual P&L</th>
+											</tr>
+										</thead>
+										<tbody>
+											{activePositions.map((t) => (
+												<tr
+													key={t.trade_id}
+													className="border-b border-border/50 last:border-0 hover:bg-muted/5"
+												>
+													<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+														{timeAgo(t.opened_at)}
+													</td>
+													<td className="px-3 py-3">
+														<div className="font-semibold text-foreground text-xs leading-snug">
+															{t.polymarket_slug ? (
+																<a
+																	href={getPolymarketUrl(t.polymarket_slug)!}
+																	target="_blank"
+																	rel="noopener noreferrer"
+																	className="text-blue-600 hover:underline"
+																>
+																	{formatTradeName(t.pair, t.polymarket_slug)}
+																</a>
+															) : (
+																formatTradeName(t.pair, t.polymarket_slug)
+															)}
+														</div>
+														<div className="mt-1 flex gap-1 items-center">
+															<span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-600">
+																{familyLabel(t.signal_family)}
+															</span>
+															{tradeKindBadge(t.is_real)}
+															{signalSourceBadge(t.signal_source)}
+															{t.actual_status === "POSITION" ? (
+																<span className="text-[9px] font-bold px-1.5 rounded bg-emerald-100 text-emerald-700 flex items-center gap-0.5">
+																	<IconCircleCheck size={8} /> LIVE
+																</span>
+															) : t.actual_status === "ORDER" ? (
+																<span className="text-[9px] font-bold px-1.5 rounded bg-blue-100 text-blue-700 flex items-center gap-0.5">
+																	<IconClock size={8} /> ORDER
+																</span>
+															) : t.actual_status === "LOG_ONLY" ? (
+																<span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-700">
+																	LOG ONLY
+																</span>
+															) : null}
+															{shieldBadge(t)}
+														</div>
+													</td>
+													<td className="px-3 py-3 text-xs font-medium text-emerald-700">
+														{t.direction}
+													</td>
+													<td className="px-3 py-3 text-right tabular-nums font-medium">
+														{t.entry_price.toFixed(3)}
+													</td>
+													<td className="px-3 py-3 text-right tabular-nums">
+														<div className="text-xs font-bold text-foreground">
+															{t.actual_shares > 0
+																? `${t.actual_shares.toFixed(1)} sh`
+																: "—"}
+														</div>
+														<div className="text-[10px] text-muted-foreground">
+															{t.current_price?.toFixed(3) ?? "—"}
+														</div>
+													</td>
+													<td className="px-3 py-3 text-right tabular-nums font-bold text-emerald-600">
+														{formatPct(t.adjusted_edge_pct)}
+													</td>
+													<td className="px-4 py-3 text-right tabular-nums">
+														<PnlBadge value={t.display_pnl} />
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+								</div>
 							) : (
-							        <div className="bg-white border border-border rounded-xl p-8 text-center shadow-sm">
-							                <IconTarget
-							                        size={32}
-							                        className="mx-auto mb-3 text-muted-foreground/40"
-							                />
-							                <p className="text-sm font-medium text-muted-foreground">
-							                        No open positions
-							                </p>
-							        </div>
+								<div className="bg-white border border-border rounded-xl p-8 text-center shadow-sm">
+									<IconTarget
+										size={32}
+										className="mx-auto mb-3 text-muted-foreground/40"
+									/>
+									<p className="text-sm font-medium text-muted-foreground">
+										No open positions
+									</p>
+								</div>
 							)}
-                                                        {staleOpenTrades.length > 0 && (
-                                                                <div className="bg-amber-50 border border-amber-200 rounded-xl shadow-sm overflow-hidden">
-                                                                        <div className="px-4 py-3 border-b border-amber-200 bg-amber-100/60">
-                                                                                <div className="text-[10px] font-bold tracking-wide uppercase text-amber-800">
-                                                                                        Stale Open Trades
-                                                                                </div>
-                                                                                <p className="text-xs text-amber-900 mt-1">
-                                                                                        These ledger rows still say open, but the market expiry has passed and there is no live wallet position or order attached.
-                                                                                </p>
-                                                                        </div>
-                                                                        <table className="w-full text-sm">
-                                                                                <thead>
-                                                                                        <tr className="border-b border-amber-200 bg-white/70 text-[10px] font-bold text-amber-900 tracking-wide uppercase">
-                                                                                                <th className="text-left px-4 py-2.5">Opened</th>
-                                                                                                <th className="text-left px-3 py-2.5">Market</th>
-                                                                                                <th className="text-right px-3 py-2.5">Expired</th>
-                                                                                                <th className="text-right px-4 py-2.5">Last P&L</th>
-                                                                                        </tr>
-                                                                                </thead>
-                                                                                <tbody>
-                                                                                        {staleOpenTrades.map((t) => (
-                                                                                                <tr key={t.trade_id} className="border-b border-amber-200/60 last:border-0">
-                                                                                                        <td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-                                                                                                                {timeAgo(t.opened_at)}
-                                                                                                        </td>
-                                                                                                        <td className="px-3 py-3">
-                                                                                                                <div className="font-semibold text-foreground text-xs leading-snug">
-                                                                                                                        {t.polymarket_slug ? (
-                                                                                                                                <a
-                                                                                                                                        href={getPolymarketUrl(t.polymarket_slug)!}
-                                                                                                                                        target="_blank"
-                                                                                                                                        rel="noopener noreferrer"
-                                                                                                                                        className="text-blue-600 hover:underline"
-                                                                                                                                >
-                                                                                                                                        {formatTradeName(t.pair, t.polymarket_slug)}
-                                                                                                                                </a>
-                                                                                                                        ) : (
-                                                                                                                                formatTradeName(t.pair, t.polymarket_slug)
-                                                                                                                        )}
-                                                                                                                </div>
-                                                                                                                <div className="mt-1 flex gap-1 items-center">
-                                                                                                                        <span className="text-[9px] font-bold px-1.5 rounded bg-amber-100 text-amber-800">
-                                                                                                                                RECONCILE
-                                                                                                                        </span>
-                                                                                                                        {signalSourceBadge(t.signal_source)}
-                                                                                                                </div>
-                                                                                                        </td>
-                                                                                                        <td className="px-3 py-3 text-right text-xs tabular-nums text-muted-foreground">
-                                                                                                                {timeAgo(t.resolves_by)}
-                                                                                                        </td>
-                                                                                                        <td className="px-4 py-3 text-right tabular-nums">
-                                                                                                                <PnlBadge value={t.display_pnl} />
-                                                                                                        </td>
-                                                                                                </tr>
-                                                                                        ))}
-                                                                                </tbody>
-                                                                        </table>
-                                                                </div>
-                                                        )}
-							</div>
+							{staleOpenTrades.length > 0 && (
+								<div className="bg-amber-50 border border-amber-200 rounded-xl shadow-sm overflow-hidden">
+									<div className="px-4 py-3 border-b border-amber-200 bg-amber-100/60">
+										<div className="text-[10px] font-bold tracking-wide uppercase text-amber-800">
+											Stale Open Trades
+										</div>
+										<p className="text-xs text-amber-900 mt-1">
+											These ledger rows still say open, but the market expiry
+											has passed and there is no live wallet position or order
+											attached.
+										</p>
+									</div>
+									<table className="w-full text-sm">
+										<thead>
+											<tr className="border-b border-amber-200 bg-white/70 text-[10px] font-bold text-amber-900 tracking-wide uppercase">
+												<th className="text-left px-4 py-2.5">Opened</th>
+												<th className="text-left px-3 py-2.5">Market</th>
+												<th className="text-right px-3 py-2.5">Expired</th>
+												<th className="text-right px-4 py-2.5">Last P&L</th>
+											</tr>
+										</thead>
+										<tbody>
+											{staleOpenTrades.map((t) => (
+												<tr
+													key={t.trade_id}
+													className="border-b border-amber-200/60 last:border-0"
+												>
+													<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+														{timeAgo(t.opened_at)}
+													</td>
+													<td className="px-3 py-3">
+														<div className="font-semibold text-foreground text-xs leading-snug">
+															{t.polymarket_slug ? (
+																<a
+																	href={getPolymarketUrl(t.polymarket_slug)!}
+																	target="_blank"
+																	rel="noopener noreferrer"
+																	className="text-blue-600 hover:underline"
+																>
+																	{formatTradeName(t.pair, t.polymarket_slug)}
+																</a>
+															) : (
+																formatTradeName(t.pair, t.polymarket_slug)
+															)}
+														</div>
+														<div className="mt-1 flex gap-1 items-center">
+															<span className="text-[9px] font-bold px-1.5 rounded bg-amber-100 text-amber-800">
+																RECONCILE
+															</span>
+															{signalSourceBadge(t.signal_source)}
+														</div>
+													</td>
+													<td className="px-3 py-3 text-right text-xs tabular-nums text-muted-foreground">
+														{timeAgo(t.resolves_by)}
+													</td>
+													<td className="px-4 py-3 text-right tabular-nums">
+														<PnlBadge value={t.display_pnl} />
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+								</div>
 							)}
-							</section>
+						</div>
+					)}
+				</section>
 
-							{/* 1.5 Recent Resolved Trades */}
-							<section className="space-y-4">
-							<button
-							onClick={() => toggleSection("resolved")}
-							className="flex items-center gap-2 group"
-							>
-							<IconChevronDown
+				{/* 1.5 Recent Resolved Trades */}
+				<section className="space-y-4">
+					<button
+						onClick={() => toggleSection("resolved")}
+						className="flex items-center gap-2 group"
+					>
+						<IconChevronDown
 							size={16}
 							className={`text-slate-500 transition-transform ${sectionsOpen.resolved ? "" : "-rotate-90"}`}
-							/>
-							<h3 className="text-sm font-bold text-slate-900 tracking-widest uppercase">
+						/>
+						<h3 className="text-sm font-bold text-slate-900 tracking-widest uppercase">
 							Recent Resolved Trades
-							</h3>
-							<span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+						</h3>
+						<span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
 							{resolvedTrades.length} TOTAL
-							</span>
-							</button>
+						</span>
+					</button>
 
-							{sectionsOpen.resolved && (
-							<div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+					{sectionsOpen.resolved && (
+						<div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
 							{resolvedTrades.length > 0 ? (
-							        <table className="w-full text-sm">
-							                <thead>
-							                        <tr className="border-b border-border bg-muted/30 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
-							                                <th className="text-left px-4 py-2.5">Resolved</th>
-							                                <th className="text-left px-3 py-2.5">Market</th>
-							                                <th className="text-left px-3 py-2.5">Direction</th>
-							                                <th className="text-right px-3 py-2.5">Result</th>
-							                                <th className="text-right px-4 py-2.5">P&L</th>
-							                        </tr>
-							                </thead>
-							                <tbody>
-							                        {resolvedTrades.slice(0, 10).map((t) => (
-							                                <tr
-							                                        key={t.trade_id}
-							                                        className="border-b border-border/50 last:border-0 hover:bg-muted/5"
-							                                >
-							                                        <td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-							                                                {timeAgo(t.timestamp)}
-							                                        </td>
-							                                        <td className="px-3 py-3">
-							                                                <div className="font-semibold text-foreground text-xs leading-snug">
-							                                                        {t.polymarket_slug ? (
-							                                                                <a
-							                                                                        href={getPolymarketUrl(t.polymarket_slug)!}
-							                                                                        target="_blank"
-							                                                                        rel="noopener noreferrer"
-							                                                                        className="text-blue-600 hover:underline"
-							                                                                >
-							                                                                        {formatTradeName(t.pair, t.polymarket_slug)}
-							                                                                </a>
-							                                                        ) : (
-							                                                                formatTradeName(t.pair, t.polymarket_slug)
-							                                                        )}
-							                                                </div>
-							                                                <div className="mt-1 flex gap-1">
-							                                                        <span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-600">
-							                                                                {familyLabel(t.signal_family)}
-							                                                        </span>
-							                                                        {tradeKindBadge(t.is_real)}
-							                                                </div>
-							                                        </td>
-							                                        <td className="px-3 py-3 text-xs font-medium text-slate-600">
-							                                                {t.direction}
-							                                        </td>
-							                                        <td className="px-3 py-3 text-right">
-							                                                <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${
-							                                                        t.actual_outcome === "WIN" ? "bg-emerald-100 text-emerald-700" :
-							                                                        t.actual_outcome === "LOSS" ? "bg-red-100 text-red-700" :
-							                                                        "bg-slate-100 text-slate-700"
-							                                                }`}>
-							                                                        {t.actual_outcome}
-							                                                </span>
-							                                        </td>
-							                                        <td className="px-4 py-3 text-right tabular-nums">
-							                                                <PnlBadge value={t.pnl_usd} />
-							                                        </td>
-							                                </tr>
-							                        ))}
-							                </tbody>
-							        </table>
+								<table className="w-full text-sm">
+									<thead>
+										<tr className="border-b border-border bg-muted/30 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
+											<th className="text-left px-4 py-2.5">Resolved</th>
+											<th className="text-left px-3 py-2.5">Market</th>
+											<th className="text-left px-3 py-2.5">Direction</th>
+											<th className="text-right px-3 py-2.5">Result</th>
+											<th className="text-right px-4 py-2.5">P&L</th>
+										</tr>
+									</thead>
+									<tbody>
+										{resolvedTrades.slice(0, 10).map((t) => (
+											<tr
+												key={t.trade_id}
+												className="border-b border-border/50 last:border-0 hover:bg-muted/5"
+											>
+												<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+													{timeAgo(t.timestamp)}
+												</td>
+												<td className="px-3 py-3">
+													<div className="font-semibold text-foreground text-xs leading-snug">
+														{t.polymarket_slug ? (
+															<a
+																href={getPolymarketUrl(t.polymarket_slug)!}
+																target="_blank"
+																rel="noopener noreferrer"
+																className="text-blue-600 hover:underline"
+															>
+																{formatTradeName(t.pair, t.polymarket_slug)}
+															</a>
+														) : (
+															formatTradeName(t.pair, t.polymarket_slug)
+														)}
+													</div>
+													<div className="mt-1 flex gap-1">
+														<span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-600">
+															{familyLabel(t.signal_family)}
+														</span>
+														{tradeKindBadge(t.is_real)}
+													</div>
+												</td>
+												<td className="px-3 py-3 text-xs font-medium text-slate-600">
+													{t.direction}
+												</td>
+												<td className="px-3 py-3 text-right">
+													<span
+														className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${
+															t.actual_outcome === "WIN"
+																? "bg-emerald-100 text-emerald-700"
+																: t.actual_outcome === "LOSS"
+																	? "bg-red-100 text-red-700"
+																	: "bg-slate-100 text-slate-700"
+														}`}
+													>
+														{t.actual_outcome}
+													</span>
+												</td>
+												<td className="px-4 py-3 text-right tabular-nums">
+													<PnlBadge value={t.pnl_usd} />
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
 							) : (
-							        <div className="p-8 text-center text-muted-foreground text-sm">
-							                No resolved trades yet
-							        </div>
+								<div className="p-8 text-center text-muted-foreground text-sm">
+									No resolved trades yet
+								</div>
 							)}
-							</div>
-							)}
-							</section>
-                                        {/* 1.7 Unmapped Wallet Positions */}
-                                        {unmappedPositions.length > 0 && (
-                                                <section className="space-y-4">
-                                                        <div className="flex items-center gap-2">
-                                                                <IconAlertTriangle size={16} className="text-amber-500" />
-                                                                <h3 className="text-sm font-bold text-amber-900 tracking-widest uppercase">
-                                                                        Other Wallet Positions
-                                                                </h3>
-                                                                <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                                                                        {unmappedPositions.length} UNMAPPED
-                                                                </span>
-                                                        </div>
-                                                        <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
-                                                                <table className="w-full text-sm">
-                                                                        <thead>
-                                                                                <tr className="border-b border-border bg-muted/30 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
-                                                                                        <th className="text-left px-4 py-2.5">Market</th>
-                                                                                        <th className="text-left px-3 py-2.5">Outcome</th>
-                                                                                        <th className="text-right px-3 py-2.5">Shares</th>
-                                                                                        <th className="text-right px-3 py-2.5">Price</th>
-                                                                                        <th className="text-right px-4 py-2.5">P&L</th>
-                                                                                </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                                {unmappedPositions.map((p: any) => (
-                                                                                        <tr key={`${p.marketSlug}-${p.outcome}-${p.assetId || ""}`} className="border-b border-border/50 last:border-0 hover:bg-muted/5">
-                                                                                                <td className="px-4 py-3">
-                                                                                                        <div className="font-semibold text-foreground text-xs leading-snug">
-                                                                                                                <a
-                                                                                                                        href={getPolymarketUrl(p.marketSlug)!}
-                                                                                                                        target="_blank"
-                                                                                                                        rel="noopener noreferrer"
-                                                                                                                        className="text-blue-600 hover:underline"
-                                                                                                                >
-                                                                                                                        {p.marketQuestion}
-                                                                                                                </a>
-                                                                                                        </div>
-                                                                                                        <div className="text-[9px] text-muted-foreground mt-0.5">
-                                                                                                                Manual or other strategy
-                                                                                                        </div>
-                                                                                                </td>
-                                                                                                <td className="px-3 py-3">
-                                                                                                        <span className={`text-[10px] font-bold px-1.5 rounded-full ${
-                                                                                                                p.outcome === "Yes" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-                                                                                                        }`}>
-                                                                                                                {p.outcome.toUpperCase()}
-                                                                                                        </span>
-                                                                                                </td>
-                                                                                                <td className="px-3 py-3 text-right tabular-nums font-medium">
-                                                                                                        {p.shares.toFixed(1)}
-                                                                                                </td>
-                                                                                                <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
-                                                                                                        ${p.currentPrice.toFixed(2)}
-                                                                                                </td>
-                                                                                                <td className="px-4 py-3 text-right tabular-nums">
-                                                                                                        <PnlBadge value={p.unrealizedPnl} />
-                                                                                                </td>
-                                                                                        </tr>
-                                                                                ))}
-                                                                        </tbody>
-                                                                </table>
-                                                        </div>
-                                                </section>
-                                        )}
+						</div>
+					)}
+				</section>
+				{/* 1.7 Unmapped Wallet Positions */}
+				{unmappedPositions.length > 0 && (
+					<section className="space-y-4">
+						<div className="flex items-center gap-2">
+							<IconAlertTriangle size={16} className="text-amber-500" />
+							<h3 className="text-sm font-bold text-amber-900 tracking-widest uppercase">
+								Other Wallet Positions
+							</h3>
+							<span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+								{unmappedPositions.length} UNMAPPED
+							</span>
+						</div>
+						<div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
+							<table className="w-full text-sm">
+								<thead>
+									<tr className="border-b border-border bg-muted/30 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
+										<th className="text-left px-4 py-2.5">Market</th>
+										<th className="text-left px-3 py-2.5">Outcome</th>
+										<th className="text-right px-3 py-2.5">Shares</th>
+										<th className="text-right px-3 py-2.5">Price</th>
+										<th className="text-right px-4 py-2.5">P&L</th>
+									</tr>
+								</thead>
+								<tbody>
+									{unmappedPositions.map((p: any) => (
+										<tr
+											key={`${p.marketSlug}-${p.outcome}-${p.assetId || ""}`}
+											className="border-b border-border/50 last:border-0 hover:bg-muted/5"
+										>
+											<td className="px-4 py-3">
+												<div className="font-semibold text-foreground text-xs leading-snug">
+													<a
+														href={getPolymarketUrl(p.marketSlug)!}
+														target="_blank"
+														rel="noopener noreferrer"
+														className="text-blue-600 hover:underline"
+													>
+														{p.marketQuestion}
+													</a>
+												</div>
+												<div className="text-[9px] text-muted-foreground mt-0.5">
+													Manual or other strategy
+												</div>
+											</td>
+											<td className="px-3 py-3">
+												<span
+													className={`text-[10px] font-bold px-1.5 rounded-full ${
+														p.outcome === "Yes"
+															? "bg-emerald-100 text-emerald-700"
+															: "bg-red-100 text-red-700"
+													}`}
+												>
+													{p.outcome.toUpperCase()}
+												</span>
+											</td>
+											<td className="px-3 py-3 text-right tabular-nums font-medium">
+												{p.shares.toFixed(1)}
+											</td>
+											<td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
+												${p.currentPrice.toFixed(2)}
+											</td>
+											<td className="px-4 py-3 text-right tabular-nums">
+												<PnlBadge value={p.unrealizedPnl} />
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					</section>
+				)}
 
-                                {/* 2. Scan History & Verification Audit (MIDDLE) */}
+				{/* 2. Scan History & Verification Audit (MIDDLE) */}
 				<section className="space-y-4">
 					<div className="flex items-center justify-between">
 						<button
