@@ -126,6 +126,17 @@ function isOpenSettlementStatus(status: string | null | undefined): boolean {
 	);
 }
 
+function isVisiblePositionStatus(status: string | null | undefined): boolean {
+	const normalized = String(status ?? "").toUpperCase();
+	return (
+		normalized === "OPEN" ||
+		normalized === "POSTED" ||
+		normalized === "PARTIAL_FILL" ||
+		normalized === "FILLED" ||
+		normalized === "PAYOUT_CLAIMABLE"
+	);
+}
+
 function PnlBadge({ value }: { value: number | null }) {
 	if (value === null) return <span className="text-muted-foreground">---</span>;
 	const isPositive = value >= 0;
@@ -696,7 +707,8 @@ export default function SoftArbPage() {
 
 	const activePositions = useMemo(() => {
 		const softTrades =
-			softArbData?.trades.filter((t) => isOpenSettlementStatus(t.status)) || [];
+			softArbData?.trades.filter((t) => isVisiblePositionStatus(t.status)) ||
+			[];
 
 		// Map soft trades to actual Convex positions if available
 		return softTrades
@@ -726,7 +738,7 @@ export default function SoftArbPage() {
 						? "POSITION"
 						: actualOrder
 							? "ORDER"
-							: expired
+							: expired && String(t.status).toUpperCase() !== "PAYOUT_CLAIMABLE"
 								? "STALE"
 								: "LOG_ONLY",
 				};
@@ -740,7 +752,8 @@ export default function SoftArbPage() {
 
 	const staleOpenTrades = useMemo(() => {
 		const softTrades =
-			softArbData?.trades.filter((t) => isOpenSettlementStatus(t.status)) || [];
+			softArbData?.trades.filter((t) => isVisiblePositionStatus(t.status)) ||
+			[];
 		return softTrades
 			.map((t) => {
 				const tradeUrlSlug = t.event_slug ?? t.polymarket_slug;
@@ -765,7 +778,7 @@ export default function SoftArbPage() {
 						? "POSITION"
 						: actualOrder
 							? "ORDER"
-							: expired
+							: expired && String(t.status).toUpperCase() !== "PAYOUT_CLAIMABLE"
 								? "STALE"
 								: "LOG_ONLY",
 				};
@@ -808,12 +821,32 @@ export default function SoftArbPage() {
 
 	const walletStats = useMemo(() => {
 		const summary = (softArbData?.summary ?? {}) as any;
+		const positionEquity = (softArbData?.trades ?? []).reduce((sum, trade) => {
+			if (!isVisiblePositionStatus(trade.status)) return sum;
+			const status = String(trade.status ?? "").toUpperCase();
+			if (status === "PAYOUT_CLAIMABLE") {
+				return sum + Number(trade.gross_payout ?? 0);
+			}
+			const currentPrice =
+				trade.current_price != null
+					? Number(trade.current_price)
+					: trade.entry_price != null
+						? Number(trade.entry_price)
+						: 0;
+			return sum + currentPrice * Number(trade.shares ?? 0);
+		}, 0);
 		return {
 			totalWalletValue:
 				softArbData?.wallet?.total_wallet_value_usd != null
 					? Number(softArbData.wallet.total_wallet_value_usd)
 					: summary.wallet_total_value_usd != null
 						? Number(summary.wallet_total_value_usd)
+						: null,
+			portfolioValue:
+				softArbData?.wallet?.total_wallet_value_usd != null
+					? Number(softArbData.wallet.total_wallet_value_usd) + positionEquity
+					: summary.wallet_total_value_usd != null
+						? Number(summary.wallet_total_value_usd) + positionEquity
 						: null,
 			availableCapital:
 				softArbData?.wallet?.deployable_bankroll_usd != null
@@ -893,7 +926,7 @@ export default function SoftArbPage() {
 							className={`text-emerald-500 transition-transform ${sectionsOpen.positions ? "" : "-rotate-90"}`}
 						/>
 						<h3 className="text-sm font-bold text-emerald-900 tracking-widest uppercase">
-							Open Positions
+							Open and Claimable Positions
 						</h3>
 						<span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
 							{activePositions.length} ACTIVE
@@ -910,7 +943,7 @@ export default function SoftArbPage() {
 									icon={<IconArrowsExchange size={20} />}
 								/>
 								<SummaryCard
-									label="Wallet Total"
+									label="Liquid Wallet"
 									value={walletStats.totalWalletValue}
 									icon={<IconWallet size={20} />}
 									isCurrency
@@ -919,6 +952,12 @@ export default function SoftArbPage() {
 									label="Available Capital"
 									value={walletStats.availableCapital}
 									icon={<IconCurrencyDollar size={20} />}
+									isCurrency
+								/>
+								<SummaryCard
+									label="Portfolio Value"
+									value={walletStats.portfolioValue}
+									icon={<IconChartBar size={20} />}
 									isCurrency
 								/>
 								<SummaryCard
@@ -1016,6 +1055,10 @@ export default function SoftArbPage() {
 															{t.actual_status === "POSITION" ? (
 																<span className="text-[9px] font-bold px-1.5 rounded bg-emerald-100 text-emerald-700 flex items-center gap-0.5">
 																	<IconCircleCheck size={8} /> LIVE
+																</span>
+															) : t.status === "PAYOUT_CLAIMABLE" ? (
+																<span className="text-[9px] font-bold px-1.5 rounded bg-violet-100 text-violet-700 flex items-center gap-0.5">
+																	<IconCircleCheck size={8} /> CLAIMABLE
 																</span>
 															) : t.actual_status === "ORDER" ? (
 																<span className="text-[9px] font-bold px-1.5 rounded bg-blue-100 text-blue-700 flex items-center gap-0.5">
