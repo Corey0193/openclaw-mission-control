@@ -783,17 +783,15 @@ http.route({
 			leaderLabel: p.leader_label != null ? String(p.leader_label) : undefined,
 			marketTitle: p.market_title != null ? String(p.market_title) : undefined,
 		}));
-		if (positions.length > 0) {
-			console.log(
-				"SYNC DEBUG V2: Calling syncPositions for",
-				positions.length,
-				"mapped positions",
-			);
-			await ctx.runMutation(api.copyTradeV2.syncPositions, {
-				tenantId: String(body.tenant_id ?? "default"),
-				positions,
-			});
-		}
+		console.log(
+			"SYNC DEBUG V2: Calling syncPositions for",
+			positions.length,
+			"mapped positions",
+		);
+		await ctx.runMutation(api.copyTradeV2.syncPositions, {
+			tenantId: String(body.tenant_id ?? "default"),
+			positions,
+		});
 		return new Response(
 			JSON.stringify({ ok: true, synced: positions.length }),
 			{
