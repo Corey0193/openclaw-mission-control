@@ -15,6 +15,8 @@ import {
 	IconCircleCheck,
 	IconClock,
 	IconAlertTriangle,
+	IconWallet,
+	IconCurrencyDollar,
 } from "@tabler/icons-react";
 function formatUsd(n: number): string {
 	return n.toLocaleString("en-US", {
@@ -149,12 +151,14 @@ function SummaryCard({
 	icon,
 	isPnl,
 	isPercent,
+	isCurrency,
 }: {
 	label: string;
-	value: number;
+	value: number | null;
 	icon: React.ReactNode;
 	isPnl?: boolean;
 	isPercent?: boolean;
+	isCurrency?: boolean;
 }) {
 	return (
 		<div className="flex items-center gap-3 bg-white border border-border rounded-xl px-5 py-4 shadow-sm">
@@ -166,10 +170,14 @@ function SummaryCard({
 					{label}
 				</div>
 				<div className="text-lg font-bold text-foreground">
-					{isPnl ? (
+					{value == null ? (
+						"---"
+					) : isPnl ? (
 						<PnlBadge value={value} />
 					) : isPercent ? (
 						`${value.toFixed(1)}%`
+					) : isCurrency ? (
+						formatUsd(value)
 					) : (
 						value
 					)}
@@ -318,6 +326,16 @@ interface SoftArbData {
 	} | null;
 	shield: SoftArbShield | null;
 	discovery: SoftArbDiscovery;
+	wallet: {
+		magic_usdc: number;
+		phantom_usdc: number;
+		phantom_pol: number;
+		magic_available_to_trade: number;
+		phantom_available_to_fund: number;
+		deployable_bankroll_usd: number;
+		total_usdc: number;
+		updated_at: string;
+	} | null;
 	lastUpdated: string | null;
 }
 
@@ -785,6 +803,24 @@ export default function SoftArbPage() {
 		return stats;
 	}, [softArbData]);
 
+	const walletStats = useMemo(() => {
+		const summary = (softArbData?.summary ?? {}) as any;
+		return {
+			totalUsdc:
+				softArbData?.wallet?.total_usdc != null
+					? Number(softArbData.wallet.total_usdc)
+					: summary.wallet_total_usdc != null
+						? Number(summary.wallet_total_usdc)
+						: null,
+			availableCapital:
+				softArbData?.wallet?.deployable_bankroll_usd != null
+					? Number(softArbData.wallet.deployable_bankroll_usd)
+					: summary.available_capital_usd != null
+						? Number(summary.available_capital_usd)
+						: null,
+		};
+	}, [softArbData]);
+
 	const calibrationFamilies = useMemo(() => {
 		const families =
 			softArbData?.outcome_feedback?.families ||
@@ -825,13 +861,15 @@ export default function SoftArbPage() {
 					{softArbData?.summary && (
 						<span
 							className={`text-[10px] font-bold px-2 py-1 rounded-full border ${
-								String(softArbData.summary.report_status ?? "").toUpperCase() ===
-								"DEGRADED"
+								String(
+									softArbData.summary.report_status ?? "",
+								).toUpperCase() === "DEGRADED"
 									? "bg-amber-100 text-amber-800 border-amber-200"
 									: "bg-emerald-100 text-emerald-800 border-emerald-200"
 							}`}
 						>
-							Truth {String(softArbData.summary.report_status ?? "OK").toUpperCase()}
+							Truth{" "}
+							{String(softArbData.summary.report_status ?? "OK").toUpperCase()}
 							{Number(softArbData.summary.market_fetch_failures ?? 0) > 0
 								? ` · ${Number(
 										softArbData.summary.market_fetch_failures ?? 0,
@@ -862,11 +900,23 @@ export default function SoftArbPage() {
 					{sectionsOpen.positions && (
 						<div className="space-y-6">
 							{/* Summary stats */}
-							<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+							<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-4">
 								<SummaryCard
 									label="Tracked Trades"
 									value={softArbData?.trades.length ?? 0}
 									icon={<IconArrowsExchange size={20} />}
+								/>
+								<SummaryCard
+									label="Wallet Total"
+									value={walletStats.totalUsdc}
+									icon={<IconWallet size={20} />}
+									isCurrency
+								/>
+								<SummaryCard
+									label="Available Capital"
+									value={walletStats.availableCapital}
+									icon={<IconCurrencyDollar size={20} />}
+									isCurrency
 								/>
 								<SummaryCard
 									label="Unrealized P&L"
@@ -905,6 +955,14 @@ export default function SoftArbPage() {
 									isPercent
 								/>
 							</div>
+
+							{softArbData?.wallet && (
+								<div className="text-xs text-muted-foreground">
+									Wallet snapshot {timeAgo(softArbData.wallet.updated_at)} ·
+									Magic {formatUsd(softArbData.wallet.magic_usdc)} · Phantom
+									USDC {formatUsd(softArbData.wallet.phantom_usdc)}
+								</div>
+							)}
 
 							{activePositions.length > 0 ? (
 								<div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
@@ -1112,21 +1170,31 @@ export default function SoftArbPage() {
 												<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
 													{timeAgo(t.timestamp)}
 												</td>
-													<td className="px-3 py-3">
-														<div className="font-semibold text-foreground text-xs leading-snug">
-															{t.polymarket_slug ? (
-																<a
-																	href={getPolymarketUrl(t.event_slug ?? t.polymarket_slug)!}
-																	target="_blank"
-																	rel="noopener noreferrer"
-																	className="text-blue-600 hover:underline"
-																>
-																	{formatTradeName(t.pair, t.event_slug ?? t.polymarket_slug)}
-																</a>
-															) : (
-																formatTradeName(t.pair, t.event_slug ?? t.polymarket_slug)
-															)}
-														</div>
+												<td className="px-3 py-3">
+													<div className="font-semibold text-foreground text-xs leading-snug">
+														{t.polymarket_slug ? (
+															<a
+																href={
+																	getPolymarketUrl(
+																		t.event_slug ?? t.polymarket_slug,
+																	)!
+																}
+																target="_blank"
+																rel="noopener noreferrer"
+																className="text-blue-600 hover:underline"
+															>
+																{formatTradeName(
+																	t.pair,
+																	t.event_slug ?? t.polymarket_slug,
+																)}
+															</a>
+														) : (
+															formatTradeName(
+																t.pair,
+																t.event_slug ?? t.polymarket_slug,
+															)
+														)}
+													</div>
 													<div className="mt-1 flex gap-1">
 														<span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-600">
 															{familyLabel(t.signal_family)}

@@ -55,6 +55,14 @@ const SOFT_ARB_SHIELD_STATE_PATH = path.join(
 	ARB_PIPELINE_DIR,
 	"oracle-shield-state.json",
 );
+const SOFT_ARB_SCRIPTS_DIR = path.join(
+	os.homedir(),
+	".openclaw/workspace-hustle/scripts",
+);
+const SOFT_ARB_VENV_PYTHON = path.join(
+	os.homedir(),
+	".openclaw/workspace-hustle/skills/arb-engine/.venv/bin/python3",
+);
 
 interface PipelineRun {
 	runId: string;
@@ -209,6 +217,48 @@ function loadOpportunityDossiers(): Map<string, Record<string, unknown>> {
 		}
 	}
 	return dossiers;
+}
+
+function getSoftArbWalletSnapshot(): SoftArbWalletSnapshot | null {
+	const pythonBin = fs.existsSync(SOFT_ARB_VENV_PYTHON)
+		? SOFT_ARB_VENV_PYTHON
+		: "python3";
+	const script = [
+		"import json",
+		"import sys",
+		`sys.path.insert(0, ${JSON.stringify(SOFT_ARB_SCRIPTS_DIR)})`,
+		"import soft_arb_live_risk",
+		"snapshot = soft_arb_live_risk.get_wallet_snapshot()",
+		"snapshot['total_usdc'] = round(float(snapshot.get('magic_usdc', 0.0)) + float(snapshot.get('phantom_usdc', 0.0)), 4)",
+		"print(json.dumps(snapshot))",
+	].join("; ");
+	try {
+		const output = execSync(
+			`${JSON.stringify(pythonBin)} -c ${JSON.stringify(script)}`,
+			{
+				encoding: "utf-8",
+				timeout: 15_000,
+				cwd: SOFT_ARB_SCRIPTS_DIR,
+			},
+		);
+		const parsed = JSON.parse(output) as Record<string, unknown>;
+		return {
+			magic_usdc: Number(parsed.magic_usdc ?? 0),
+			phantom_usdc: Number(parsed.phantom_usdc ?? 0),
+			phantom_pol: Number(parsed.phantom_pol ?? 0),
+			magic_available_to_trade: Number(parsed.magic_available_to_trade ?? 0),
+			phantom_available_to_fund: Number(parsed.phantom_available_to_fund ?? 0),
+			deployable_bankroll_usd: Number(parsed.deployable_bankroll_usd ?? 0),
+			total_usdc: Number(parsed.total_usdc ?? 0),
+			updated_at: new Date().toISOString(),
+		};
+	} catch (err) {
+		console.warn(
+			"getSoftArbWalletSnapshot failed:",
+			err instanceof Error ? err.message : String(err),
+		);
+		return null;
+	}
 }
 
 function getPrimaryMatchedPair(
@@ -545,6 +595,17 @@ interface SoftArbTruthSnapshot {
 	summary?: Record<string, unknown>;
 	positions?: Record<string, Record<string, unknown>>;
 	outcomes?: Array<Record<string, unknown>>;
+}
+
+interface SoftArbWalletSnapshot {
+	magic_usdc: number;
+	phantom_usdc: number;
+	phantom_pol: number;
+	magic_available_to_trade: number;
+	phantom_available_to_fund: number;
+	deployable_bankroll_usd: number;
+	total_usdc: number;
+	updated_at: string;
 }
 
 interface SoftArbDiscoverySummary {
@@ -1011,6 +1072,7 @@ async function getSoftArbTrades(): Promise<{
 	calibration: SoftArbCalibration | null;
 	shield: SoftArbShieldState | null;
 	discovery: SoftArbDiscoverySummary;
+	wallet: SoftArbWalletSnapshot | null;
 	lastUpdated: string | null;
 }> {
 	const paperRaw = readJsonlSafe(SOFT_ARB_TRADES_PATH);
@@ -1098,6 +1160,7 @@ async function getSoftArbTrades(): Promise<{
 			// ignore malformed truth snapshot
 		}
 	}
+	const wallet = getSoftArbWalletSnapshot();
 
 	// Merge trades with MTM overlay
 	const trades: SoftArbTrade[] = rawTrades.map((t) => {
@@ -1462,6 +1525,14 @@ async function getSoftArbTrades(): Promise<{
 			(mtm?.summary?.fetch_failures ? "degraded" : "ok"),
 		market_fetch_failures:
 			truth?.market_fetch_failures ?? Number(mtm?.summary?.fetch_failures ?? 0),
+		wallet_total_usdc: wallet?.total_usdc ?? null,
+		available_capital_usd: wallet?.deployable_bankroll_usd ?? null,
+		magic_usdc: wallet?.magic_usdc ?? null,
+		phantom_usdc: wallet?.phantom_usdc ?? null,
+		phantom_pol: wallet?.phantom_pol ?? null,
+		magic_available_to_trade: wallet?.magic_available_to_trade ?? null,
+		phantom_available_to_fund: wallet?.phantom_available_to_fund ?? null,
+		wallet_updated_at: wallet?.updated_at ?? null,
 	};
 
 	return {
@@ -1482,6 +1553,7 @@ async function getSoftArbTrades(): Promise<{
 		calibration,
 		shield,
 		discovery: getSoftArbDiscoverySummary(),
+		wallet,
 		lastUpdated: truth?.generated_at ?? mtm?.last_updated ?? null,
 	};
 }
