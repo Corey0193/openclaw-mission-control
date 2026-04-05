@@ -144,9 +144,7 @@ http.route({
 					assetId: String(order.assetId ?? order.asset_id ?? ""),
 					outcome: String(order.outcome ?? ""),
 					side: String(order.side ?? ""),
-					originalSize: Number(
-						order.originalSize ?? order.original_size ?? 0,
-					),
+					originalSize: Number(order.originalSize ?? order.original_size ?? 0),
 					sizeMatched: Number(order.sizeMatched ?? order.size_matched ?? 0),
 					sizeRemaining: Number(
 						order.sizeRemaining ?? order.size_remaining ?? 0,
@@ -159,36 +157,38 @@ http.route({
 						: {}),
 				}),
 			),
-			positions: (body.positions ?? []).map((position: Record<string, unknown>) => ({
-				market: String(position.market ?? ""),
-				marketQuestion: String(
-					position.marketQuestion ?? position.market_question ?? "",
-				),
-				marketSlug: String(position.marketSlug ?? position.market_slug ?? ""),
-				outcome: String(position.outcome ?? ""),
-				shares: Number(position.shares ?? 0),
-				entryPrice: Number(position.entryPrice ?? position.entry_price ?? 0),
-				currentPrice: Number(
-					position.currentPrice ?? position.current_price ?? 0,
-				),
-				costBasis: Number(position.costBasis ?? position.cost_basis ?? 0),
-				currentValue: Number(
-					position.currentValue ?? position.current_value ?? 0,
-				),
-				payout: Number(position.payout ?? 0),
-				unrealizedPnl: Number(
-					position.unrealizedPnl ?? position.unrealized_pnl ?? 0,
-				),
-				marketClosed: Boolean(
-					position.marketClosed ?? position.market_closed ?? false,
-				),
-				marketResolved: Boolean(
-					position.marketResolved ?? position.market_resolved ?? false,
-				),
-				...(position.winner != null
-					? { winner: Boolean(position.winner) }
-					: {}),
-			})),
+			positions: (body.positions ?? []).map(
+				(position: Record<string, unknown>) => ({
+					market: String(position.market ?? ""),
+					marketQuestion: String(
+						position.marketQuestion ?? position.market_question ?? "",
+					),
+					marketSlug: String(position.marketSlug ?? position.market_slug ?? ""),
+					outcome: String(position.outcome ?? ""),
+					shares: Number(position.shares ?? 0),
+					entryPrice: Number(position.entryPrice ?? position.entry_price ?? 0),
+					currentPrice: Number(
+						position.currentPrice ?? position.current_price ?? 0,
+					),
+					costBasis: Number(position.costBasis ?? position.cost_basis ?? 0),
+					currentValue: Number(
+						position.currentValue ?? position.current_value ?? 0,
+					),
+					payout: Number(position.payout ?? 0),
+					unrealizedPnl: Number(
+						position.unrealizedPnl ?? position.unrealized_pnl ?? 0,
+					),
+					marketClosed: Boolean(
+						position.marketClosed ?? position.market_closed ?? false,
+					),
+					marketResolved: Boolean(
+						position.marketResolved ?? position.market_resolved ?? false,
+					),
+					...(position.winner != null
+						? { winner: Boolean(position.winner) }
+						: {}),
+				}),
+			),
 			trades: (body.trades ?? []).map((trade: Record<string, unknown>) => ({
 				id: String(trade.id ?? ""),
 				market: String(trade.market ?? ""),
@@ -212,7 +212,9 @@ http.route({
 				body.totalCurrentValue ?? body.total_current_value ?? 0,
 			),
 			totalPnl: Number(body.totalPnl ?? body.total_pnl ?? 0),
-			lastSyncedAt: Number(body.lastSyncedAt ?? body.last_synced_at ?? Date.now()),
+			lastSyncedAt: Number(
+				body.lastSyncedAt ?? body.last_synced_at ?? Date.now(),
+			),
 			tenantId: String(body.tenantId ?? body.tenant_id ?? "default"),
 		});
 		return new Response(JSON.stringify({ ok: true }), {
@@ -347,9 +349,49 @@ http.route({
 			bankroll: body.bankroll ?? 0,
 			openPositions: body.open_positions ?? 0,
 			totalPaperPnl: body.total_paper_pnl ?? 0,
+			activeLeaderCount: body.active_leader_count ?? 0,
+			monitoredLeaderCount: body.monitored_leader_count ?? 0,
+			skipReasons: Array.isArray(body.skip_reasons)
+				? body.skip_reasons.map((item: Record<string, unknown>) => ({
+						reason: String(item.reason ?? "UNKNOWN"),
+						count: Number(item.count ?? 0),
+					}))
+				: [],
+			leaderQuality: Array.isArray(body.leader_quality)
+				? body.leader_quality.map((item: Record<string, unknown>) => ({
+						address: String(item.address ?? ""),
+						label:
+							item.label != null && String(item.label).trim()
+								? String(item.label).trim()
+								: undefined,
+						leaderState: String(item.leader_state ?? "UNKNOWN"),
+						cts: Number(item.cts ?? 0),
+						copyableScore: Number(item.copyable_score ?? 0),
+						recentBuyCount: Number(item.recent_buy_count ?? 0),
+						recentBuyPassCount: Number(item.recent_buy_pass_count ?? 0),
+						recentBuyPassRate: Number(item.recent_buy_pass_rate ?? 0),
+						recentBuyMedianUsd: Number(item.recent_buy_median_usd ?? 0),
+						recentBuyAvgUsd: Number(item.recent_buy_avg_usd ?? 0),
+						recentQualityUpdatedAt:
+							item.recent_quality_updated_at != null &&
+							String(item.recent_quality_updated_at).trim()
+								? String(item.recent_quality_updated_at).trim()
+								: undefined,
+						lastRank:
+							item.last_rank != null ? Number(item.last_rank) : undefined,
+						lastHealthReason:
+							item.last_health_reason != null &&
+							String(item.last_health_reason).trim()
+								? String(item.last_health_reason).trim()
+								: undefined,
+						openPositions: Number(item.open_positions ?? 0),
+					}))
+				: [],
 			status: body.status ?? "unknown",
-			leaderLabel: body.leader_label != null ? String(body.leader_label) : undefined,
-			marketTitle: body.market_title != null ? String(body.market_title) : undefined,
+			leaderLabel:
+				body.leader_label != null ? String(body.leader_label) : undefined,
+			marketTitle:
+				body.market_title != null ? String(body.market_title) : undefined,
 		});
 		return new Response(JSON.stringify({ ok: true }), {
 			status: 200,
@@ -364,7 +406,11 @@ http.route({
 	method: "POST",
 	handler: httpAction(async (ctx, request) => {
 		const body = await request.json();
-		console.log("SYNC DEBUG: Received", (body.positions ?? []).length, "positions");
+		console.log(
+			"SYNC DEBUG: Received",
+			(body.positions ?? []).length,
+			"positions",
+		);
 		const positions = (body.positions ?? []).map((p: Record<string, any>) => ({
 			positionId: String(p.position_id),
 			leaderAddress: String(p.leader_address),
@@ -381,13 +427,19 @@ http.route({
 			entryUsd: Number(p.entry_usd),
 			entryTimestamp: Number(p.entry_timestamp),
 			peakPrice: Number(p.peak_price),
-			currentPrice: p.current_price != null ? Number(p.current_price) : undefined,
-			stopLossPrice: p.stop_loss_price != null ? Number(p.stop_loss_price) : undefined,
-			takeProfitPrice: p.take_profit_price != null ? Number(p.take_profit_price) : undefined,
-			exitStrategy: p.exit_strategy != null ? String(p.exit_strategy) : undefined,
-			timeLimitAt: p.time_limit_at != null ? Number(p.time_limit_at) : undefined,
+			currentPrice:
+				p.current_price != null ? Number(p.current_price) : undefined,
+			stopLossPrice:
+				p.stop_loss_price != null ? Number(p.stop_loss_price) : undefined,
+			takeProfitPrice:
+				p.take_profit_price != null ? Number(p.take_profit_price) : undefined,
+			exitStrategy:
+				p.exit_strategy != null ? String(p.exit_strategy) : undefined,
+			timeLimitAt:
+				p.time_limit_at != null ? Number(p.time_limit_at) : undefined,
 			exitPrice: p.exit_price != null ? Number(p.exit_price) : undefined,
-			exitTimestamp: p.exit_timestamp != null ? Number(p.exit_timestamp) : undefined,
+			exitTimestamp:
+				p.exit_timestamp != null ? Number(p.exit_timestamp) : undefined,
 			exitReason:
 				typeof p.exit_reason === "string"
 					? p.exit_reason
@@ -400,16 +452,23 @@ http.route({
 			marketTitle: p.market_title != null ? String(p.market_title) : undefined,
 		}));
 		if (positions.length > 0) {
-			console.log("SYNC DEBUG: Calling syncPositions for", positions.length, "mapped positions");
+			console.log(
+				"SYNC DEBUG: Calling syncPositions for",
+				positions.length,
+				"mapped positions",
+			);
 			await ctx.runMutation(api.copyTrade.syncPositions, {
 				tenantId: String(body.tenant_id ?? "default"),
 				positions,
 			});
 		}
-		return new Response(JSON.stringify({ ok: true, synced: positions.length }), {
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		});
+		return new Response(
+			JSON.stringify({ ok: true, synced: positions.length }),
+			{
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			},
+		);
 	}),
 });
 
