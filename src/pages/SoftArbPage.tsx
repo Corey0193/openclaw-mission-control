@@ -174,15 +174,15 @@ function SummaryCard({
 	isCurrency?: boolean;
 }) {
 	return (
-		<div className="flex items-center gap-3 bg-white border border-border rounded-xl px-5 py-4 shadow-sm">
-			<div className="flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground">
+		<div className="flex items-center gap-2.5 bg-white border border-border rounded-xl px-3 py-3 shadow-sm min-w-0">
+			<div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-muted text-muted-foreground">
 				{icon}
 			</div>
-			<div>
-				<div className="text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
+			<div className="min-w-0 flex-1">
+				<div className="text-[9px] font-semibold text-muted-foreground tracking-wide uppercase truncate">
 					{label}
 				</div>
-				<div className="text-lg font-bold text-foreground">
+				<div className="text-sm font-bold text-foreground truncate">
 					{value == null ? (
 						"---"
 					) : isPnl ? (
@@ -949,7 +949,7 @@ export default function SoftArbPage() {
 					{sectionsOpen.positions && (
 						<div className="space-y-6">
 							{/* Summary stats */}
-							<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-10 gap-4">
+							<div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))' }}>
 								<SummaryCard
 									label="Tracked Trades"
 									value={softArbData?.trades.length ?? 0}
