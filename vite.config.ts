@@ -219,7 +219,7 @@ function loadOpportunityDossiers(): Map<string, Record<string, unknown>> {
 	return dossiers;
 }
 
-function getSoftArbWalletSnapshot(): SoftArbWalletSnapshot | null {
+async function getSoftArbWalletSnapshot(): Promise<SoftArbWalletSnapshot | null> {
 	const pythonBin = fs.existsSync(SOFT_ARB_VENV_PYTHON)
 		? SOFT_ARB_VENV_PYTHON
 		: "python3";
@@ -233,6 +233,7 @@ function getSoftArbWalletSnapshot(): SoftArbWalletSnapshot | null {
 		"print(json.dumps(snapshot))",
 	].join("; ");
 	try {
+		const polUsdPrice = await getPolUsdPrice();
 		const output = execSync(
 			`${JSON.stringify(pythonBin)} -c ${JSON.stringify(script)}`,
 			{
@@ -242,14 +243,24 @@ function getSoftArbWalletSnapshot(): SoftArbWalletSnapshot | null {
 			},
 		);
 		const parsed = JSON.parse(output) as Record<string, unknown>;
+		const magicUsdc = Number(parsed.magic_usdc ?? 0);
+		const phantomUsdc = Number(parsed.phantom_usdc ?? 0);
+		const phantomPol = Number(parsed.phantom_pol ?? 0);
+		const totalUsdc = Number(parsed.total_usdc ?? magicUsdc + phantomUsdc);
+		const phantomPolUsdValue = Number((phantomPol * polUsdPrice).toFixed(4));
 		return {
-			magic_usdc: Number(parsed.magic_usdc ?? 0),
-			phantom_usdc: Number(parsed.phantom_usdc ?? 0),
-			phantom_pol: Number(parsed.phantom_pol ?? 0),
+			magic_usdc: magicUsdc,
+			phantom_usdc: phantomUsdc,
+			phantom_pol: phantomPol,
+			pol_usd_price: polUsdPrice,
+			phantom_pol_usd_value: phantomPolUsdValue,
 			magic_available_to_trade: Number(parsed.magic_available_to_trade ?? 0),
 			phantom_available_to_fund: Number(parsed.phantom_available_to_fund ?? 0),
 			deployable_bankroll_usd: Number(parsed.deployable_bankroll_usd ?? 0),
-			total_usdc: Number(parsed.total_usdc ?? 0),
+			total_usdc: totalUsdc,
+			total_wallet_value_usd: Number(
+				(totalUsdc + phantomPolUsdValue).toFixed(4),
+			),
 			updated_at: new Date().toISOString(),
 		};
 	} catch (err) {
@@ -601,10 +612,13 @@ interface SoftArbWalletSnapshot {
 	magic_usdc: number;
 	phantom_usdc: number;
 	phantom_pol: number;
+	pol_usd_price: number;
+	phantom_pol_usd_value: number;
 	magic_available_to_trade: number;
 	phantom_available_to_fund: number;
 	deployable_bankroll_usd: number;
 	total_usdc: number;
+	total_wallet_value_usd: number;
 	updated_at: string;
 }
 
@@ -641,6 +655,8 @@ type LatestSoftArbDossierCache = {
 let latestSoftArbDossierCache: LatestSoftArbDossierCache | null = null;
 let latestMetaculusDossierCache: LatestSoftArbDossierCache | null = null;
 const SOFT_ARB_GAMMA_CACHE_TTL_MS = 30_000;
+const SOFT_ARB_POL_PRICE_CACHE_TTL_MS = 300_000;
+let softArbPolPriceCache: { value: number; fetchedAt: number } | null = null;
 const softArbGammaCache = new Map<
 	string,
 	{
@@ -655,6 +671,29 @@ function normalizeSoftArbPct(value: unknown): number {
 	const n = Number(value ?? 0);
 	if (!Number.isFinite(n)) return 0;
 	return Math.abs(n) <= 1 ? n * 100 : n;
+}
+
+async function getPolUsdPrice(): Promise<number> {
+	const now = Date.now();
+	if (
+		softArbPolPriceCache &&
+		now - softArbPolPriceCache.fetchedAt < SOFT_ARB_POL_PRICE_CACHE_TTL_MS
+	) {
+		return softArbPolPriceCache.value;
+	}
+	const res = await fetch(
+		"https://api.coingecko.com/api/v3/simple/price?ids=polygon-ecosystem-token&vs_currencies=usd",
+	);
+	if (!res.ok) {
+		throw new Error(`coin price request failed (${res.status})`);
+	}
+	const json = (await res.json()) as Record<string, Record<string, unknown>>;
+	const value = Number(json["polygon-ecosystem-token"]?.usd ?? 0);
+	if (!Number.isFinite(value) || value <= 0) {
+		throw new Error("coin price response missing usd value");
+	}
+	softArbPolPriceCache = { value, fetchedAt: now };
+	return value;
 }
 
 function getSignalFamily(row: Record<string, unknown>): string {
@@ -1160,7 +1199,7 @@ async function getSoftArbTrades(): Promise<{
 			// ignore malformed truth snapshot
 		}
 	}
-	const wallet = getSoftArbWalletSnapshot();
+	const wallet = await getSoftArbWalletSnapshot();
 
 	// Merge trades with MTM overlay
 	const trades: SoftArbTrade[] = rawTrades.map((t) => {
@@ -1526,10 +1565,13 @@ async function getSoftArbTrades(): Promise<{
 		market_fetch_failures:
 			truth?.market_fetch_failures ?? Number(mtm?.summary?.fetch_failures ?? 0),
 		wallet_total_usdc: wallet?.total_usdc ?? null,
+		wallet_total_value_usd: wallet?.total_wallet_value_usd ?? null,
 		available_capital_usd: wallet?.deployable_bankroll_usd ?? null,
 		magic_usdc: wallet?.magic_usdc ?? null,
 		phantom_usdc: wallet?.phantom_usdc ?? null,
 		phantom_pol: wallet?.phantom_pol ?? null,
+		pol_usd_price: wallet?.pol_usd_price ?? null,
+		phantom_pol_usd_value: wallet?.phantom_pol_usd_value ?? null,
 		magic_available_to_trade: wallet?.magic_available_to_trade ?? null,
 		phantom_available_to_fund: wallet?.phantom_available_to_fund ?? null,
 		wallet_updated_at: wallet?.updated_at ?? null,

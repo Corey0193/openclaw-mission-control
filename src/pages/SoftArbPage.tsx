@@ -330,10 +330,13 @@ interface SoftArbData {
 		magic_usdc: number;
 		phantom_usdc: number;
 		phantom_pol: number;
+		pol_usd_price: number;
+		phantom_pol_usd_value: number;
 		magic_available_to_trade: number;
 		phantom_available_to_fund: number;
 		deployable_bankroll_usd: number;
 		total_usdc: number;
+		total_wallet_value_usd: number;
 		updated_at: string;
 	} | null;
 	lastUpdated: string | null;
@@ -806,11 +809,11 @@ export default function SoftArbPage() {
 	const walletStats = useMemo(() => {
 		const summary = (softArbData?.summary ?? {}) as any;
 		return {
-			totalUsdc:
-				softArbData?.wallet?.total_usdc != null
-					? Number(softArbData.wallet.total_usdc)
-					: summary.wallet_total_usdc != null
-						? Number(summary.wallet_total_usdc)
+			totalWalletValue:
+				softArbData?.wallet?.total_wallet_value_usd != null
+					? Number(softArbData.wallet.total_wallet_value_usd)
+					: summary.wallet_total_value_usd != null
+						? Number(summary.wallet_total_value_usd)
 						: null,
 			availableCapital:
 				softArbData?.wallet?.deployable_bankroll_usd != null
@@ -908,7 +911,7 @@ export default function SoftArbPage() {
 								/>
 								<SummaryCard
 									label="Wallet Total"
-									value={walletStats.totalUsdc}
+									value={walletStats.totalWalletValue}
 									icon={<IconWallet size={20} />}
 									isCurrency
 								/>
@@ -960,7 +963,9 @@ export default function SoftArbPage() {
 								<div className="text-xs text-muted-foreground">
 									Wallet snapshot {timeAgo(softArbData.wallet.updated_at)} ·
 									Magic {formatUsd(softArbData.wallet.magic_usdc)} · Phantom
-									USDC {formatUsd(softArbData.wallet.phantom_usdc)}
+									USDC {formatUsd(softArbData.wallet.phantom_usdc)} · Phantom
+									POL {softArbData.wallet.phantom_pol.toFixed(4)} (
+									{formatUsd(softArbData.wallet.phantom_pol_usd_value)})
 								</div>
 							)}
 
