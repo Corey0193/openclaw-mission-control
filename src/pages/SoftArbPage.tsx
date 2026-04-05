@@ -943,19 +943,19 @@ export default function SoftArbPage() {
 									icon={<IconArrowsExchange size={20} />}
 								/>
 								<SummaryCard
-									label="Liquid Wallet"
+									label="Soft Arb Wallet"
 									value={walletStats.totalWalletValue}
 									icon={<IconWallet size={20} />}
 									isCurrency
 								/>
 								<SummaryCard
-									label="Available Capital"
+									label="Soft Arb Capital"
 									value={walletStats.availableCapital}
 									icon={<IconCurrencyDollar size={20} />}
 									isCurrency
 								/>
 								<SummaryCard
-									label="Portfolio Value"
+									label="Soft Arb Portfolio"
 									value={walletStats.portfolioValue}
 									icon={<IconChartBar size={20} />}
 									isCurrency
@@ -1007,6 +1007,11 @@ export default function SoftArbPage() {
 									{formatUsd(softArbData.wallet.phantom_pol_usd_value)})
 								</div>
 							)}
+							<div className="text-xs text-muted-foreground">
+								This section only covers Hustle-tracked soft-arb positions. Use
+								/arb/polymarket for the full wallet view, including positions
+								like Oscar Piatri.
+							</div>
 
 							{activePositions.length > 0 ? (
 								<div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
