@@ -1,7 +1,4 @@
-import { useMemo, useState } from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { DEFAULT_TENANT_ID } from "../lib/tenant";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Header from "../components/Header";
 import {
 	IconChartBar,
@@ -10,7 +7,6 @@ import {
 	IconTrendingUp,
 	IconTrendingDown,
 	IconCoin,
-	IconWallet,
 } from "@tabler/icons-react";
 
 function formatUsd(n: number): string {
@@ -83,18 +79,6 @@ function SummaryCard({
 	);
 }
 
-function EmptyState() {
-	return (
-		<div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-			<IconChartBar size={48} strokeWidth={1.2} className="mb-4 opacity-40" />
-			<p className="text-sm font-medium">No position data yet</p>
-			<p className="text-xs mt-1">
-				Run the sync script to push positions and open orders to Mission Control
-			</p>
-		</div>
-	);
-}
-
 interface PolymarketPosition {
 	market: string;
 	marketQuestion: string;
@@ -146,33 +130,70 @@ interface PolymarketOpenOrder {
 }
 
 interface PolymarketData {
-	walletAddress: string;
-	balanceUsdc: number;
+	reportStatus: string;
+	marketFetchFailures: number;
+	lastSyncedAt: number;
 	openOrders: PolymarketOpenOrder[];
 	positions: PolymarketPosition[];
 	trades: PolymarketTrade[];
 	totalInvested: number;
 	totalCurrentValue: number;
 	totalPnl: number;
-	lastSyncedAt: number;
 }
 
-function formatRemainingSize(n: number): string {
-	return n.toLocaleString("en-US", {
-		minimumFractionDigits: 2,
-		maximumFractionDigits: 4,
-	});
+interface SoftArbTruthTrade {
+	trade_id: string;
+	pair: string;
+	signal_family: string;
+	signal_source: string;
+	direction: string;
+	entry_price: number;
+	position_size_usd: number;
+	shares: number;
+	opened_at: string;
+	resolves_by: string;
+	polymarket_slug: string;
+	status: string;
+	settlement_state?: string | null;
+	current_price: number | null;
+	unrealized_pnl: number | null;
+	realized_pnl: number | null;
+	resolved_outcome: string | null;
+	resolved_at?: string | null;
+	claimed_at?: string | null;
+	gross_payout?: number | null;
+	fees_paid?: number | null;
+	net_realized_pnl?: number | null;
+	evidence_source?: string | null;
+	tx_hash?: string | null;
+	avg_entry_price?: number | null;
+	entry_cost?: number | null;
+	event_slug: string | null;
+	is_real: boolean;
+	order_id: string | null;
+	order_status: string | null;
+	mark_source: string;
+	truth_status?: string | null;
 }
 
-function formatOrderAge(ts: number): string {
-	const diffMs = Date.now() - ts;
-	const mins = Math.floor(diffMs / 60000);
-	if (mins < 1) return "just now";
-	if (mins < 60) return `${mins}m ago`;
-	const hrs = Math.floor(mins / 60);
-	if (hrs < 24) return `${hrs}h ago`;
-	const days = Math.floor(hrs / 24);
-	return `${days}d ago`;
+interface SoftArbTruthSnapshot {
+	trades: SoftArbTruthTrade[];
+	summary: {
+		total_trades?: number;
+		total_invested?: number;
+		total_unrealized_pnl?: number;
+		total_realized_pnl?: number;
+		win_rate?: number;
+		open_positions?: number;
+		claimable_positions?: number;
+		claimed_positions?: number;
+		closed_losses?: number;
+		canceled_positions?: number;
+		report_status?: string;
+		market_fetch_failures?: number;
+		[key: string]: unknown;
+	};
+	lastUpdated?: string | null;
 }
 
 function PolymarketOrderBadge({
@@ -215,18 +236,213 @@ function PolymarketSideBadge({ side }: { side: string }) {
 	);
 }
 
+function isTruthyStatus(status: string | null | undefined): boolean {
+	const normalized = String(status ?? "").trim().toUpperCase();
+	return normalized === "OPEN" || normalized === "POSTED" || normalized === "PARTIAL_FILL";
+}
+
+function normalizeOutcome(direction: string): string {
+	const normalized = direction.trim().toUpperCase();
+	if (normalized.includes("NO")) return "No";
+	return "Yes";
+}
+
+function normalizeSide(direction: string): string {
+	const normalized = direction.trim().toUpperCase();
+	if (normalized.includes("SELL")) return "SELL";
+	return "BUY";
+}
+
+function formatRemainingSize(n: number): string {
+	return n.toLocaleString("en-US", {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 4,
+	});
+}
+
+function formatOrderAge(ts: number): string {
+	const diffMs = Date.now() - ts;
+	const mins = Math.floor(diffMs / 60000);
+	if (mins < 1) return "just now";
+	if (mins < 60) return `${mins}m ago`;
+	const hrs = Math.floor(mins / 60);
+	if (hrs < 24) return `${hrs}h ago`;
+	const days = Math.floor(hrs / 24);
+	return `${days}d ago`;
+}
+
+function parseIsoTs(value: string | null | undefined): number {
+	if (!value) return 0;
+	const ts = Date.parse(value);
+	return Number.isFinite(ts) ? ts : 0;
+}
+
+function mapTruthToPolymarketData(snapshot: SoftArbTruthSnapshot): PolymarketData {
+	const trades = snapshot.trades ?? [];
+	const positions = trades.map((trade) => {
+		const currentPrice = Number(
+			trade.current_price ?? trade.entry_price ?? 0,
+		);
+		const shares = Number(trade.shares ?? 0);
+		const entryPrice = Number(trade.entry_price ?? 0);
+		const costBasis = Number(
+			trade.entry_cost ?? trade.position_size_usd ?? shares * entryPrice,
+		);
+		const currentValue = Number((shares * currentPrice).toFixed(2));
+		const payout = Number(
+			(
+				trade.gross_payout ??
+				(trade.resolved_outcome === "WIN" ? shares : 0) ??
+				0
+			).toFixed(2),
+		);
+		const unrealizedPnl =
+			trade.unrealized_pnl != null
+				? Number(trade.unrealized_pnl)
+				: Number((currentValue - costBasis).toFixed(2));
+		const marketResolved = Boolean(
+			trade.resolved_at ||
+				trade.claimed_at ||
+				["PAYOUT_CLAIMABLE", "PAYOUT_CLAIMED", "CLOSED_LOSS", "ORDER_CANCELED"].includes(
+					String(trade.settlement_state ?? trade.status ?? "").toUpperCase(),
+				),
+		);
+		return {
+			market: trade.polymarket_slug || trade.event_slug || trade.trade_id,
+			marketQuestion: trade.pair || trade.polymarket_slug || trade.trade_id,
+			marketSlug: trade.polymarket_slug || trade.event_slug || trade.trade_id,
+			outcome: normalizeOutcome(trade.direction),
+			shares,
+			entryPrice,
+			currentPrice,
+			costBasis,
+			currentValue,
+			payout,
+			unrealizedPnl,
+			marketClosed: marketResolved,
+			marketResolved,
+			winner:
+				trade.resolved_outcome === "WIN"
+					? true
+					: trade.resolved_outcome === "LOSS"
+						? false
+						: undefined,
+		};
+	});
+
+	const openOrders = trades
+		.filter((trade) => isTruthyStatus(trade.status))
+		.map((trade) => {
+			const shares = Number(trade.shares ?? 0);
+			return {
+				id: trade.order_id || trade.trade_id,
+				status: "LIVE",
+				market: trade.polymarket_slug || trade.event_slug || trade.trade_id,
+				marketQuestion: trade.pair || trade.polymarket_slug || trade.trade_id,
+				marketSlug: trade.polymarket_slug || trade.event_slug || trade.trade_id,
+				assetId: trade.trade_id,
+				outcome: normalizeOutcome(trade.direction),
+				side: normalizeSide(trade.direction),
+				originalSize: shares,
+				sizeMatched: 0,
+				sizeRemaining: shares,
+				price: Number(trade.entry_price ?? 0),
+				orderType: String(trade.mark_source ?? "truth"),
+				createdAt: parseIsoTs(trade.opened_at),
+				expiration: parseIsoTs(trade.resolves_by) || undefined,
+			};
+		});
+
+	const derivedTrades = trades
+		.map((trade) => ({
+			id: trade.trade_id,
+			market: trade.polymarket_slug || trade.event_slug || trade.trade_id,
+			marketQuestion: trade.pair || trade.polymarket_slug || trade.trade_id,
+			side: normalizeSide(trade.direction),
+			outcome: normalizeOutcome(trade.direction),
+			shares: Number(trade.shares ?? 0),
+			price: Number(trade.entry_price ?? 0),
+			cost: Number(trade.entry_cost ?? trade.position_size_usd ?? 0),
+			payout: Number(trade.gross_payout ?? 0),
+			timestamp: parseIsoTs(
+				trade.resolved_at ?? trade.claimed_at ?? trade.opened_at,
+			),
+			txHash: trade.tx_hash ?? undefined,
+			status:
+				String(trade.settlement_state ?? trade.status ?? trade.order_status ?? "").toUpperCase() ||
+				"OPEN",
+			settlementState: trade.settlement_state ?? null,
+			markSource: trade.mark_source,
+			truthStatus: trade.truth_status ?? null,
+		}))
+		.sort((a, b) => b.timestamp - a.timestamp);
+
+	const totalInvested =
+		Number(snapshot.summary.total_invested ?? 0) ||
+		Math.round(
+			positions.reduce((sum, position) => sum + position.costBasis, 0) * 100,
+		) / 100;
+	const totalCurrentValue = Math.round(
+		positions.reduce((sum, position) => sum + position.currentValue, 0) * 100,
+	) / 100;
+	const totalPnl = Math.round(
+		Number(
+			(snapshot.summary.total_realized_pnl ?? 0) +
+				(snapshot.summary.total_unrealized_pnl ?? 0),
+		) * 100,
+	) / 100;
+
+	return {
+		reportStatus: String(snapshot.summary.report_status ?? "ok"),
+		marketFetchFailures: Number(snapshot.summary.market_fetch_failures ?? 0),
+		lastSyncedAt: parseIsoTs(snapshot.lastUpdated ?? null),
+		openOrders,
+		positions,
+		trades: derivedTrades,
+		totalInvested,
+		totalCurrentValue,
+		totalPnl,
+	};
+}
+
+function usePolymarketTruth() {
+	const [data, setData] = useState<PolymarketData | null>(null);
+	const refresh = useCallback(async () => {
+		try {
+			const res = await fetch("/api/soft-arb/trades");
+			const contentType = res.headers.get("content-type") ?? "";
+			if (!res.ok) {
+				throw new Error(`soft arb truth request failed (${res.status})`);
+			}
+			if (!contentType.includes("application/json")) {
+				const body = (await res.text()).slice(0, 120);
+				throw new Error(`soft arb truth returned non-JSON: ${body}`);
+			}
+			const json = (await res.json()) as SoftArbTruthSnapshot;
+			setData(mapTruthToPolymarketData(json));
+		} catch (err) {
+			console.error("Failed to fetch Polymarket truth snapshot:", err);
+		}
+	}, []);
+
+	useEffect(() => {
+		refresh();
+		const interval = setInterval(refresh, 30000);
+		return () => clearInterval(interval);
+	}, [refresh]);
+
+	return { data, refresh };
+}
+
 export default function PolymarketPage() {
-	const data = useQuery(api.polymarket.getPositions, {
-		tenantId: DEFAULT_TENANT_ID,
-	}) as PolymarketData | undefined;
-	const scheduleRefresh = useMutation(api.polymarket.scheduleRefresh);
+	const { data, refresh: refreshPolymarket } = usePolymarketTruth();
 	const [isRefreshing, setIsRefreshing] = useState(false);
 
 	const handleRefresh = () => {
 		if (isRefreshing) return;
 		setIsRefreshing(true);
-		void scheduleRefresh({}).finally(() => {
-			setTimeout(() => setIsRefreshing(false), 4000);
+		void refreshPolymarket().finally(() => {
+			setTimeout(() => setIsRefreshing(false), 1500);
 		});
 	};
 
@@ -278,20 +494,29 @@ export default function PolymarketPage() {
 							</div>
 							<div>
 								<h2 className="text-lg font-bold text-foreground tracking-tight">
-									Polymarket Positions
+									Polymarket Truth
 								</h2>
-								{data && (
-									<p className="text-[11px] text-muted-foreground">
-										Wallet{" "}
-										<code className="bg-muted px-1 rounded text-[10px]">
-											{data.walletAddress.slice(0, 6)}...
-											{data.walletAddress.slice(-4)}
-										</code>
-									</p>
-								)}
+								<p className="text-[11px] text-muted-foreground">
+									Hustle truth snapshot, not legacy Convex positions
+								</p>
 							</div>
 						</div>
-						{data && (
+						<div className="flex items-center gap-2">
+							{data && (
+								<span
+									className={`text-[10px] font-bold px-2 py-1 rounded-full border ${
+										data.reportStatus.toUpperCase() === "DEGRADED"
+											? "bg-amber-100 text-amber-800 border-amber-200"
+											: "bg-emerald-100 text-emerald-800 border-emerald-200"
+									}`}
+								>
+									Truth {data.reportStatus.toUpperCase()}
+									{data.marketFetchFailures > 0
+										? ` · ${data.marketFetchFailures} fetch failure${data.marketFetchFailures === 1 ? "" : "s"}`
+										: ""}
+								</span>
+							)}
+							{data && (
 							<button
 								type="button"
 								onClick={handleRefresh}
@@ -304,32 +529,29 @@ export default function PolymarketPage() {
 								/>
 								{isRefreshing
 									? "Refreshing..."
-									: `Last synced: ${timeAgo(data.lastSyncedAt)}`}
+									: `Snapshot: ${timeAgo(data.lastSyncedAt)}`}
 							</button>
-						)}
+							)}
+						</div>
 					</div>
 
 					{!data ? (
-						data === undefined ? (
-							<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-								{[...Array(4)].map((_, i) => (
-									<div
-										key={i}
-										className="h-20 bg-white border border-border rounded-xl animate-pulse"
-									/>
-								))}
-							</div>
-						) : (
-							<EmptyState />
-						)
+						<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+							{[...Array(4)].map((_, i) => (
+								<div
+									key={i}
+									className="h-20 bg-white border border-border rounded-xl animate-pulse"
+								/>
+							))}
+						</div>
 					) : (
 						<>
 							{/* Summary cards */}
 							<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 								<SummaryCard
-									label="Balance"
-									value={data.balanceUsdc}
-									icon={<IconWallet size={20} />}
+									label="Tracked Trades"
+									value={data.trades.length}
+									icon={<IconChartBar size={20} />}
 								/>
 								<SummaryCard
 									label="Invested"
@@ -353,7 +575,7 @@ export default function PolymarketPage() {
 							<section>
 								<div className="mb-3 flex items-center gap-2">
 									<h3 className="text-sm font-bold text-foreground tracking-wide uppercase">
-										Open Orders
+										Pending Orders
 										{openOrders.length > 0 && (
 											<span className="ml-2 text-muted-foreground font-normal normal-case">
 												({openOrders.length})
@@ -362,8 +584,8 @@ export default function PolymarketPage() {
 									</h3>
 								</div>
 								<p className="mb-3 text-xs text-muted-foreground">
-									Resting limit orders pulled from the authenticated Polymarket
-									sync, separate from filled wallet positions.
+									Orders inferred from the truth snapshot. If the snapshot is
+									degraded, this table is still explicitly labeled as such.
 								</p>
 								{openOrders.length === 0 ? (
 									<div className="bg-white border border-border rounded-xl p-6 text-center text-sm text-muted-foreground">
@@ -385,7 +607,7 @@ export default function PolymarketPage() {
 												</tr>
 											</thead>
 											<tbody>
-												{openOrders.map((order, i) => (
+						{openOrders.map((order, i) => (
 													<tr
 														key={order.id}
 														className={
@@ -603,8 +825,7 @@ export default function PolymarketPage() {
 															{formatUsd(p.payout)}
 														</td>
 														<td className="text-right px-3 py-3">
-															{p.winner === true ||
-															p.marketSlug.includes("nhl-nyr-min") ? (
+															{p.winner === true ? (
 																<span className="text-emerald-600 font-bold">
 																	WIN
 																</span>
@@ -621,8 +842,7 @@ export default function PolymarketPage() {
 														<td className="text-right px-4 py-3 tabular-nums">
 															<PnlBadge
 																value={
-																	p.winner === true ||
-																	p.marketSlug.includes("nhl-nyr-min")
+																	p.winner === true
 																		? p.payout - p.costBasis
 																		: p.winner === false
 																			? -p.costBasis
@@ -737,24 +957,26 @@ export default function PolymarketPage() {
 															<td
 																className={`text-right px-3 py-3 tabular-nums ${isClosed ? "text-muted-foreground" : "text-blue-600"}`}
 															>
-																{formatUsd(t.payout)}
-															</td>
-															<td className="text-right px-4 py-3">
-																<span
-																	className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${
-																		isClosed
-																			? "bg-gray-100 text-gray-500"
-																			: t.status === "MATCHED"
-																				? "bg-emerald-100 text-emerald-700"
-																				: t.status === "LIVE"
+															{formatUsd(t.payout)}
+														</td>
+														<td className="text-right px-4 py-3">
+															<span
+																className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${
+																	t.settlementState === "PAYOUT_CLAIMED"
+																		? "bg-emerald-100 text-emerald-700"
+																		: t.settlementState === "PAYOUT_CLAIMABLE"
+																			? "bg-blue-100 text-blue-700"
+																			: t.settlementState === "CLOSED_LOSS"
+																				? "bg-red-100 text-red-700"
+																				: t.status === "OPEN"
 																					? "bg-blue-100 text-blue-700"
 																					: "bg-gray-100 text-gray-600"
-																	}`}
-																>
-																	{t.status}
-																</span>
-															</td>
-														</tr>
+																}`}
+															>
+																{t.settlementState ?? t.status}
+															</span>
+														</td>
+													</tr>
 													);
 												})}
 											</tbody>
