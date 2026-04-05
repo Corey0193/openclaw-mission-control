@@ -202,11 +202,12 @@ function SummaryCard({
 
 interface SoftArbTrade {
 	trade_id: string;
+	rowKey: string;
 	pair: string;
 	signal_family: string;
 	signal_source: string;
 	direction: string;
-	entry_price: number;
+	entry_price: number | null;
 	position_size_usd: number;
 	shares: number;
 	adjusted_edge_pct: number;
@@ -1032,7 +1033,7 @@ export default function SoftArbPage() {
 									Wallet snapshot {timeAgo(softArbData.wallet.updated_at)} ·
 									Magic {formatUsd(softArbData.wallet.magic_usdc)} · Phantom
 									USDC {formatUsd(softArbData.wallet.phantom_usdc)} · Phantom
-									POL {softArbData.wallet.phantom_pol.toFixed(4)} (
+									POL {softArbData.wallet.phantom_pol?.toFixed(4) ?? "0"} (
 									{formatUsd(softArbData.wallet.phantom_pol_usd_value)})
 								</div>
 							)}
@@ -1055,11 +1056,10 @@ export default function SoftArbPage() {
 												<th className="text-right px-3 py-2.5">Edge</th>
 												<th className="text-right px-4 py-2.5">Actual P&L</th>
 											</tr>
-										</thead>
-										<tbody>
+										</thead>										<tbody>
 											{activePositions.map((t) => (
 												<tr
-													key={t.trade_id}
+													key={t.rowKey || t.trade_id}
 													className="border-b border-border/50 last:border-0 hover:bg-muted/5"
 												>
 													<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
@@ -1110,7 +1110,7 @@ export default function SoftArbPage() {
 														{t.direction}
 													</td>
 													<td className="px-3 py-3 text-right tabular-nums font-medium">
-														{t.entry_price.toFixed(3)}
+														{t.entry_price?.toFixed(3) ?? "—"}
 													</td>
 													<td className="px-3 py-3 text-right tabular-nums">
 														<div className="text-xs font-bold text-foreground">
@@ -1168,8 +1168,7 @@ export default function SoftArbPage() {
 										<tbody>
 											{staleOpenTrades.map((t) => (
 												<tr
-													key={t.trade_id}
-													className="border-b border-amber-200/60 last:border-0"
+													key={t.rowKey || t.trade_id}													className="border-b border-amber-200/60 last:border-0"
 												>
 													<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
 														{timeAgo(t.opened_at)}
@@ -1246,10 +1245,9 @@ export default function SoftArbPage() {
 									<tbody>
 										{resolvedTrades.slice(0, 10).map((t) => (
 											<tr
-												key={t.trade_id}
+												key={`${t.trade_id}-${t.timestamp}-${t.sample_key || ""}`}
 												className="border-b border-border/50 last:border-0 hover:bg-muted/5"
-											>
-												<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+											>												<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
 													{timeAgo(t.timestamp)}
 												</td>
 												<td className="px-3 py-3">
@@ -1339,9 +1337,9 @@ export default function SoftArbPage() {
 									</tr>
 								</thead>
 								<tbody>
-									{unmappedPositions.map((p: any) => (
+									{unmappedPositions.map((p: any, index: number) => (
 										<tr
-											key={`${p.marketSlug}-${p.outcome}-${p.assetId || ""}`}
+											key={`${p.marketSlug}-${p.outcome}-${index}`}
 											className="border-b border-border/50 last:border-0 hover:bg-muted/5"
 										>
 											<td className="px-4 py-3">
@@ -1371,10 +1369,10 @@ export default function SoftArbPage() {
 												</span>
 											</td>
 											<td className="px-3 py-3 text-right tabular-nums font-medium">
-												{p.shares.toFixed(1)}
+												{p.shares?.toFixed(1) ?? "—"}
 											</td>
 											<td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
-												${p.currentPrice.toFixed(2)}
+												${p.currentPrice?.toFixed(2) ?? "—"}
 											</td>
 											<td className="px-4 py-3 text-right tabular-nums">
 												<PnlBadge value={p.unrealizedPnl} />

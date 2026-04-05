@@ -698,7 +698,8 @@ async function getPolUsdPrice(): Promise<number> {
 
 function getSignalFamily(row: Record<string, unknown>): string {
 	const explicit = String(row.signal_family ?? "").toLowerCase();
-	if (explicit === "metaculus" || explicit === "sportsbook") return explicit;
+	const allowed = ["metaculus", "sportsbook", "geopolitics", "finance"];
+	if (allowed.includes(explicit)) return explicit;
 	if (
 		String(row.signal_source ?? "")
 			.toLowerCase()
@@ -1209,13 +1210,22 @@ async function getSoftArbTrades(): Promise<{
 		const isReal = !!t.real_trade || rawTradeId.startsWith("live-");
 		const tradeId = isReal && orderId ? `${rawTradeId}:${orderId}` : rawTradeId;
 		const rowKey = `${isReal ? "live" : "paper"}-${rawTradeId}-${opportunityId}`;
-		const mtmData = mtm?.trades?.[rowKey] ?? mtm?.trades?.[rawTradeId];
-		const truthData =
-			truth?.positions?.[tradeId] ??
-			truth?.positions?.[rawTradeId] ??
-			truth?.positions?.[rowKey] ??
-			null;
-		const shieldData = shieldTradeState[rowKey] ?? shieldTradeState[rawTradeId];
+		const findMatch = (recordMap: Record<string, Record<string, unknown>> | undefined) => {
+			if (!recordMap) return undefined;
+			// 1. Try exact keys
+			const exact = recordMap[tradeId] || recordMap[rowKey] || recordMap[rawTradeId];
+			if (exact) return exact;
+			// 2. Try matching properties
+			return Object.values(recordMap).find(
+				(v) =>
+					(v.trade_id === rawTradeId || v.raw_trade_id === rawTradeId) &&
+					(!orderId || v.order_id === orderId || v.polymarket_order_id === orderId),
+			);
+		};
+
+		const mtmData = findMatch(mtm?.trades as any);
+		const truthData = (findMatch(truth?.positions as any) as Record<string, unknown>) ?? null;
+		const shieldData = findMatch(shieldTradeState as any);
 		const dossier = dossierByOpportunity.get(opportunityId) ?? null;
 		const matchedPair = getPrimaryMatchedPair(dossier);
 		const dossierDecision =
@@ -1242,14 +1252,52 @@ async function getSoftArbTrades(): Promise<{
 				truthData?.market_name,
 				fallbackPair,
 			),
-			signal_family: String(mtmData?.signal_family ?? getSignalFamily(t)),
-			signal_source: getSignalSource(t),
-			direction: String(t.direction ?? truthData?.outcome ?? ""),
-			entry_price: Number(t.entry_price ?? truthData?.avg_entry_price ?? 0),
-			position_size_usd: Number(
-				t.position_size_usd ?? t.stake_usd ?? truthData?.entry_cost ?? 0,
+			signal_family: firstNonEmptyString(
+				t.signal_family,
+				truthData?.signal_family,
+				mtmData?.signal_family,
+				getSignalFamily(t),
 			),
-			shares: Number(t.shares ?? t.shares_est ?? truthData?.shares ?? 0),
+			signal_source: firstNonEmptyString(
+				t.signal_source,
+				truthData?.signal_source,
+				truthData?.discovery_source,
+				getSignalSource(t),
+			),
+			direction: firstNonEmptyString(
+				t.direction,
+				truthData?.side,
+				truthData?.direction,
+				truthData?.outcome,
+			),
+			entry_price:
+				hasValue(t.entry_price) && Number(t.entry_price) > 0
+					? Number(t.entry_price)
+					: hasValue(truthData?.avg_entry_price)
+						? Number(truthData.avg_entry_price)
+						: hasValue(truthData?.entry_price)
+							? Number(truthData.entry_price)
+							: null,
+			position_size_usd:
+				hasValue(t.position_size_usd) && Number(t.position_size_usd) > 0
+					? Number(t.position_size_usd)
+					: hasValue(t.stake_usd)
+						? Number(t.stake_usd)
+						: hasValue(truthData?.entry_cost)
+							? Number(truthData.entry_cost)
+							: hasValue(truthData?.position_size_usd)
+								? Number(truthData.position_size_usd)
+								: 0,
+			shares:
+				hasValue(t.shares) && Number(t.shares) > 0
+					? Number(t.shares)
+					: hasValue(t.shares_est)
+						? Number(t.shares_est)
+						: hasValue(truthData?.shares_open)
+							? Number(truthData.shares_open)
+							: hasValue(truthData?.shares)
+								? Number(truthData.shares)
+								: 0,
 			adjusted_edge_pct: normalizeSoftArbPct(t.adjusted_edge_pct ?? t.edge_pct),
 			opened_at: firstNonEmptyString(
 				truthData?.opened_at,
@@ -1275,6 +1323,7 @@ async function getSoftArbTrades(): Promise<{
 				truthData?.polymarket_slug,
 				truthData?.market_slug,
 				truthData?.event_slug,
+				truthData?.slug,
 				matchedPair?.polymarket_market_slug,
 				matchedPair?.polymarket_slug,
 				dossier?.polymarket_slug,
