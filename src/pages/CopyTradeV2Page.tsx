@@ -100,6 +100,7 @@ type CommandState = {
 	at: number;
 	stdout?: string;
 	stderr?: string;
+	message?: string;
 };
 
 function fmtUsd(n: number | undefined | null, showSign = false): string {
@@ -227,24 +228,35 @@ export default function CopyTradeV2Page() {
 	const skipReasons = status?.skipReasons ?? [];
 	const totalPnl = status?.totalPaperPnl ?? 0;
 	const bankroll = status?.bankroll ?? 0;
+	const heartbeatAgeMs =
+		status?.lastHeartbeatAt != null ? Date.now() - status.lastHeartbeatAt : null;
+	const heartbeatFresh = heartbeatAgeMs != null && heartbeatAgeMs < 45_000;
+	const daemonRunning = bridgeStatus?.running ?? status?.running ?? false;
+	const effectivePid = bridgeStatus?.pid ?? status?.pid ?? null;
+	const showWaitingForHeartbeat = daemonRunning && !heartbeatFresh;
 	const activeLeaders = status?.activeLeaderCount ?? bridgeStatus?.activeLeaders ?? 0;
 	const monitoredLeaders =
 		status?.monitoredLeaderCount ?? bridgeStatus?.roster?.length ?? 0;
 
 	useEffect(() => {
 		let cancelled = false;
-		const run = async () => {
+		const loadBridgeStatus = async () => {
 			try {
 				const response = await fetch(`${CONTROL_BASE_URL}/status`);
-				if (!response.ok) return;
+				if (!response.ok) {
+					if (!cancelled) setBridgeStatus(null);
+					return null;
+				}
 				const payload = (await response.json()) as ControlStatus;
 				if (!cancelled) setBridgeStatus(payload);
+				return payload;
 			} catch {
 				if (!cancelled) setBridgeStatus(null);
+				return null;
 			}
 		};
-		void run();
-		const id = window.setInterval(run, 15_000);
+		void loadBridgeStatus();
+		const id = window.setInterval(loadBridgeStatus, 15_000);
 		return () => {
 			cancelled = true;
 			window.clearInterval(id);
@@ -262,13 +274,19 @@ export default function CopyTradeV2Page() {
 				ok?: boolean;
 				stdout?: string;
 				stderr?: string;
+				message?: string;
+				runtime?: ControlStatus;
 			};
+			if (payload.runtime) {
+				setBridgeStatus(payload.runtime);
+			}
 			setCommandState({
 				label,
 				ok: response.ok && payload.ok !== false,
 				at: Date.now(),
 				stdout: payload.stdout,
 				stderr: payload.stderr,
+				message: payload.message,
 			});
 			const statusResp = await fetch(`${CONTROL_BASE_URL}/status`);
 			if (statusResp.ok) {
@@ -319,23 +337,25 @@ export default function CopyTradeV2Page() {
 					<div className="flex flex-col items-start gap-2 lg:items-end">
 						<div
 							className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold tracking-wider ${
-								status?.running
+								daemonRunning
 									? "border-emerald-200 bg-emerald-50 text-emerald-700"
 									: "border-border bg-muted text-muted-foreground"
 							}`}
 						>
 							<span
-								className={`h-2 w-2 rounded-full ${status?.running ? "animate-pulse bg-emerald-500" : "bg-gray-400"}`}
+								className={`h-2 w-2 rounded-full ${daemonRunning ? "animate-pulse bg-emerald-500" : "bg-gray-400"}`}
 							/>
-							{status?.running ? `RUNNING · PID ${status.pid ?? "?"}` : "STOPPED"}
+							{daemonRunning ? `RUNNING · PID ${effectivePid ?? "?"}` : "STOPPED"}
 							<span className="mx-1 opacity-30">|</span>
 							<span>{status?.mode ?? "PAPER"}</span>
 						</div>
 						<div className="text-[10px] text-muted-foreground">
-							Convex heartbeat: {status ? fmtTs(status.lastHeartbeatAt) : "—"}
+							{showWaitingForHeartbeat
+								? "Daemon is running locally. Waiting for Convex heartbeat."
+								: `Convex heartbeat: ${status ? fmtTs(status.lastHeartbeatAt) : "—"}`}
 						</div>
 						<div className="text-[10px] text-muted-foreground">
-							Bridge: {bridgeStatus?.running ? "online" : "offline"} · Service{" "}
+							Local daemon: {bridgeStatus?.running ? "running" : "stopped"} · Service{" "}
 							{bridgeStatus?.enabled ? "enabled" : "disabled"}
 						</div>
 					</div>
@@ -414,7 +434,7 @@ export default function CopyTradeV2Page() {
 							</div>
 							<div className="mt-1 text-[11px] text-muted-foreground">
 								{commandState
-									? `${commandState.ok ? "OK" : "ERR"} · ${fmtTs(commandState.at)}${commandState.stdout ? ` · ${commandState.stdout}` : ""}${commandState.stderr ? ` · ${commandState.stderr}` : ""}`
+									? `${commandState.ok ? "OK" : "ERR"} · ${fmtTs(commandState.at)}${commandState.message ? ` · ${commandState.message}` : ""}${commandState.stdout ? ` · ${commandState.stdout}` : ""}${commandState.stderr ? ` · ${commandState.stderr}` : ""}`
 									: "No control command executed yet."}
 							</div>
 						</div>
