@@ -17,7 +17,7 @@ import {
 
 const CONTROL_BASE_URL =
 	import.meta.env.VITE_COPY_TRADE_V2_CONTROL_URL?.trim() ||
-	"http://127.0.0.1:18791";
+	"http://127.0.0.1:18793";
 
 type V2Status = {
 	running: boolean;
