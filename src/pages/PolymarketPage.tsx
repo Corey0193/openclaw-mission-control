@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DEFAULT_TENANT_ID } from "../lib/tenant";
+import { useConvexHttpQuery } from "../lib/useConvexHttpQuery";
 import Header from "../components/Header";
 import {
 	IconChartBar,
@@ -197,11 +199,7 @@ interface SoftArbTruthSnapshot {
 	lastUpdated?: string | null;
 }
 
-function PolymarketOrderBadge({
-	status,
-}: {
-	status: string;
-}) {
+function PolymarketOrderBadge({ status }: { status: string }) {
 	const normalized = status.trim().toUpperCase();
 	const cls =
 		normalized === "LIVE"
@@ -238,8 +236,14 @@ function PolymarketSideBadge({ side }: { side: string }) {
 }
 
 function isTruthyStatus(status: string | null | undefined): boolean {
-	const normalized = String(status ?? "").trim().toUpperCase();
-	return normalized === "OPEN" || normalized === "POSTED" || normalized === "PARTIAL_FILL";
+	const normalized = String(status ?? "")
+		.trim()
+		.toUpperCase();
+	return (
+		normalized === "OPEN" ||
+		normalized === "POSTED" ||
+		normalized === "PARTIAL_FILL"
+	);
 }
 
 function normalizeOutcome(direction: string): string {
@@ -278,12 +282,20 @@ function parseIsoTs(value: string | null | undefined): number {
 	return Number.isFinite(ts) ? ts : 0;
 }
 
-function mapTruthToPolymarketData(snapshot: SoftArbTruthSnapshot): PolymarketData {
+function positionKey(position: {
+	market?: string | null;
+	marketSlug?: string | null;
+	outcome?: string | null;
+}): string {
+	return `${position.market ?? position.marketSlug ?? ""}|${String(position.outcome ?? "").toUpperCase()}`;
+}
+
+function mapTruthToPolymarketData(
+	snapshot: SoftArbTruthSnapshot,
+): PolymarketData {
 	const trades = snapshot.trades ?? [];
 	const positions = trades.map((trade) => {
-		const currentPrice = Number(
-			trade.current_price ?? trade.entry_price ?? 0,
-		);
+		const currentPrice = Number(trade.current_price ?? trade.entry_price ?? 0);
 		const shares = Number(trade.shares ?? 0);
 		const entryPrice = Number(trade.entry_price ?? 0);
 		const costBasis = Number(
@@ -316,7 +328,11 @@ function mapTruthToPolymarketData(snapshot: SoftArbTruthSnapshot): PolymarketDat
 		);
 		return {
 			market: trade.event_slug || trade.polymarket_slug || trade.trade_id,
-			marketQuestion: trade.pair || trade.event_slug || trade.polymarket_slug || trade.trade_id,
+			marketQuestion:
+				trade.pair ||
+				trade.event_slug ||
+				trade.polymarket_slug ||
+				trade.trade_id,
 			marketSlug: trade.event_slug || trade.polymarket_slug || trade.trade_id,
 			outcome: normalizeOutcome(trade.direction),
 			shares,
@@ -345,7 +361,11 @@ function mapTruthToPolymarketData(snapshot: SoftArbTruthSnapshot): PolymarketDat
 				id: trade.order_id || trade.trade_id,
 				status: "LIVE",
 				market: trade.event_slug || trade.polymarket_slug || trade.trade_id,
-				marketQuestion: trade.pair || trade.event_slug || trade.polymarket_slug || trade.trade_id,
+				marketQuestion:
+					trade.pair ||
+					trade.event_slug ||
+					trade.polymarket_slug ||
+					trade.trade_id,
 				marketSlug: trade.event_slug || trade.polymarket_slug || trade.trade_id,
 				assetId: trade.trade_id,
 				outcome: normalizeOutcome(trade.direction),
@@ -364,7 +384,11 @@ function mapTruthToPolymarketData(snapshot: SoftArbTruthSnapshot): PolymarketDat
 		.map((trade) => ({
 			id: trade.trade_id,
 			market: trade.event_slug || trade.polymarket_slug || trade.trade_id,
-			marketQuestion: trade.pair || trade.event_slug || trade.polymarket_slug || trade.trade_id,
+			marketQuestion:
+				trade.pair ||
+				trade.event_slug ||
+				trade.polymarket_slug ||
+				trade.trade_id,
 			side: normalizeSide(trade.direction),
 			outcome: normalizeOutcome(trade.direction),
 			shares: Number(trade.shares ?? 0),
@@ -376,8 +400,9 @@ function mapTruthToPolymarketData(snapshot: SoftArbTruthSnapshot): PolymarketDat
 			),
 			txHash: trade.tx_hash ?? undefined,
 			status:
-				String(trade.settlement_state ?? trade.status ?? trade.order_status ?? "").toUpperCase() ||
-				"OPEN",
+				String(
+					trade.settlement_state ?? trade.status ?? trade.order_status ?? "",
+				).toUpperCase() || "OPEN",
 			settlementState: trade.settlement_state ?? null,
 			markSource: trade.mark_source,
 			truthStatus: trade.truth_status ?? null,
@@ -389,15 +414,17 @@ function mapTruthToPolymarketData(snapshot: SoftArbTruthSnapshot): PolymarketDat
 		Math.round(
 			positions.reduce((sum, position) => sum + position.costBasis, 0) * 100,
 		) / 100;
-	const totalCurrentValue = Math.round(
-		positions.reduce((sum, position) => sum + position.currentValue, 0) * 100,
-	) / 100;
-	const totalPnl = Math.round(
-		Number(
-			(snapshot.summary.total_realized_pnl ?? 0) +
-				(snapshot.summary.total_unrealized_pnl ?? 0),
-		) * 100,
-	) / 100;
+	const totalCurrentValue =
+		Math.round(
+			positions.reduce((sum, position) => sum + position.currentValue, 0) * 100,
+		) / 100;
+	const totalPnl =
+		Math.round(
+			Number(
+				(snapshot.summary.total_realized_pnl ?? 0) +
+					(snapshot.summary.total_unrealized_pnl ?? 0),
+			) * 100,
+		) / 100;
 
 	return {
 		reportStatus: String(snapshot.summary.report_status ?? "ok"),
@@ -443,6 +470,11 @@ function usePolymarketTruth() {
 
 export default function PolymarketPage() {
 	const { data, refresh: refreshPolymarket } = usePolymarketTruth();
+	const convexSnapshot = useConvexHttpQuery<any>(
+		"polymarket:getPositions",
+		{ tenantId: DEFAULT_TENANT_ID },
+		{ pollMs: 30_000 },
+	);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 
 	const handleRefresh = () => {
@@ -453,28 +485,54 @@ export default function PolymarketPage() {
 		});
 	};
 
-	const openPositions = useMemo(
-		() =>
-			data?.positions.filter((p) => !p.marketResolved && p.shares > 0) ?? [],
-		[data?.positions],
-	);
-	const openOrders = useMemo(() => data?.openOrders ?? [], [data?.openOrders]);
+	const openPositions = useMemo(() => {
+		const merged = new Map<string, PolymarketPosition>();
+		for (const position of convexSnapshot?.positions ?? []) {
+			merged.set(positionKey(position), position);
+		}
+		for (const position of data?.positions ?? []) {
+			merged.set(positionKey(position), position);
+		}
+		return [...merged.values()].filter(
+			(p) => !p.marketResolved && p.shares > 0,
+		);
+	}, [data?.positions, convexSnapshot?.positions]);
+	const openOrders = useMemo(() => {
+		const merged = new Map<string, PolymarketOpenOrder>();
+		for (const order of convexSnapshot?.openOrders ?? []) {
+			merged.set(order.id, order);
+		}
+		for (const order of data?.openOrders ?? []) {
+			merged.set(order.id, order);
+		}
+		return [...merged.values()];
+	}, [data?.openOrders, convexSnapshot?.openOrders]);
 	const closedMarkets = useMemo(
 		() =>
 			new Set(
-				(data?.positions ?? [])
+				(
+					[
+						...(convexSnapshot?.positions ?? []),
+						...(data?.positions ?? []),
+					] as PolymarketPosition[]
+				)
 					.filter((p) => p.marketResolved)
 					.map((p) => p.market),
 			),
-		[data?.positions],
+		[data?.positions, convexSnapshot?.positions],
 	);
 	const cutoff = new Date("2026-01-01").getTime();
 	const recentTrades = useMemo(
 		() =>
-			(data?.trades ?? [])
+			(
+				[
+					...(convexSnapshot?.trades ?? []),
+					...(data?.trades ?? []),
+				] as PolymarketTrade[]
+			)
 				.filter((t) => t.timestamp >= cutoff)
 				.sort((a, b) => b.timestamp - a.timestamp),
-		[data?.trades, cutoff],
+		[data?.trades, convexSnapshot?.trades, cutoff],
 	);
 	const recentMarkets = useMemo(
 		() => new Set(recentTrades.map((t) => t.market)),
@@ -482,10 +540,13 @@ export default function PolymarketPage() {
 	);
 	const resolvedPositions = useMemo(
 		() =>
-			(data?.positions ?? []).filter(
-				(p) => p.marketResolved && recentMarkets.has(p.market),
-			),
-		[data?.positions, recentMarkets],
+			(
+				[
+					...(convexSnapshot?.positions ?? []),
+					...(data?.positions ?? []),
+				] as PolymarketPosition[]
+			).filter((p) => p.marketResolved && recentMarkets.has(p.market)),
+		[data?.positions, convexSnapshot?.positions, recentMarkets],
 	);
 
 	return (
@@ -524,20 +585,20 @@ export default function PolymarketPage() {
 								</span>
 							)}
 							{data && (
-							<button
-								type="button"
-								onClick={handleRefresh}
-								disabled={isRefreshing}
-								className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-							>
-								<IconRefresh
-									size={14}
-									className={isRefreshing ? "animate-spin" : ""}
-								/>
-								{isRefreshing
-									? "Refreshing..."
-									: `Snapshot: ${timeAgo(data.lastSyncedAt)}`}
-							</button>
+								<button
+									type="button"
+									onClick={handleRefresh}
+									disabled={isRefreshing}
+									className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+								>
+									<IconRefresh
+										size={14}
+										className={isRefreshing ? "animate-spin" : ""}
+									/>
+									{isRefreshing
+										? "Refreshing..."
+										: `Snapshot: ${timeAgo(data.lastSyncedAt)}`}
+								</button>
 							)}
 						</div>
 					</div>
@@ -614,7 +675,7 @@ export default function PolymarketPage() {
 												</tr>
 											</thead>
 											<tbody>
-						{openOrders.map((order, i) => (
+												{openOrders.map((order, i) => (
 													<tr
 														key={order.id}
 														className={
@@ -964,28 +1025,29 @@ export default function PolymarketPage() {
 															<td
 																className={`text-right px-3 py-3 tabular-nums ${isClosed ? "text-muted-foreground" : "text-blue-600"}`}
 															>
-															{formatUsd(t.payout)}
-														</td>
-														<td className="text-right px-4 py-3">
-															<span
-																className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${
-																	t.settlementState === "PAYOUT_CLAIMED"
-																		? "bg-emerald-100 text-emerald-700"
-																		: t.settlementState === "PAYOUT_CLAIMABLE"
-																			? "bg-blue-100 text-blue-700"
-																			: t.settlementState === "CLOSED_LOSS"
-																				? "bg-red-100 text-red-700"
-																				: t.settlementState === "CLOSED_CONVERGED"
-																					? "bg-slate-100 text-slate-700"
-																				: t.status === "OPEN"
-																					? "bg-blue-100 text-blue-700"
-																					: "bg-gray-100 text-gray-600"
-																}`}
-															>
-																{t.settlementState ?? t.status}
-															</span>
-														</td>
-													</tr>
+																{formatUsd(t.payout)}
+															</td>
+															<td className="text-right px-4 py-3">
+																<span
+																	className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${
+																		t.settlementState === "PAYOUT_CLAIMED"
+																			? "bg-emerald-100 text-emerald-700"
+																			: t.settlementState === "PAYOUT_CLAIMABLE"
+																				? "bg-blue-100 text-blue-700"
+																				: t.settlementState === "CLOSED_LOSS"
+																					? "bg-red-100 text-red-700"
+																					: t.settlementState ===
+																							"CLOSED_CONVERGED"
+																						? "bg-slate-100 text-slate-700"
+																						: t.status === "OPEN"
+																							? "bg-blue-100 text-blue-700"
+																							: "bg-gray-100 text-gray-600"
+																	}`}
+																>
+																	{t.settlementState ?? t.status}
+																</span>
+															</td>
+														</tr>
 													);
 												})}
 											</tbody>
