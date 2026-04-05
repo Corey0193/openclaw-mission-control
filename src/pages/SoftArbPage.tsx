@@ -1,7 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import Header from "../components/Header";
 import {
 	IconArrowsExchange,
@@ -599,11 +596,39 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 export default function SoftArbPage() {
 	const { data: softArbData, refresh: refreshSoftArb } = useSoftArbTrades();
 	const { runs: pipelineRuns, refresh: refreshPipeline } = usePipelineRuns();
-
-	// Fetch actual wallet positions and trades from Convex
-	const polymarketData = useQuery(api.polymarket.getPositions, {
-		tenantId: DEFAULT_TENANT_ID,
-	}) as any;
+	const polymarketData = useMemo(() => {
+		if (!softArbData) return null;
+		const positions = softArbData.trades
+			.filter((trade) => !isExpiredTrade(trade.resolves_by))
+			.map((trade) => ({
+				marketSlug: trade.polymarket_slug,
+				outcome: normalizeDirection(trade.direction),
+				shares: Number(trade.shares ?? 0),
+				unrealizedPnl:
+					trade.unrealized_pnl ??
+					(trade.current_price != null
+						? Number(
+								(
+									(trade.current_price - trade.entry_price) *
+									trade.shares
+								).toFixed(2),
+							)
+						: null),
+				marketResolved: !isOpenSettlementStatus(trade.status),
+			}));
+		const openOrders = softArbData.trades
+			.filter(
+				(trade) =>
+					isOpenSettlementStatus(trade.status) &&
+					!isExpiredTrade(trade.resolves_by),
+			)
+			.map((trade) => ({
+				id: trade.order_id ?? trade.trade_id,
+				marketSlug: trade.polymarket_slug,
+				outcome: normalizeDirection(trade.direction),
+			}));
+		return { positions, openOrders };
+	}, [softArbData]);
 
 	const [sectionsOpen, setSectionsOpen] = useState({
 		positions: true,
