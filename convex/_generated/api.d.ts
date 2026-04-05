@@ -22,6 +22,7 @@ import type * as experiments from "../experiments.js";
 import type * as fix_loki from "../fix_loki.js";
 import type * as http from "../http.js";
 import type * as messages from "../messages.js";
+import type * as ollamaHealth from "../ollamaHealth.js";
 import type * as openclaw from "../openclaw.js";
 import type * as polymarket from "../polymarket.js";
 import type * as polymarketActions from "../polymarketActions.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   fix_loki: typeof fix_loki;
   http: typeof http;
   messages: typeof messages;
+  ollamaHealth: typeof ollamaHealth;
   openclaw: typeof openclaw;
   polymarket: typeof polymarket;
   polymarketActions: typeof polymarketActions;

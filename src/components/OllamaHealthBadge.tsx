@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { IconActivityHeartbeat } from "@tabler/icons-react";
+import { useAction } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 type HealthStatus = "loading" | "healthy" | "degraded" | "down" | "unconfigured";
 
@@ -52,15 +54,11 @@ const STYLE_BY_STATUS: Record<
 	},
 };
 
-function getEndpoint() {
-	const base = import.meta.env.VITE_CONVEX_SITE_URL as string | undefined;
-	return base ? `${base.replace(/\/$/, "")}/ollama/health` : "/ollama/health";
-}
-
 const OllamaHealthBadge = () => {
 	const [status, setStatus] = useState<OllamaHealthResponse | null>(null);
 	const [lastPollAt, setLastPollAt] = useState<number | null>(null);
-	const [now, setNow] = useState(Date.now());
+	const [now, setNow] = useState(0);
+	const checkOllamaHealth = useAction(api.ollamaHealth.checkOllamaHealth);
 
 	useEffect(() => {
 		const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -69,16 +67,10 @@ const OllamaHealthBadge = () => {
 
 	useEffect(() => {
 		let cancelled = false;
-		const controller = new AbortController();
 
 		const poll = async () => {
 			try {
-				const response = await fetch(getEndpoint(), {
-					method: "GET",
-					signal: controller.signal,
-					cache: "no-store",
-				});
-				const payload = (await response.json()) as OllamaHealthResponse;
+				const payload = (await checkOllamaHealth()) as OllamaHealthResponse;
 				if (!cancelled) {
 					setStatus({
 						...payload,
@@ -108,10 +100,9 @@ const OllamaHealthBadge = () => {
 
 		return () => {
 			cancelled = true;
-			controller.abort();
 			window.clearInterval(intervalId);
 		};
-	}, []);
+	}, [checkOllamaHealth]);
 
 	const currentStatus: HealthStatus = useMemo(() => {
 		if (!status) return "loading";
