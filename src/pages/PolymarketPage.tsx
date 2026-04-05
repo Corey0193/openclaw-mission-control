@@ -304,7 +304,13 @@ function mapTruthToPolymarketData(snapshot: SoftArbTruthSnapshot): PolymarketDat
 		const marketResolved = Boolean(
 			trade.resolved_at ||
 				trade.claimed_at ||
-				["PAYOUT_CLAIMABLE", "PAYOUT_CLAIMED", "CLOSED_LOSS", "ORDER_CANCELED"].includes(
+				[
+					"PAYOUT_CLAIMABLE",
+					"PAYOUT_CLAIMED",
+					"CLOSED_LOSS",
+					"CLOSED_CONVERGED",
+					"ORDER_CANCELED",
+				].includes(
 					String(trade.settlement_state ?? trade.status ?? "").toUpperCase(),
 				),
 		);
@@ -969,6 +975,8 @@ export default function PolymarketPage() {
 																			? "bg-blue-100 text-blue-700"
 																			: t.settlementState === "CLOSED_LOSS"
 																				? "bg-red-100 text-red-700"
+																				: t.settlementState === "CLOSED_CONVERGED"
+																					? "bg-slate-100 text-slate-700"
 																				: t.status === "OPEN"
 																					? "bg-blue-100 text-blue-700"
 																					: "bg-gray-100 text-gray-600"
