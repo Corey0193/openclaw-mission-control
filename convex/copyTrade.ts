@@ -9,11 +9,41 @@ export const upsertStatus = mutation({
 		running: v.boolean(),
 		pid: v.optional(v.number()),
 		mode: v.string(),
-        leaderLabel: v.optional(v.string()),
-        marketTitle: v.optional(v.string()),
+		leaderLabel: v.optional(v.string()),
+		marketTitle: v.optional(v.string()),
 		bankroll: v.number(),
 		openPositions: v.number(),
 		totalPaperPnl: v.number(),
+		activeLeaderCount: v.optional(v.number()),
+		monitoredLeaderCount: v.optional(v.number()),
+		skipReasons: v.optional(
+			v.array(
+				v.object({
+					reason: v.string(),
+					count: v.number(),
+				}),
+			),
+		),
+		leaderQuality: v.optional(
+			v.array(
+				v.object({
+					address: v.string(),
+					label: v.optional(v.string()),
+					leaderState: v.string(),
+					cts: v.number(),
+					copyableScore: v.number(),
+					recentBuyCount: v.number(),
+					recentBuyPassCount: v.number(),
+					recentBuyPassRate: v.number(),
+					recentBuyMedianUsd: v.number(),
+					recentBuyAvgUsd: v.number(),
+					recentQualityUpdatedAt: v.optional(v.string()),
+					lastRank: v.optional(v.number()),
+					lastHealthReason: v.optional(v.string()),
+					openPositions: v.number(),
+				}),
+			),
+		),
 		status: v.string(),
 	},
 	returns: v.null(),
@@ -33,13 +63,20 @@ export const upsertStatus = mutation({
 			bankroll: args.bankroll,
 			openPositions: args.openPositions,
 			totalPaperPnl: args.totalPaperPnl,
+			activeLeaderCount: args.activeLeaderCount,
+			monitoredLeaderCount: args.monitoredLeaderCount,
+			skipReasons: args.skipReasons,
+			leaderQuality: args.leaderQuality,
 			status: args.status,
 			lastHeartbeatAt: now,
 		};
 		if (existing) {
 			await ctx.db.patch("copyTradeDaemonStatus", existing._id, base);
 		} else {
-			await ctx.db.insert("copyTradeDaemonStatus", { tenantId: args.tenantId, ...base });
+			await ctx.db.insert("copyTradeDaemonStatus", {
+				tenantId: args.tenantId,
+				...base,
+			});
 		}
 		return null;
 	},
@@ -52,11 +89,41 @@ export const getStatus = query({
 			running: v.boolean(),
 			pid: v.optional(v.number()),
 			mode: v.string(),
-        leaderLabel: v.optional(v.string()),
-        marketTitle: v.optional(v.string()),
+			leaderLabel: v.optional(v.string()),
+			marketTitle: v.optional(v.string()),
 			bankroll: v.number(),
 			openPositions: v.number(),
 			totalPaperPnl: v.number(),
+			activeLeaderCount: v.optional(v.number()),
+			monitoredLeaderCount: v.optional(v.number()),
+			skipReasons: v.optional(
+				v.array(
+					v.object({
+						reason: v.string(),
+						count: v.number(),
+					}),
+				),
+			),
+			leaderQuality: v.optional(
+				v.array(
+					v.object({
+						address: v.string(),
+						label: v.optional(v.string()),
+						leaderState: v.string(),
+						cts: v.number(),
+						copyableScore: v.number(),
+						recentBuyCount: v.number(),
+						recentBuyPassCount: v.number(),
+						recentBuyPassRate: v.number(),
+						recentBuyMedianUsd: v.number(),
+						recentBuyAvgUsd: v.number(),
+						recentQualityUpdatedAt: v.optional(v.string()),
+						lastRank: v.optional(v.number()),
+						lastHealthReason: v.optional(v.string()),
+						openPositions: v.number(),
+					}),
+				),
+			),
 			status: v.string(),
 			lastHeartbeatAt: v.number(),
 		}),
@@ -77,9 +144,14 @@ export const getStatus = query({
 			bankroll: row.bankroll,
 			openPositions: row.openPositions,
 			totalPaperPnl: row.totalPaperPnl,
+			activeLeaderCount: row.activeLeaderCount,
+			monitoredLeaderCount: row.monitoredLeaderCount,
+			skipReasons: row.skipReasons,
+			leaderQuality: row.leaderQuality,
 			status: row.status,
 			lastHeartbeatAt: row.lastHeartbeatAt,
-		};	},
+		};
+	},
 });
 
 // ── Positions ─────────────────────────────────────────────────────────────────
@@ -173,8 +245,8 @@ export const listPositions = query({
 			exitReason: v.optional(v.string()),
 			pnl: v.optional(v.number()),
 			mode: v.string(),
-        leaderLabel: v.optional(v.string()),
-        marketTitle: v.optional(v.string()),
+			leaderLabel: v.optional(v.string()),
+			marketTitle: v.optional(v.string()),
 		}),
 	),
 	handler: async (ctx, args) => {

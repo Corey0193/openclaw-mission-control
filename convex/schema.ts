@@ -216,7 +216,8 @@ export default defineSchema({
 		takeProfitPrice: v.optional(v.number()),
 		exitStrategy: v.optional(v.string()),
 		timeLimitAt: v.optional(v.number()),
-		exitPrice: v.optional(v.number()),		exitTimestamp: v.optional(v.number()),
+		exitPrice: v.optional(v.number()),
+		exitTimestamp: v.optional(v.number()),
 		exitReason: v.optional(v.string()),
 		pnl: v.optional(v.number()),
 		mode: v.string(),
@@ -235,6 +236,32 @@ export default defineSchema({
 		bankroll: v.number(),
 		openPositions: v.number(),
 		totalPaperPnl: v.number(),
+		activeLeaderCount: v.number(),
+		monitoredLeaderCount: v.number(),
+		skipReasons: v.array(
+			v.object({
+				reason: v.string(),
+				count: v.number(),
+			}),
+		),
+		leaderQuality: v.array(
+			v.object({
+				address: v.string(),
+				label: v.optional(v.string()),
+				leaderState: v.string(),
+				cts: v.number(),
+				copyableScore: v.number(),
+				recentBuyCount: v.number(),
+				recentBuyPassCount: v.number(),
+				recentBuyPassRate: v.number(),
+				recentBuyMedianUsd: v.number(),
+				recentBuyAvgUsd: v.number(),
+				recentQualityUpdatedAt: v.optional(v.string()),
+				lastRank: v.optional(v.number()),
+				lastHealthReason: v.optional(v.string()),
+				openPositions: v.number(),
+			}),
+		),
 		status: v.string(), // "starting" | "active" | "idle" | "error" | "stopped"
 		lastHeartbeatAt: v.number(),
 	}).index("by_tenant", ["tenantId"]),
@@ -339,7 +366,7 @@ export default defineSchema({
 		maxDrawdownPct: v.optional(v.number()),
 		profitableWeeksRatio: v.optional(v.number()),
 		computedWinRate: v.optional(v.number()),
-		})
+	})
 		.index("by_tenant", ["tenantId"])
 		.index("by_address", ["address"])
 		.index("by_pnl", ["totalPnl"])
@@ -347,31 +374,33 @@ export default defineSchema({
 		.index("by_cts", ["copyTradingScore"])
 		.index("by_tenant_cts", ["tenantId", "copyTradingScore"])
 		.index("by_tenant_insider", ["tenantId", "isInsider"]),
-		experiments: defineTable({
-		        tenantId: v.string(),
-		        experimentId: v.string(), // "seed_04_pnl_hold_resolution"
-		        hypothesis: v.string(),
-		        status: v.string(), // "pending" | "completed" | "error" | "milestone"
-		        completedAt: v.optional(v.string()),
-		        durationSeconds: v.optional(v.number()),
-		        frozenParams: v.optional(v.any()),
-		        bestTrial: v.optional(
-		                v.object({
-		                        number: v.number(),
-		                        params: v.any(),
-		                        train: v.any(),
-		                        validate: v.optional(v.any()),
-		                        test: v.optional(v.any()),
-		                }),
-		        ),		        summary: v.optional(
-		                v.object({
-		                        total_trials: v.number(),
-		                        completed_trials: v.number(),
-		                        pruned_trials: v.number(),
-		                }),
-		        ),
-		        error: v.optional(v.union(v.string(), v.null())),
-		        lastSyncedAt: v.number(),
-		        })		        .index("by_tenant", ["tenantId"])
-		        .index("by_tenant_status", ["tenantId", "status"]),
-		});
+	experiments: defineTable({
+		tenantId: v.string(),
+		experimentId: v.string(), // "seed_04_pnl_hold_resolution"
+		hypothesis: v.string(),
+		status: v.string(), // "pending" | "completed" | "error" | "milestone"
+		completedAt: v.optional(v.string()),
+		durationSeconds: v.optional(v.number()),
+		frozenParams: v.optional(v.any()),
+		bestTrial: v.optional(
+			v.object({
+				number: v.number(),
+				params: v.any(),
+				train: v.any(),
+				validate: v.optional(v.any()),
+				test: v.optional(v.any()),
+			}),
+		),
+		summary: v.optional(
+			v.object({
+				total_trials: v.number(),
+				completed_trials: v.number(),
+				pruned_trials: v.number(),
+			}),
+		),
+		error: v.optional(v.union(v.string(), v.null())),
+		lastSyncedAt: v.number(),
+	})
+		.index("by_tenant", ["tenantId"])
+		.index("by_tenant_status", ["tenantId", "status"]),
+});

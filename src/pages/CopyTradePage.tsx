@@ -12,15 +12,15 @@ import {
 	IconCircleCheck,
 	IconClock,
 	IconActivity,
-	} from "@tabler/icons-react";
+} from "@tabler/icons-react";
 import {
-        LineChart,
-        Line,
-        XAxis,
-        YAxis,
-        Tooltip,
-        ResponsiveContainer,
-        ReferenceLine,
+	LineChart,
+	Line,
+	XAxis,
+	YAxis,
+	Tooltip,
+	ResponsiveContainer,
+	ReferenceLine,
 } from "recharts";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -67,7 +67,9 @@ function shortMarket(id: string): string {
 	return id.slice(0, 8) + "…";
 }
 
-function firstNonEmptyString(...values: Array<string | null | undefined>): string | null {
+function firstNonEmptyString(
+	...values: Array<string | null | undefined>
+): string | null {
 	for (const value of values) {
 		if (typeof value === "string" && value.trim()) {
 			return value.trim();
@@ -83,7 +85,10 @@ type PolymarketMarketMeta = {
 	pricesByTokenId: Record<string, number>;
 };
 
-const polymarketMarketMetaCache = new Map<string, PolymarketMarketMeta | null>();
+const polymarketMarketMetaCache = new Map<
+	string,
+	PolymarketMarketMeta | null
+>();
 
 function buildPolymarketMarketUrl(marketSlug?: string | null): string | null {
 	if (!marketSlug) return null;
@@ -113,8 +118,8 @@ function StatCard({
 		positive === true
 			? "text-emerald-600"
 			: positive === false
-			? "text-red-500"
-			: "text-foreground";
+				? "text-red-500"
+				: "text-foreground";
 	return (
 		<div className="flex items-center gap-3 bg-white border border-border rounded-xl px-5 py-4 shadow-sm">
 			<div className="flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground flex-shrink-0">
@@ -124,8 +129,12 @@ function StatCard({
 				<div className="text-[10px] font-semibold text-muted-foreground tracking-wide uppercase">
 					{label}
 				</div>
-				<div className={`text-lg font-bold leading-tight ${accent}`}>{value}</div>
-				{sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
+				<div className={`text-lg font-bold leading-tight ${accent}`}>
+					{value}
+				</div>
+				{sub && (
+					<div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>
+				)}
 			</div>
 		</div>
 	);
@@ -145,7 +154,9 @@ function ReasonBadge({ reason }: { reason: string | undefined | null }) {
 	};
 	const cls = colors[reason] ?? "bg-slate-100 text-slate-600";
 	return (
-		<span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${cls}`}>
+		<span
+			className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${cls}`}
+		>
 			{reason.replace("_", " ")}
 		</span>
 	);
@@ -155,9 +166,38 @@ function ReasonBadge({ reason }: { reason: string | undefined | null }) {
 
 export default function CopyTradePage() {
 	const status = useConvexHttpQuery<{
+		running: boolean;
+		pid?: number;
+		mode: string;
+		status: string;
 		totalPaperPnl: number;
 		bankroll: number;
-	}>("copyTrade:getStatus", { tenantId: DEFAULT_TENANT_ID }, { pollMs: 15_000 });
+		openPositions: number;
+		lastHeartbeatAt: number;
+		activeLeaderCount?: number;
+		monitoredLeaderCount?: number;
+		skipReasons?: Array<{ reason: string; count: number }>;
+		leaderQuality?: Array<{
+			address: string;
+			label?: string;
+			leaderState: string;
+			cts: number;
+			copyableScore: number;
+			recentBuyCount: number;
+			recentBuyPassCount: number;
+			recentBuyPassRate: number;
+			recentBuyMedianUsd: number;
+			recentBuyAvgUsd: number;
+			recentQualityUpdatedAt?: string;
+			lastRank?: number;
+			lastHealthReason?: string;
+			openPositions: number;
+		}>;
+	}>(
+		"copyTrade:getStatus",
+		{ tenantId: DEFAULT_TENANT_ID },
+		{ pollMs: 15_000 },
+	);
 	const allPositions = useConvexHttpQuery<any[]>(
 		"copyTrade:listPositions",
 		{ tenantId: DEFAULT_TENANT_ID },
@@ -176,7 +216,10 @@ export default function CopyTradePage() {
 
 	const walletNameByAddress = useMemo(() => {
 		const entries = (wallets ?? [])
-			.map((wallet) => [wallet.address, firstNonEmptyString(wallet.username)] as const)
+			.map(
+				(wallet) =>
+					[wallet.address, firstNonEmptyString(wallet.username)] as const,
+			)
 			.filter(([, username]) => Boolean(username));
 		return Object.fromEntries(entries) as Record<string, string>;
 	}, [wallets]);
@@ -196,11 +239,15 @@ export default function CopyTradePage() {
 	const winRate = closed.length > 0 ? wins / closed.length : null;
 	const avgWin =
 		wins > 0
-			? closed.filter((p) => (p.pnl ?? 0) > 0).reduce((s, p) => s + (p.pnl ?? 0), 0) / wins
+			? closed
+					.filter((p) => (p.pnl ?? 0) > 0)
+					.reduce((s, p) => s + (p.pnl ?? 0), 0) / wins
 			: null;
 	const avgLoss =
 		losses > 0
-			? closed.filter((p) => (p.pnl ?? 0) <= 0).reduce((s, p) => s + (p.pnl ?? 0), 0) / losses
+			? closed
+					.filter((p) => (p.pnl ?? 0) <= 0)
+					.reduce((s, p) => s + (p.pnl ?? 0), 0) / losses
 			: null;
 
 	// Cumulative PnL chart data
@@ -216,7 +263,8 @@ export default function CopyTradePage() {
 				pnl: number;
 			}>
 		>((points, p) => {
-			const priorCumPnl = points.length > 0 ? points[points.length - 1].cumPnl : 0;
+			const priorCumPnl =
+				points.length > 0 ? points[points.length - 1].cumPnl : 0;
 			const nextCumPnl = priorCumPnl + (p.pnl ?? 0);
 			points.push({
 				ts: fmtTs(p.exitTimestamp!),
@@ -228,6 +276,10 @@ export default function CopyTradePage() {
 	}, [closed]);
 	const totalPnl = status?.totalPaperPnl ?? 0;
 	const bankroll = status?.bankroll ?? 0;
+	const activeLeaderCount = status?.activeLeaderCount ?? 0;
+	const monitoredLeaderCount = status?.monitoredLeaderCount ?? 0;
+	const skipReasons = status?.skipReasons ?? [];
+	const leaderQuality = status?.leaderQuality ?? [];
 	const loading = allPositions === undefined;
 
 	useEffect(() => {
@@ -250,7 +302,7 @@ export default function CopyTradePage() {
 							!resolvedMarketMeta[pos.marketId] &&
 							!polymarketMarketMetaCache.has(pos.marketId),
 					)
-					.map((pos) => pos.marketId)
+					.map((pos) => pos.marketId),
 			),
 		);
 
@@ -261,9 +313,12 @@ export default function CopyTradePage() {
 		void Promise.all(
 			unresolvedIds.map(async (marketId) => {
 				try {
-					const resp = await fetch(`https://clob.polymarket.com/markets/${marketId}`, {
-						headers: { Accept: "application/json" },
-					});
+					const resp = await fetch(
+						`https://clob.polymarket.com/markets/${marketId}`,
+						{
+							headers: { Accept: "application/json" },
+						},
+					);
 					if (!resp.ok) {
 						polymarketMarketMetaCache.set(marketId, null);
 						return [marketId, null] as const;
@@ -271,14 +326,19 @@ export default function CopyTradePage() {
 					const payload = (await resp.json()) as {
 						question?: unknown;
 						market_slug?: unknown;
-						tokens?: Array<{ token_id?: unknown; outcome?: unknown; price?: unknown }>;
+						tokens?: Array<{
+							token_id?: unknown;
+							outcome?: unknown;
+							price?: unknown;
+						}>;
 					};
 					const question =
 						typeof payload.question === "string" && payload.question.trim()
 							? payload.question.trim()
 							: null;
 					const marketSlug =
-						typeof payload.market_slug === "string" && payload.market_slug.trim()
+						typeof payload.market_slug === "string" &&
+						payload.market_slug.trim()
 							? payload.market_slug.trim()
 							: null;
 					const outcomesByTokenId = Object.fromEntries(
@@ -311,7 +371,12 @@ export default function CopyTradePage() {
 								: [];
 						}),
 					);
-					const meta = { marketSlug, question, outcomesByTokenId, pricesByTokenId };
+					const meta = {
+						marketSlug,
+						question,
+						outcomesByTokenId,
+						pricesByTokenId,
+					};
 					polymarketMarketMetaCache.set(marketId, meta);
 					return [marketId, meta] as const;
 				} catch {
@@ -339,7 +404,6 @@ export default function CopyTradePage() {
 		<div className="h-screen overflow-y-auto bg-[#f8f9fa]">
 			<Header />
 			<main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-
 				{/* Page title */}
 				<div className="flex items-center justify-between">
 					<div>
@@ -351,68 +415,170 @@ export default function CopyTradePage() {
 						</p>
 					</div>
 					{status && (
-					        <div className="flex flex-col items-end gap-1">
-					                <div
-					                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider border ${
-					                                status.running
-					                                        ? "bg-[#f3f0ff] text-[#7048e8] border-violet-200"
-					                                        : "bg-muted text-muted-foreground border-border"
-					                        }`}
-					                >
-					                        <span
-					                                className={`w-2 h-2 rounded-full ${status.running ? "bg-[#7048e8] animate-pulse" : "bg-gray-400"}`}
-					                        />
-					                        {status.running ? `RUNNING · PID ${status.pid ?? "?"}` : "STOPPED"}
-					                        <span className="mx-1 opacity-20">|</span>
-					                        <span className="uppercase">{status.mode}</span>
-					                </div>
-					                <div className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5 mr-2">
-					                        <IconClock size={10} />
-					                        Last heartbeat: {fmtTs(status.lastHeartbeatAt / 1000)}
-					                </div>
-					        </div>
+						<div className="flex flex-col items-end gap-1">
+							<div
+								className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider border ${
+									status.running
+										? "bg-[#f3f0ff] text-[#7048e8] border-violet-200"
+										: "bg-muted text-muted-foreground border-border"
+								}`}
+							>
+								<span
+									className={`w-2 h-2 rounded-full ${status.running ? "bg-[#7048e8] animate-pulse" : "bg-gray-400"}`}
+								/>
+								{status.running
+									? `RUNNING · PID ${status.pid ?? "?"}`
+									: "STOPPED"}
+								<span className="mx-1 opacity-20">|</span>
+								<span className="uppercase">{status.mode}</span>
+							</div>
+							<div className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5 mr-2">
+								<IconClock size={10} />
+								Last heartbeat: {fmtTs(status.lastHeartbeatAt / 1000)}
+							</div>
+						</div>
 					)}
-					</div>
+				</div>
 
-					{/* Summary cards */}
-					<div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+				{/* Summary cards */}
+				<div className="grid grid-cols-2 md:grid-cols-5 gap-3">
 					<StatCard
-					        label="Bankroll"
-					        value={fmtUsd(bankroll)}
-					        sub="Paper USD"
-					        icon={<IconWallet size={20} />}
+						label="Bankroll"
+						value={fmtUsd(bankroll)}
+						sub="Paper USD"
+						icon={<IconWallet size={20} />}
 					/>
 					<StatCard
-					        label="Open Positions"
-					        value={open.length.toString()}
-					        sub={status?.status || "active"}
-					        icon={<IconActivity size={20} className="text-violet-500" />}
+						label="Open Positions"
+						value={open.length.toString()}
+						sub={status?.status || "active"}
+						icon={<IconActivity size={20} className="text-violet-500" />}
 					/>
 					<StatCard
-					        label="Total PnL"
-					        value={fmtUsd(totalPnl, true)}
-					        sub={`incl. unrealized (${closed.length} closed)`}
-					        icon={<IconCurrencyDollar size={20} />}
-					        positive={totalPnl >= 0}
-					/>					<StatCard
-					        label="Win Rate"
-					        value={winRate != null ? `${(winRate * 100).toFixed(0)}%` : "—"}
-					        sub={`${wins}W / ${losses}L`}
-					        icon={<IconChartLine size={20} />}
-					        positive={winRate != null ? winRate >= 0.5 : undefined}
+						label="Active Leaders"
+						value={activeLeaderCount.toString()}
+						sub={`of ${monitoredLeaderCount} monitored`}
+						icon={<IconCircleCheck size={20} className="text-emerald-500" />}
 					/>
 					<StatCard
-					        label="Avg W / L"
-					        value={
-					                avgWin != null && avgLoss != null
-					                        ? `${fmtUsd(avgWin, true)}`
-					                        : "—"
-					        }
-					        sub={avgLoss != null ? `Avg loss ${fmtUsd(avgLoss, true)}` : undefined}
-					        icon={<IconTrendingUp size={20} />}
-					        positive={avgWin != null && avgLoss != null ? Math.abs(avgWin) > Math.abs(avgLoss) : undefined}
+						label="Top Skip"
+						value={skipReasons[0]?.reason ?? "—"}
+						sub={
+							skipReasons[0]
+								? `${skipReasons[0].count} skips in 6h`
+								: "No recent skips"
+						}
+						icon={<IconAlertCircle size={20} className="text-amber-500" />}
 					/>
+					<StatCard
+						label="Total PnL"
+						value={fmtUsd(totalPnl, true)}
+						sub={`incl. unrealized (${closed.length} closed)`}
+						icon={<IconCurrencyDollar size={20} />}
+						positive={totalPnl >= 0}
+					/>{" "}
+					<StatCard
+						label="Win Rate"
+						value={winRate != null ? `${(winRate * 100).toFixed(0)}%` : "—"}
+						sub={`${wins}W / ${losses}L`}
+						icon={<IconChartLine size={20} />}
+						positive={winRate != null ? winRate >= 0.5 : undefined}
+					/>
+					<StatCard
+						label="Avg W / L"
+						value={
+							avgWin != null && avgLoss != null
+								? `${fmtUsd(avgWin, true)}`
+								: "—"
+						}
+						sub={
+							avgLoss != null ? `Avg loss ${fmtUsd(avgLoss, true)}` : undefined
+						}
+						icon={<IconTrendingUp size={20} />}
+						positive={
+							avgWin != null && avgLoss != null
+								? Math.abs(avgWin) > Math.abs(avgLoss)
+								: undefined
+						}
+					/>
+				</div>
+				{(skipReasons.length > 0 || leaderQuality.length > 0) && (
+					<div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+						<div className="bg-white border border-border rounded-xl p-5 shadow-sm">
+							<div className="flex items-center justify-between mb-3">
+								<h2 className="text-[11px] font-bold text-muted-foreground tracking-wider uppercase">
+									Leader Quality
+								</h2>
+								<div className="text-[10px] text-muted-foreground">
+									{activeLeaderCount} active / {monitoredLeaderCount} monitored
+								</div>
+							</div>
+							{leaderQuality.length === 0 ? (
+								<div className="text-sm text-muted-foreground py-3">
+									No leader-quality samples yet.
+								</div>
+							) : (
+								<div className="space-y-2">
+									{leaderQuality.map((leader) => {
+										const name =
+											firstNonEmptyString(leader.label) ??
+											shortAddr(leader.address);
+										return (
+											<div
+												key={leader.address}
+												className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2"
+											>
+												<div className="min-w-0">
+													<div className="text-sm font-semibold text-foreground truncate">
+														{name}
+													</div>
+													<div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+														{leader.leaderState} · {leader.recentBuyCount} buys
+														· {Math.round(leader.recentBuyPassRate * 100)}% pass
+													</div>
+												</div>
+												<div className="text-right shrink-0">
+													<div className="text-sm font-bold text-foreground">
+														{Math.round(leader.copyableScore)}
+													</div>
+													<div className="text-[10px] text-muted-foreground">
+														{leader.lastHealthReason ?? "quality ok"}
+													</div>
+												</div>
+											</div>
+										);
+									})}
+								</div>
+							)}
+						</div>
+						<div className="bg-white border border-border rounded-xl p-5 shadow-sm">
+							<h2 className="text-[11px] font-bold text-muted-foreground tracking-wider uppercase mb-3">
+								Recent Skip Reasons
+							</h2>
+							{skipReasons.length === 0 ? (
+								<div className="text-sm text-muted-foreground py-3">
+									No recent skips.
+								</div>
+							) : (
+								<div className="space-y-2">
+									{skipReasons.map((skip) => (
+										<div
+											key={skip.reason}
+											className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2"
+										>
+											<div className="text-sm font-semibold text-foreground">
+												{skip.reason}
+											</div>
+											<div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
+												{skip.count} in 6h
+											</div>
+										</div>
+									))}
+								</div>
+							)}
+						</div>
 					</div>
+				)}
 				{/* PnL chart (only when there are closed trades) */}
 				{pnlChartData.length > 1 && (
 					<div className="bg-white border border-border rounded-xl p-5 shadow-sm">
@@ -420,7 +586,10 @@ export default function CopyTradePage() {
 							Cumulative PnL
 						</h2>
 						<ResponsiveContainer width="100%" height={180} minWidth={0}>
-							<LineChart data={pnlChartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+							<LineChart
+								data={pnlChartData}
+								margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+							>
 								<XAxis
 									dataKey="ts"
 									tick={{ fontSize: 10, fill: "#868e96" }}
@@ -436,9 +605,10 @@ export default function CopyTradePage() {
 									width={48}
 								/>
 								<Tooltip
-								        formatter={(v: any) => [fmtUsd(v, true), "Cum. PnL"]}
-								        contentStyle={{ fontSize: 11, borderRadius: 8 }}
-								/>								<ReferenceLine y={0} stroke="#dee2e6" strokeDasharray="4 2" />
+									formatter={(v: any) => [fmtUsd(v, true), "Cum. PnL"]}
+									contentStyle={{ fontSize: 11, borderRadius: 8 }}
+								/>{" "}
+								<ReferenceLine y={0} stroke="#dee2e6" strokeDasharray="4 2" />
 								<Line
 									type="monotone"
 									dataKey="cumPnl"
@@ -496,138 +666,22 @@ export default function CopyTradePage() {
 								No open positions
 							</div>
 						) : (
-								<div className="overflow-x-auto">
-									<table className="w-full text-xs">
-										<thead>
-											<tr className="bg-slate-50 border-b border-border">
-												{["Leader", "Market", "Side", "Entry", "Cost", "Price", "Unreal. PnL", "Exit Targets", "Held", ""].map((h) => (
-													<th
-														key={h}
-														className="px-4 py-2.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap"
-													>
-														{h}
-													</th>
-												))}
-											</tr>
-										</thead>
-										<tbody className="divide-y divide-slate-100">
-											{open.map((pos) => {
-												const marketMeta =
-													resolvedMarketMeta[pos.marketId] ??
-													polymarketMarketMetaCache.get(pos.marketId) ??
-													null;
-												const currentPrice =
-													marketMeta?.pricesByTokenId[pos.tokenId] ??
-													pos.currentPrice ??
-													pos.peakPrice;
-												const leaderName =
-													firstNonEmptyString(
-														walletNameByAddress[pos.leaderAddress],
-														pos.leaderLabel,
-													) ?? shortAddr(pos.leaderAddress);
-												const marketName =
-													firstNonEmptyString(pos.marketTitle, marketMeta?.question) ??
-													shortMarket(pos.marketId);
-												const unrealPnl = pos.shares * currentPrice - pos.entryUsd;
-												const marketUrl = buildPolymarketMarketUrl(
-													pos.marketSlug ?? marketMeta?.marketSlug ?? null,
-												);
-												const outcomeLabel =
-													marketMeta?.outcomesByTokenId[pos.tokenId] ??
-													fallbackOutcomeLabel(pos.outcomeIndex);
-												return (
-													<tr key={pos.positionId} className="hover:bg-slate-50/50">
-														<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-															<a
-																href={`https://polymarket.com/profile/${pos.leaderAddress}`}
-																target="_blank"
-																rel="noopener noreferrer"
-																className="hover:underline hover:text-[#7048e8] transition-colors"
-																title={pos.leaderAddress}
-															>
-																{leaderName}
-															</a>
-														</td>
-														<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
-															{marketUrl ? (
-																<a
-																	href={marketUrl}
-																	target="_blank"
-																	rel="noopener noreferrer"
-																	className="hover:underline hover:text-[#7048e8] transition-colors"
-																	title={firstNonEmptyString(pos.marketTitle, marketMeta?.question) || pos.marketId}
-																>
-																	{marketName.length > 25 ? marketName.slice(0, 25) + "…" : marketName}
-																</a>
-															) : (
-																<span title={firstNonEmptyString(pos.marketTitle, marketMeta?.question) || pos.marketId}>
-																	{marketName.length > 25 ? marketName.slice(0, 25) + "…" : marketName}
-																</span>
-															)}
-														</td>
-														<td className="px-4 py-2.5">
-															<span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold">
-																{outcomeLabel}
-															</span>
-														</td>
-														<td className="px-4 py-2.5 tabular-nums">{pos.entryPrice.toFixed(3)}</td>
-														<td className="px-4 py-2.5 tabular-nums">{fmtUsd(pos.entryUsd)}</td>
-														<td className="px-4 py-2.5 tabular-nums">{currentPrice.toFixed(3)}</td>
-														<td className={`px-4 py-2.5 tabular-nums font-bold ${unrealPnl >= 0 ? "text-emerald-600" : "text-red-500"}`}>
-															{fmtUsd(unrealPnl, true)}
-														</td>
-														<td className="px-4 py-2.5 tabular-nums">
-															<div className="flex flex-col gap-1">
-																<div className="flex flex-col gap-0.5">
-																	{pos.takeProfitPrice && (
-																		<div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-																			<span className="w-4">TP</span> {pos.takeProfitPrice.toFixed(3)}
-																		</div>
-																	)}
-																	{pos.stopLossPrice && (
-																		<div className="text-[10px] text-red-500 font-bold flex items-center gap-1">
-																			<span className="w-4">SL</span> {pos.stopLossPrice.toFixed(3)}
-																		</div>
-																	)}
-																</div>
-																<div className="flex flex-wrap gap-1">
-																	{(pos.exitStrategy === "MIRROR" || pos.exitStrategy === "MIRROR_WITH_SL") && (
-																		<span className="px-1 py-0.5 bg-violet-50 text-violet-600 rounded text-[9px] font-bold border border-violet-100 uppercase">
-																			Mirroring {leaderName}
-																		</span>
-																	)}
-																	{pos.timeLimitAt && (
-																		<span
-																			className="px-1 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-bold border border-blue-100 uppercase"
-																			title={`Expires at ${new Date(pos.timeLimitAt * 1000).toLocaleString()}`}
-																		>
-																			Max {Math.round((pos.timeLimitAt - nowMs / 1000) / 3600)}h left
-																		</span>
-																	)}
-																</div>
-															</div>
-														</td>
-														<td className="px-4 py-2.5 text-muted-foreground">{holdTime(pos.entryTimestamp)}</td>
-														<td className="px-4 py-2.5">
-															<IconClock size={13} className="text-muted-foreground" />
-														</td>
-													</tr>
-												);
-											})}
-										</tbody>
-									</table>
-								</div>
-							)
-						) : closed.length === 0 ? (
-						<div className="py-12 text-center text-sm text-muted-foreground">
-							No closed positions yet
-						</div>
-					) : (
 							<div className="overflow-x-auto">
 								<table className="w-full text-xs">
 									<thead>
 										<tr className="bg-slate-50 border-b border-border">
-											{["Leader", "Market", "Entry", "Exit", "Cost", "PnL", "ROI", "Hold", "Reason", ""].map((h) => (
+											{[
+												"Leader",
+												"Market",
+												"Side",
+												"Entry",
+												"Cost",
+												"Price",
+												"Unreal. PnL",
+												"Exit Targets",
+												"Held",
+												"",
+											].map((h) => (
 												<th
 													key={h}
 													className="px-4 py-2.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap"
@@ -638,26 +692,38 @@ export default function CopyTradePage() {
 										</tr>
 									</thead>
 									<tbody className="divide-y divide-slate-100">
-										{closed.map((pos) => {
-											const roi = pos.entryUsd > 0 ? (pos.pnl ?? 0) / pos.entryUsd : 0;
-											const isWin = (pos.pnl ?? 0) > 0;
+										{open.map((pos) => {
 											const marketMeta =
 												resolvedMarketMeta[pos.marketId] ??
 												polymarketMarketMetaCache.get(pos.marketId) ??
 												null;
+											const currentPrice =
+												marketMeta?.pricesByTokenId[pos.tokenId] ??
+												pos.currentPrice ??
+												pos.peakPrice;
 											const leaderName =
 												firstNonEmptyString(
 													walletNameByAddress[pos.leaderAddress],
 													pos.leaderLabel,
 												) ?? shortAddr(pos.leaderAddress);
 											const marketName =
-												firstNonEmptyString(pos.marketTitle, marketMeta?.question) ??
-												shortMarket(pos.marketId);
-												const marketUrl = buildPolymarketMarketUrl(
-													pos.marketSlug ?? marketMeta?.marketSlug ?? null,
-												);
+												firstNonEmptyString(
+													pos.marketTitle,
+													marketMeta?.question,
+												) ?? shortMarket(pos.marketId);
+											const unrealPnl =
+												pos.shares * currentPrice - pos.entryUsd;
+											const marketUrl = buildPolymarketMarketUrl(
+												pos.marketSlug ?? marketMeta?.marketSlug ?? null,
+											);
+											const outcomeLabel =
+												marketMeta?.outcomesByTokenId[pos.tokenId] ??
+												fallbackOutcomeLabel(pos.outcomeIndex);
 											return (
-												<tr key={pos.positionId} className="hover:bg-slate-50/50">
+												<tr
+													key={pos.positionId}
+													className="hover:bg-slate-50/50"
+												>
 													<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
 														<a
 															href={`https://polymarket.com/profile/${pos.leaderAddress}`}
@@ -676,37 +742,97 @@ export default function CopyTradePage() {
 																target="_blank"
 																rel="noopener noreferrer"
 																className="hover:underline hover:text-[#7048e8] transition-colors"
-																title={firstNonEmptyString(pos.marketTitle, marketMeta?.question) || pos.marketId}
+																title={
+																	firstNonEmptyString(
+																		pos.marketTitle,
+																		marketMeta?.question,
+																	) || pos.marketId
+																}
 															>
-																{marketName.length > 25 ? marketName.slice(0, 25) + "…" : marketName}
+																{marketName.length > 25
+																	? marketName.slice(0, 25) + "…"
+																	: marketName}
 															</a>
 														) : (
-															<span title={firstNonEmptyString(pos.marketTitle, marketMeta?.question) || pos.marketId}>
-																{marketName.length > 25 ? marketName.slice(0, 25) + "…" : marketName}
+															<span
+																title={
+																	firstNonEmptyString(
+																		pos.marketTitle,
+																		marketMeta?.question,
+																	) || pos.marketId
+																}
+															>
+																{marketName.length > 25
+																	? marketName.slice(0, 25) + "…"
+																	: marketName}
 															</span>
 														)}
 													</td>
-													<td className="px-4 py-2.5 tabular-nums">{pos.entryPrice.toFixed(3)}</td>
-													<td className="px-4 py-2.5 tabular-nums">{(pos.exitPrice ?? 0).toFixed(3)}</td>
-													<td className="px-4 py-2.5 tabular-nums text-muted-foreground">{fmtUsd(pos.entryUsd)}</td>
-													<td className={`px-4 py-2.5 tabular-nums font-bold ${isWin ? "text-emerald-600" : "text-red-500"}`}>
-														{fmtUsd(pos.pnl, true)}
+													<td className="px-4 py-2.5">
+														<span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold">
+															{outcomeLabel}
+														</span>
 													</td>
-													<td className={`px-4 py-2.5 tabular-nums ${isWin ? "text-emerald-600" : "text-red-500"}`}>
-														{fmtPct(roi)}
+													<td className="px-4 py-2.5 tabular-nums">
+														{pos.entryPrice.toFixed(3)}
+													</td>
+													<td className="px-4 py-2.5 tabular-nums">
+														{fmtUsd(pos.entryUsd)}
+													</td>
+													<td className="px-4 py-2.5 tabular-nums">
+														{currentPrice.toFixed(3)}
+													</td>
+													<td
+														className={`px-4 py-2.5 tabular-nums font-bold ${unrealPnl >= 0 ? "text-emerald-600" : "text-red-500"}`}
+													>
+														{fmtUsd(unrealPnl, true)}
+													</td>
+													<td className="px-4 py-2.5 tabular-nums">
+														<div className="flex flex-col gap-1">
+															<div className="flex flex-col gap-0.5">
+																{pos.takeProfitPrice && (
+																	<div className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+																		<span className="w-4">TP</span>{" "}
+																		{pos.takeProfitPrice.toFixed(3)}
+																	</div>
+																)}
+																{pos.stopLossPrice && (
+																	<div className="text-[10px] text-red-500 font-bold flex items-center gap-1">
+																		<span className="w-4">SL</span>{" "}
+																		{pos.stopLossPrice.toFixed(3)}
+																	</div>
+																)}
+															</div>
+															<div className="flex flex-wrap gap-1">
+																{(pos.exitStrategy === "MIRROR" ||
+																	pos.exitStrategy === "MIRROR_WITH_SL") && (
+																	<span className="px-1 py-0.5 bg-violet-50 text-violet-600 rounded text-[9px] font-bold border border-violet-100 uppercase">
+																		Mirroring {leaderName}
+																	</span>
+																)}
+																{pos.timeLimitAt && (
+																	<span
+																		className="px-1 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-bold border border-blue-100 uppercase"
+																		title={`Expires at ${new Date(pos.timeLimitAt * 1000).toLocaleString()}`}
+																	>
+																		Max{" "}
+																		{Math.round(
+																			(pos.timeLimitAt - nowMs / 1000) / 3600,
+																		)}
+																		h left
+																	</span>
+																)}
+															</div>
+														</div>
 													</td>
 													<td className="px-4 py-2.5 text-muted-foreground">
-														{holdTime(pos.entryTimestamp, pos.exitTimestamp)}
+														{holdTime(pos.entryTimestamp)}
 													</td>
 													<td className="px-4 py-2.5">
-														<ReasonBadge reason={pos.exitReason} />
-													</td>
-													<td className="px-4 py-2.5">
-														{isWin ? (
-															<IconCircleCheck size={13} className="text-emerald-500" />
-														) : (
-															<IconTrendingDown size={13} className="text-red-400" />
-														)}
+														<IconClock
+															size={13}
+															className="text-muted-foreground"
+														/>
 													</td>
 												</tr>
 											);
@@ -714,17 +840,160 @@ export default function CopyTradePage() {
 									</tbody>
 								</table>
 							</div>
-						)}
+						)
+					) : closed.length === 0 ? (
+						<div className="py-12 text-center text-sm text-muted-foreground">
+							No closed positions yet
+						</div>
+					) : (
+						<div className="overflow-x-auto">
+							<table className="w-full text-xs">
+								<thead>
+									<tr className="bg-slate-50 border-b border-border">
+										{[
+											"Leader",
+											"Market",
+											"Entry",
+											"Exit",
+											"Cost",
+											"PnL",
+											"ROI",
+											"Hold",
+											"Reason",
+											"",
+										].map((h) => (
+											<th
+												key={h}
+												className="px-4 py-2.5 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider text-left whitespace-nowrap"
+											>
+												{h}
+											</th>
+										))}
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-slate-100">
+									{closed.map((pos) => {
+										const roi =
+											pos.entryUsd > 0 ? (pos.pnl ?? 0) / pos.entryUsd : 0;
+										const isWin = (pos.pnl ?? 0) > 0;
+										const marketMeta =
+											resolvedMarketMeta[pos.marketId] ??
+											polymarketMarketMetaCache.get(pos.marketId) ??
+											null;
+										const leaderName =
+											firstNonEmptyString(
+												walletNameByAddress[pos.leaderAddress],
+												pos.leaderLabel,
+											) ?? shortAddr(pos.leaderAddress);
+										const marketName =
+											firstNonEmptyString(
+												pos.marketTitle,
+												marketMeta?.question,
+											) ?? shortMarket(pos.marketId);
+										const marketUrl = buildPolymarketMarketUrl(
+											pos.marketSlug ?? marketMeta?.marketSlug ?? null,
+										);
+										return (
+											<tr key={pos.positionId} className="hover:bg-slate-50/50">
+												<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+													<a
+														href={`https://polymarket.com/profile/${pos.leaderAddress}`}
+														target="_blank"
+														rel="noopener noreferrer"
+														className="hover:underline hover:text-[#7048e8] transition-colors"
+														title={pos.leaderAddress}
+													>
+														{leaderName}
+													</a>
+												</td>
+												<td className="px-4 py-2.5 font-mono text-[11px] text-slate-500">
+													{marketUrl ? (
+														<a
+															href={marketUrl}
+															target="_blank"
+															rel="noopener noreferrer"
+															className="hover:underline hover:text-[#7048e8] transition-colors"
+															title={
+																firstNonEmptyString(
+																	pos.marketTitle,
+																	marketMeta?.question,
+																) || pos.marketId
+															}
+														>
+															{marketName.length > 25
+																? marketName.slice(0, 25) + "…"
+																: marketName}
+														</a>
+													) : (
+														<span
+															title={
+																firstNonEmptyString(
+																	pos.marketTitle,
+																	marketMeta?.question,
+																) || pos.marketId
+															}
+														>
+															{marketName.length > 25
+																? marketName.slice(0, 25) + "…"
+																: marketName}
+														</span>
+													)}
+												</td>
+												<td className="px-4 py-2.5 tabular-nums">
+													{pos.entryPrice.toFixed(3)}
+												</td>
+												<td className="px-4 py-2.5 tabular-nums">
+													{(pos.exitPrice ?? 0).toFixed(3)}
+												</td>
+												<td className="px-4 py-2.5 tabular-nums text-muted-foreground">
+													{fmtUsd(pos.entryUsd)}
+												</td>
+												<td
+													className={`px-4 py-2.5 tabular-nums font-bold ${isWin ? "text-emerald-600" : "text-red-500"}`}
+												>
+													{fmtUsd(pos.pnl, true)}
+												</td>
+												<td
+													className={`px-4 py-2.5 tabular-nums ${isWin ? "text-emerald-600" : "text-red-500"}`}
+												>
+													{fmtPct(roi)}
+												</td>
+												<td className="px-4 py-2.5 text-muted-foreground">
+													{holdTime(pos.entryTimestamp, pos.exitTimestamp)}
+												</td>
+												<td className="px-4 py-2.5">
+													<ReasonBadge reason={pos.exitReason} />
+												</td>
+												<td className="px-4 py-2.5">
+													{isWin ? (
+														<IconCircleCheck
+															size={13}
+															className="text-emerald-500"
+														/>
+													) : (
+														<IconTrendingDown
+															size={13}
+															className="text-red-400"
+														/>
+													)}
+												</td>
+											</tr>
+										);
+									})}
+								</tbody>
+							</table>
+						</div>
+					)}
 				</div>
 
 				{/* Empty state hint */}
 				{!loading && allPositions?.length === 0 && (
 					<div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
 						<IconAlertCircle size={16} />
-						No positions synced yet — daemon syncs every 60 s once it finds qualifying leader trades.
+						No positions synced yet — daemon syncs every 60 s once it finds
+						qualifying leader trades.
 					</div>
 				)}
-
 			</main>
 		</div>
 	);

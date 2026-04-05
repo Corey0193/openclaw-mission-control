@@ -14,10 +14,23 @@ interface Style {
 }
 
 const STYLES: Record<Variant, Style> = {
-	loading: { bg: "bg-muted", text: "text-muted-foreground", dot: "bg-muted-foreground/40" },
-	unknown: { bg: "bg-muted", text: "text-muted-foreground", dot: "bg-muted-foreground/40" },
+	loading: {
+		bg: "bg-muted",
+		text: "text-muted-foreground",
+		dot: "bg-muted-foreground/40",
+	},
+	unknown: {
+		bg: "bg-muted",
+		text: "text-muted-foreground",
+		dot: "bg-muted-foreground/40",
+	},
 	offline: { bg: "bg-muted", text: "text-[#495057]", dot: "bg-[#868e96]" },
-	paper: { bg: "bg-[#f3f0ff]", text: "text-[#7048e8]", dot: "bg-[#7048e8]", pulse: true },
+	paper: {
+		bg: "bg-[#f3f0ff]",
+		text: "text-[#7048e8]",
+		dot: "bg-[#7048e8]",
+		pulse: true,
+	},
 	stale: { bg: "bg-[#fff4e6]", text: "text-[#e67700]", dot: "bg-[#adb5bd]" },
 };
 
@@ -28,11 +41,26 @@ type StatusData = {
 	bankroll: number;
 	openPositions: number;
 	totalPaperPnl: number;
+	activeLeaderCount?: number;
+	monitoredLeaderCount?: number;
+	skipReasons?: Array<{ reason: string; count: number }>;
+	leaderQuality?: Array<{
+		address: string;
+		label?: string;
+		leaderState: string;
+		copyableScore: number;
+		recentBuyCount: number;
+		recentBuyPassRate: number;
+		lastHealthReason?: string;
+	}>;
 	status: string;
 	lastHeartbeatAt: number;
 };
 
-function resolveVariant(status: StatusData | null | undefined, now: number): Variant {
+function resolveVariant(
+	status: StatusData | null | undefined,
+	now: number,
+): Variant {
 	if (status === undefined) return "loading";
 	if (status === null) return "unknown";
 	if (!status.running) return "offline";
@@ -40,12 +68,19 @@ function resolveVariant(status: StatusData | null | undefined, now: number): Var
 	return "paper";
 }
 
-function resolveLabel(variant: Variant, status: StatusData | null | undefined): string {
+function resolveLabel(
+	variant: Variant,
+	status: StatusData | null | undefined,
+): string {
 	switch (variant) {
-		case "loading": return "CT ...";
-		case "unknown":  return "CT";
-		case "offline":  return "CT OFF";
-		case "stale":    return "CT STALE";
+		case "loading":
+			return "CT ...";
+		case "unknown":
+			return "CT";
+		case "offline":
+			return "CT OFF";
+		case "stale":
+			return "CT STALE";
 		case "paper": {
 			const pnl = status?.totalPaperPnl ?? 0;
 			const sign = pnl >= 0 ? "+" : "";
@@ -70,10 +105,12 @@ const CopyTradeBadge: React.FC = () => {
 	const variant = resolveVariant(status, now);
 	const style = STYLES[variant];
 	const label = resolveLabel(variant, status);
+	const topSkipReason = status?.skipReasons?.[0];
+	const topLeader = status?.leaderQuality?.[0];
 
 	const tooltip =
 		status != null
-			? `Mode: ${status.mode} | Bankroll: $${status.bankroll.toFixed(2)} | Open: ${status.openPositions} | PnL: ${status.totalPaperPnl >= 0 ? "+" : ""}$${status.totalPaperPnl.toFixed(2)}${status.pid ? ` | PID: ${status.pid}` : ""} | Last seen: ${new Date(status.lastHeartbeatAt).toLocaleTimeString()}`
+			? `Mode: ${status.mode} | Bankroll: $${status.bankroll.toFixed(2)} | Open: ${status.openPositions} | Active leaders: ${status.activeLeaderCount ?? "?"} | PnL: ${status.totalPaperPnl >= 0 ? "+" : ""}$${status.totalPaperPnl.toFixed(2)}${status.pid ? ` | PID: ${status.pid}` : ""}${topSkipReason ? ` | Top skip: ${topSkipReason.reason} (${topSkipReason.count})` : ""}${topLeader ? ` | Top leader: ${topLeader.label ?? topLeader.address} (${Math.round(topLeader.copyableScore)})` : ""} | Last seen: ${new Date(status.lastHeartbeatAt).toLocaleTimeString()}`
 			: "No copy-trade daemon status yet";
 
 	return (
