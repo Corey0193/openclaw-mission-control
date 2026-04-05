@@ -123,6 +123,61 @@ http.route({
 	}),
 });
 
+// Backward-compatible experiment sync endpoint used by the compute loop.
+http.route({
+	path: "/experiments/sync",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		await ctx.runMutation(api.experiments.syncExperiment, {
+			tenantId: String(body.tenantId ?? body.tenant_id ?? "default"),
+			experimentId: String(
+				body.experimentId ?? body.experiment_id ?? "",
+			),
+			hypothesis: String(body.hypothesis ?? ""),
+			status: String(body.status ?? "pending"),
+			completedAt:
+				body.completedAt != null
+					? String(body.completedAt)
+					: body.completed_at != null
+						? String(body.completed_at)
+						: undefined,
+			durationSeconds:
+				body.durationSeconds != null
+					? Number(body.durationSeconds)
+					: body.duration_seconds != null
+						? Number(body.duration_seconds)
+						: undefined,
+			frozenParams:
+				body.frozenParams ?? body.frozen_params ?? undefined,
+			bestTrial: body.bestTrial ?? body.best_trial ?? undefined,
+			summary:
+				body.summary != null
+					? {
+							total_trials: Number(body.summary.total_trials ?? 0),
+							completed_trials: Number(
+								body.summary.completed_trials ?? 0,
+							),
+							pruned_trials: Number(body.summary.pruned_trials ?? 0),
+						}
+					: undefined,
+			error:
+				body.error !== undefined
+					? body.error == null
+						? null
+						: String(body.error)
+					: undefined,
+			lastSyncedAt: Number(
+				body.lastSyncedAt ?? body.last_synced_at ?? Date.now(),
+			),
+		});
+		return new Response(JSON.stringify({ ok: true }), {
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		});
+	}),
+});
+
 // Polymarket position sync endpoint
 http.route({
 	path: "/polymarket/sync",
