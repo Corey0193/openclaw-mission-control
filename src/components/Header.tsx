@@ -4,6 +4,7 @@ import SignOutButton from "./Signout";
 import ArbDaemonBadge from "./ArbDaemonBadge";
 import WalletIngestorBadge from "./WalletIngestorBadge";
 import CopyTradeBadge from "./CopyTradeBadge";
+import OllamaHealthBadge from "./OllamaHealthBadge";
 
 import { IconChevronDown } from "@tabler/icons-react";
 
@@ -235,6 +236,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed, title }) 
 				</div>
 				<ArbDaemonBadge />
 				<WalletIngestorBadge />
+				<OllamaHealthBadge />
 				<CopyTradeBadge />{" "}
 				<div className="hidden sm:flex items-center gap-2 bg-[#e6fcf5] text-[#0ca678] px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wider border border-[#b2f2bb]/40 shadow-sm">
 					<span className="w-1.5 h-1.5 bg-[#0ca678] rounded-full animate-pulse" />
