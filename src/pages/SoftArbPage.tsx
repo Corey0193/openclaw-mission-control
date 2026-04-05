@@ -378,6 +378,16 @@ function useSoftArbTrades() {
 				throw new Error(`soft arb trades returned non-JSON: ${body}`);
 			}
 			const json = await res.json();
+			if (json && Array.isArray(json.trades)) {
+				// Filter out 'ghost' trades that have no identifying info
+				json.trades = json.trades.filter(
+					(t: SoftArbTrade) =>
+						(t.pair && t.pair !== "---") ||
+						t.polymarket_slug ||
+						t.event_slug ||
+						(t.position_size_usd > 0 && t.shares > 0),
+				);
+			}
 			setData(json);
 		} catch (err) {
 			console.error("Failed to fetch soft arb trades:", err);
