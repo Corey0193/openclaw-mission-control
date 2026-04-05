@@ -231,17 +231,31 @@ function buildMergedLedgerRows(
 	mode: "paper" | "live",
 ): Map<string, Record<string, unknown>> {
 	const deduped = new Map<string, Record<string, unknown>>();
+	const keysByTradeId = new Map<string, string>();
+	const keysByOrderId = new Map<string, string>();
 	for (const row of rows) {
 		const tradeId = firstNonEmptyString(row.trade_id);
 		const orderId = firstNonEmptyString(row.order_id, row.polymarket_order_id);
 		const dedupeKey =
-			mode === "live" ? firstNonEmptyString(orderId, tradeId) : tradeId;
+			mode === "live"
+				? keysByOrderId.get(orderId) ||
+					keysByTradeId.get(tradeId) ||
+					firstNonEmptyString(orderId, tradeId)
+				: tradeId;
 		if (!dedupeKey) continue;
 		const current = deduped.get(dedupeKey);
-		deduped.set(
-			dedupeKey,
-			current ? mergeLedgerRows(current, row) : { ...row },
+		const merged = current ? mergeLedgerRows(current, row) : { ...row };
+		deduped.set(dedupeKey, merged);
+		const mergedTradeId = firstNonEmptyString(merged.trade_id, tradeId);
+		const mergedOrderId = firstNonEmptyString(
+			merged.order_id,
+			merged.polymarket_order_id,
+			orderId,
 		);
+		if (mergedTradeId) keysByTradeId.set(mergedTradeId, dedupeKey);
+		if (tradeId) keysByTradeId.set(tradeId, dedupeKey);
+		if (mergedOrderId) keysByOrderId.set(mergedOrderId, dedupeKey);
+		if (orderId) keysByOrderId.set(orderId, dedupeKey);
 	}
 	return deduped;
 }
