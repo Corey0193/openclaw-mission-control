@@ -209,19 +209,19 @@ function SectionCard({
 }
 
 export default function CopyTradeV2Page() {
+	const [bridgeStatus, setBridgeStatus] = useState<ControlStatus | null>(null);
+	const [commandState, setCommandState] = useState<CommandState | null>(null);
+	const [refreshNonce, setRefreshNonce] = useState(0);
 	const status = useConvexHttpQuery<V2Status>(
 		"copyTradeV2:getStatus",
 		{ tenantId: DEFAULT_TENANT_ID },
-		{ pollMs: 15_000 },
+		{ pollMs: 15_000, refreshKey: refreshNonce },
 	);
 	const positions = useConvexHttpQuery<V2Position[]>(
 		"copyTradeV2:listPositions",
 		{ tenantId: DEFAULT_TENANT_ID },
-		{ pollMs: 15_000 },
+		{ pollMs: 15_000, refreshKey: refreshNonce },
 	);
-	const [bridgeStatus, setBridgeStatus] = useState<ControlStatus | null>(null);
-	const [commandState, setCommandState] = useState<CommandState | null>(null);
-
 	const openPositions = useMemo(
 		() => (positions ?? []).filter((position) => position.exitPrice == null),
 		[positions],
@@ -269,6 +269,8 @@ export default function CopyTradeV2Page() {
 		};
 	}, []);
 
+	const controlBusy = commandState?.stdout === "running...";
+
 	const runCommand = async (path: string, label: string) => {
 		setCommandState({ label, ok: false, at: Date.now(), stdout: "running..." });
 		try {
@@ -285,6 +287,9 @@ export default function CopyTradeV2Page() {
 			};
 			if (payload.runtime) {
 				setBridgeStatus(payload.runtime);
+			}
+			if (response.ok && payload.ok !== false) {
+				setRefreshNonce((value) => value + 1);
 			}
 			setCommandState({
 				label,
@@ -401,52 +406,57 @@ export default function CopyTradeV2Page() {
 						subtitle="Start, stop, restart, and refresh the daily roster from the local control bridge."
 					>
 						<div className="flex flex-wrap gap-2">
-							<button
-								type="button"
-								onClick={() => void runCommand("/start", "start")}
-								className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
-							>
-								<IconPlayerPlay size={16} />
-								Start
-							</button>
-							<button
-								type="button"
-								onClick={() => void runCommand("/stop", "stop")}
-								className="inline-flex items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-red-600"
-							>
-								<IconPlayerPause size={16} />
-								Stop
-							</button>
-							<button
-								type="button"
-								onClick={() => void runCommand("/restart", "restart")}
-								className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800"
-							>
-								<IconRotateClockwise size={16} />
-								Restart
-							</button>
-							<button
-								type="button"
-								onClick={() => void runCommand("/refresh-roster", "refresh roster")}
-								className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-bold text-foreground shadow-sm transition-colors hover:bg-muted"
-							>
-								<IconRefresh size={16} />
-								Refresh Roster
-							</button>
-							<button
-								type="button"
-								onClick={() => {
-									const confirmed = window.confirm(
-										"Reset Copy V2 run? This will clear all tracked positions, execution history, and reset bankroll/PnL for a fresh run.",
+								<button
+									type="button"
+									disabled={controlBusy}
+									onClick={() => void runCommand("/start", "start")}
+									className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<IconPlayerPlay size={16} />
+									Start
+								</button>
+								<button
+									type="button"
+									disabled={controlBusy}
+									onClick={() => void runCommand("/stop", "stop")}
+									className="inline-flex items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<IconPlayerPause size={16} />
+									Stop
+								</button>
+								<button
+									type="button"
+									disabled={controlBusy}
+									onClick={() => void runCommand("/restart", "restart")}
+									className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<IconRotateClockwise size={16} />
+									Restart
+								</button>
+								<button
+									type="button"
+									disabled={controlBusy}
+									onClick={() => void runCommand("/refresh-roster", "refresh roster")}
+									className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-bold text-foreground shadow-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<IconRefresh size={16} />
+									Refresh Roster
+								</button>
+								<button
+									type="button"
+									disabled={controlBusy}
+									onClick={() => {
+										const confirmed = window.confirm(
+											"Reset Copy V2 run? This will clear all tracked positions, execution history, and reset bankroll/PnL for a fresh run.",
 									);
 									if (confirmed) {
 										void runCommand("/reset-run", "reset run");
-									}
-								}}
-								className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 shadow-sm transition-colors hover:bg-red-100"
-							>
-								<IconTrash size={16} />
-								Reset Run
+										}
+									}}
+									className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 shadow-sm transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<IconTrash size={16} />
+									Reset Run
 							</button>
 						</div>
 						<div className="mt-3 text-[11px] text-muted-foreground">

@@ -9,7 +9,7 @@ const DEFAULT_POLL_MS = 30_000;
 export function useConvexHttpQuery<T>(
 	path: string,
 	args: Record<string, unknown>,
-	options?: { pollMs?: number },
+	options?: { pollMs?: number; refreshKey?: unknown },
 ): T | undefined {
 	const [data, setData] = useState<T | undefined>(undefined);
 	const pollMs = options?.pollMs ?? DEFAULT_POLL_MS;
@@ -50,7 +50,7 @@ export function useConvexHttpQuery<T>(
 			cancelled = true;
 			window.clearInterval(intervalId);
 		};
-	}, [path, pollMs, serializedArgs]);
+	}, [path, pollMs, serializedArgs, options?.refreshKey]);
 
 	return data;
 }
