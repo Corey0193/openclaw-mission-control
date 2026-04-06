@@ -227,8 +227,8 @@ interface SoftArbTrade {
 	resolved_outcome: string | null;
 	event_slug: string | null;
 	is_real: boolean;
-	order_id?: string | null;
-	shield_coin: string | null;
+	target_outcome?: string | null;
+	order_id?: string | null;	shield_coin: string | null;
 	shield_state: string | null;
 	shield_reason: string | null;
 	shield_updated_at: string | null;
@@ -1112,9 +1112,15 @@ export default function SoftArbPage() {
 														</div>
 													</td>
 													<td className="px-3 py-3 text-xs font-medium text-emerald-700">
-														{t.direction}
-													</td>
-													<td className="px-3 py-3 text-right tabular-nums font-medium">
+													       <div className="font-bold whitespace-nowrap">
+													               {normalizeDirection(t.direction)}
+													       </div>
+													       {t.target_outcome && (
+													               <div className="text-[10px] text-slate-500 font-normal truncate max-w-[120px]">
+													                       {t.target_outcome}
+													               </div>
+													       )}
+													</td>													<td className="px-3 py-3 text-right tabular-nums font-medium">
 														{t.entry_price?.toFixed(3) ?? "—"}
 													</td>
 													<td className="px-3 py-3 text-right tabular-nums">
@@ -1288,9 +1294,15 @@ export default function SoftArbPage() {
 													</div>
 												</td>
 												<td className="px-3 py-3 text-xs font-medium text-slate-600">
-													{t.direction}
-												</td>
-												<td className="px-3 py-3 text-right">
+												        <div className="font-bold whitespace-nowrap">
+												                {normalizeDirection(t.direction)}
+												        </div>
+												        {t.target_outcome && (
+												                <div className="text-[10px] text-slate-400 font-normal truncate max-w-[120px]">
+												                        {t.target_outcome}
+												                </div>
+												        )}
+												</td>												<td className="px-3 py-3 text-right">
 													<span
 														className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${
 															t.actual_outcome === "WIN"

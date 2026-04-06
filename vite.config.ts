@@ -484,8 +484,8 @@ interface SoftArbTrade {
 	entry_cost?: number | null;
 	event_slug: string | null;
 	is_real: boolean;
-	order_id: string | null;
-	order_status: string | null;
+	target_outcome: string | null;
+	order_id: string | null;	order_status: string | null;
 	mark_source: "truth" | "mtm" | "gamma_fallback" | "unavailable";
 	truth_status?: string | null;
 	shield_coin: string | null;
@@ -526,8 +526,8 @@ interface SoftArbOutcome {
 	signal_family: string;
 	signal_source: string;
 	direction: string;
-	sample_key: string;
-	raw_edge_pct: number | null;
+	target_outcome: string;
+	sample_key: string;	raw_edge_pct: number | null;
 	adjusted_edge_pct: number | null;
 	entry_price: number | null;
 	market_prob_side_at_entry: number | null;
@@ -1402,14 +1402,20 @@ async function getSoftArbTrades(): Promise<{
 			entry_cost:
 				truthData?.entry_cost != null ? Number(truthData.entry_cost) : null,
 			event_slug:
-				truthData?.event_slug != null
-					? String(truthData.event_slug)
-					: mtmData?.event_slug != null
-						? String(mtmData.event_slug)
-						: null,
+			        truthData?.event_slug != null
+			                ? String(truthData.event_slug)
+			                : mtmData?.event_slug != null
+			                        ? String(mtmData.event_slug)
+			                        : null,
 			is_real: isReal,
-			order_id: orderId || null,
-			order_status:
+			target_outcome: firstNonEmptyString(
+			        t.target_outcome,
+			        t.target_team,
+			        (dossier?.edge_analysis as any)?.target_outcome,
+			        (dossier?.edge_analysis as any)?.target_team,
+			        (matchedPair as any)?.target_team,
+			),
+			order_id: orderId || null,			order_status:
 				t.order_status != null
 					? String(t.order_status)
 					: t.status != null
@@ -1450,8 +1456,8 @@ async function getSoftArbTrades(): Promise<{
 			signal_family: String(row.signal_family ?? getSignalFamily(row)),
 			signal_source: String(row.signal_source ?? ""),
 			direction: String(row.direction ?? ""),
-			sample_key: String(row.sample_key ?? ""),
-			raw_edge_pct:
+			target_outcome: String(row.target_outcome ?? row.target_team ?? ""),
+			sample_key: String(row.sample_key ?? ""),			raw_edge_pct:
 				row.raw_edge_pct != null ? normalizeSoftArbPct(row.raw_edge_pct) : null,
 			adjusted_edge_pct:
 				row.adjusted_edge_pct != null
@@ -1494,8 +1500,8 @@ async function getSoftArbTrades(): Promise<{
 		signal_family: getSignalFamily(row),
 		signal_source: String(row.signal_source ?? ""),
 		direction: String(row.direction ?? ""),
-		sample_key: String(row.sample_key ?? ""),
-		raw_edge_pct:
+		target_outcome: String(row.target_outcome ?? row.target_team ?? ""),
+		sample_key: String(row.sample_key ?? ""),		raw_edge_pct:
 			row.raw_edge_pct != null ? normalizeSoftArbPct(row.raw_edge_pct) : null,
 		adjusted_edge_pct:
 			row.adjusted_edge_pct != null
