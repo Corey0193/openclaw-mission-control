@@ -115,6 +115,11 @@ function fmtUsd(n: number | undefined | null, showSign = false): string {
 	return n < 0 ? "−" + s.slice(1) : s;
 }
 
+function fmtPrice(n: number | undefined | null): string {
+	if (n == null) return "—";
+	return `$${n.toFixed(3)}`;
+}
+
 function fmtTs(ms: number | undefined | null): string {
 	if (!ms) return "—";
 	return new Date(ms).toLocaleString([], {
@@ -707,8 +712,17 @@ export default function CopyTradeV2Page() {
 														marketName
 													)}
 												</td>
-												<td className="px-4 py-2.5 tabular-nums">{fmtUsd(position.entryUsd)}</td>
-												<td className="px-4 py-2.5 tabular-nums">{fmtUsd(position.exitPrice)}</td>
+												<td className="px-4 py-2.5 tabular-nums">
+													<div className="font-medium text-slate-700">
+														{fmtPrice(position.entryPrice)}
+													</div>
+													<div className="text-[10px] text-muted-foreground">
+														Cost {fmtUsd(position.entryUsd)}
+													</div>
+												</td>
+												<td className="px-4 py-2.5 tabular-nums">
+													{fmtPrice(position.exitPrice)}
+												</td>
 												<td
 													className={`px-4 py-2.5 tabular-nums font-bold ${
 														pnl >= 0 ? "text-emerald-600" : "text-red-500"
