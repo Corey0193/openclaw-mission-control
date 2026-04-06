@@ -13,6 +13,7 @@ import {
 	IconRotateClockwise,
 	IconShieldCheck,
 	IconTargetArrow,
+	IconTrash,
 } from "@tabler/icons-react";
 
 const CONTROL_BASE_URL =
@@ -432,6 +433,26 @@ export default function CopyTradeV2Page() {
 								<IconRefresh size={16} />
 								Refresh Roster
 							</button>
+							<button
+								type="button"
+								onClick={() => {
+									const confirmed = window.confirm(
+										"Reset Copy V2 run? This will clear all tracked positions, execution history, and reset bankroll/PnL for a fresh run.",
+									);
+									if (confirmed) {
+										void runCommand("/reset-run", "reset run");
+									}
+								}}
+								className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 shadow-sm transition-colors hover:bg-red-100"
+							>
+								<IconTrash size={16} />
+								Reset Run
+							</button>
+						</div>
+						<div className="mt-3 text-[11px] text-muted-foreground">
+							Reset Run deletes open and closed V2 paper positions, clears realized and
+							unrealized PnL history, restores the configured bankroll, and restarts the
+							daemon if it was already running.
 						</div>
 						<div className="mt-4 rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm">
 							<div className="font-semibold text-foreground">
