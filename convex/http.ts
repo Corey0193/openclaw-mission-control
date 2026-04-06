@@ -28,6 +28,14 @@ function jsonResponse(body: unknown, status = 200) {
 	});
 }
 
+function optionalNumber(value: unknown): number | undefined {
+	if (value == null || value === "") {
+		return undefined;
+	}
+	const numeric = Number(value);
+	return Number.isFinite(numeric) ? numeric : undefined;
+}
+
 function extractResponseText(payload: any): string {
 	const output = Array.isArray(payload?.output) ? payload.output : [];
 	for (const item of output) {
@@ -137,7 +145,7 @@ async function upsertWalletIngestorStatus(ctx: any, body: any) {
 	await ctx.runMutation(api.walletIngestor.upsertStatus, {
 		tenantId: body.tenant_id ?? "default",
 		running: body.running ?? false,
-		pid: body.pid,
+		pid: optionalNumber(body.pid),
 		walletCount: body.wallet_count ?? 0,
 		tradeCount: body.trade_count ?? 0,
 		status: body.status ?? "unknown",
@@ -505,7 +513,7 @@ http.route({
 			running: body.running ?? false,
 			mode: body.mode ?? "unknown",
 			processCount: body.process_count ?? 0,
-			pid: body.pid,
+			pid: optionalNumber(body.pid),
 			event: body.event ?? "heartbeat",
 			canary: body.canary,
 		});
@@ -525,7 +533,7 @@ http.route({
 		await ctx.runMutation(api.copyTrade.upsertStatus, {
 			tenantId: body.tenant_id ?? "default",
 			running: body.running ?? false,
-			pid: body.pid,
+			pid: optionalNumber(body.pid),
 			mode: body.mode ?? "PAPER",
 			bankroll: body.bankroll ?? 0,
 			openPositions: body.open_positions ?? 0,
@@ -590,7 +598,7 @@ http.route({
 		await ctx.runMutation(api.copyTradeV2.upsertStatus, {
 			tenantId: body.tenant_id ?? "default",
 			running: body.running ?? false,
-			pid: body.pid,
+			pid: optionalNumber(body.pid),
 			mode: body.mode ?? "PAPER",
 			bankroll: body.bankroll ?? 0,
 			openPositions: body.open_positions ?? 0,
