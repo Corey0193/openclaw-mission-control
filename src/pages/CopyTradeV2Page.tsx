@@ -104,6 +104,177 @@ type CommandState = {
 	message?: string;
 };
 
+type V2EditableConfig = {
+	cts_threshold: number;
+	max_leaders: number;
+	min_leader_trade_size: number;
+	position_pct: number;
+	max_position_usd: number;
+	max_concurrent_positions: number;
+	per_leader_allocation_pct: number;
+	stop_loss_pct: number;
+	take_profit_pct: number;
+	time_limit_hours: number;
+	initial_bankroll_usd: number;
+};
+
+type V2ConfigDraft = Record<keyof V2EditableConfig, string>;
+
+type V2ConfigResponse = {
+	ok?: boolean;
+	message?: string;
+	editableConfig?: V2EditableConfig;
+	lockedConfig?: Record<string, unknown>;
+	runtime?: ControlStatus;
+	bankrollSync?: {
+		updated?: boolean;
+		reason?: string;
+		openPositions?: number;
+	};
+};
+
+const EDITABLE_CONFIG_FIELDS: Array<{
+	key: keyof V2EditableConfig;
+	label: string;
+	type: "number";
+	step: string;
+	kind: "plain" | "usd" | "percent" | "hours";
+	help: string;
+}> = [
+	{
+		key: "cts_threshold",
+		label: "CTS Threshold",
+		type: "number",
+		step: "1",
+		kind: "plain",
+		help: "Minimum CTS required for the daily roster.",
+	},
+	{
+		key: "max_leaders",
+		label: "Max Leaders",
+		type: "number",
+		step: "1",
+		kind: "plain",
+		help: "How many ranked leaders stay entry-active.",
+	},
+	{
+		key: "initial_bankroll_usd",
+		label: "Bankroll",
+		type: "number",
+		step: "1",
+		kind: "usd",
+		help: "Base bankroll used for the paper strategy.",
+	},
+	{
+		key: "max_position_usd",
+		label: "Max Position",
+		type: "number",
+		step: "1",
+		kind: "usd",
+		help: "Hard cap per copied entry.",
+	},
+	{
+		key: "position_pct",
+		label: "Position Size %",
+		type: "number",
+		step: "0.1",
+		kind: "percent",
+		help: "Percent of the leader trade size to mirror.",
+	},
+	{
+		key: "per_leader_allocation_pct",
+		label: "Per Leader Cap %",
+		type: "number",
+		step: "0.1",
+		kind: "percent",
+		help: "Max bankroll allocation to any one leader.",
+	},
+	{
+		key: "min_leader_trade_size",
+		label: "Min Leader Trade",
+		type: "number",
+		step: "1",
+		kind: "usd",
+		help: "Ignore leader buys smaller than this USD size.",
+	},
+	{
+		key: "max_concurrent_positions",
+		label: "Max Concurrent",
+		type: "number",
+		step: "1",
+		kind: "plain",
+		help: "Maximum open positions allowed at once.",
+	},
+	{
+		key: "stop_loss_pct",
+		label: "Stop Loss %",
+		type: "number",
+		step: "0.1",
+		kind: "percent",
+		help: "Stop-loss threshold applied to new entries.",
+	},
+	{
+		key: "take_profit_pct",
+		label: "Take Profit %",
+		type: "number",
+		step: "0.1",
+		kind: "percent",
+		help: "Take-profit threshold applied to new entries.",
+	},
+	{
+		key: "time_limit_hours",
+		label: "Time Limit",
+		type: "number",
+		step: "1",
+		kind: "hours",
+		help: "Maximum hold time before forced exit.",
+	},
+];
+
+function configToDraft(config: V2EditableConfig): V2ConfigDraft {
+	return {
+		cts_threshold: String(config.cts_threshold),
+		max_leaders: String(config.max_leaders),
+		min_leader_trade_size: String(config.min_leader_trade_size),
+		position_pct: String(config.position_pct * 100),
+		max_position_usd: String(config.max_position_usd),
+		max_concurrent_positions: String(config.max_concurrent_positions),
+		per_leader_allocation_pct: String(config.per_leader_allocation_pct * 100),
+		stop_loss_pct: String(config.stop_loss_pct * 100),
+		take_profit_pct: String(config.take_profit_pct * 100),
+		time_limit_hours: String(config.time_limit_hours),
+		initial_bankroll_usd: String(config.initial_bankroll_usd),
+	};
+}
+
+function draftToPayload(draft: V2ConfigDraft): V2EditableConfig {
+	return {
+		cts_threshold: Number(draft.cts_threshold),
+		max_leaders: Number(draft.max_leaders),
+		min_leader_trade_size: Number(draft.min_leader_trade_size),
+		position_pct: Number(draft.position_pct) / 100,
+		max_position_usd: Number(draft.max_position_usd),
+		max_concurrent_positions: Number(draft.max_concurrent_positions),
+		per_leader_allocation_pct: Number(draft.per_leader_allocation_pct) / 100,
+		stop_loss_pct: Number(draft.stop_loss_pct) / 100,
+		take_profit_pct: Number(draft.take_profit_pct) / 100,
+		time_limit_hours: Number(draft.time_limit_hours),
+		initial_bankroll_usd: Number(draft.initial_bankroll_usd),
+	};
+}
+
+function fmtLockedPercent(value: unknown): string {
+	if (typeof value !== "number") return "—";
+	return `${(value * 100).toFixed(1)}%`;
+}
+
+function fieldSuffix(kind: "plain" | "usd" | "percent" | "hours"): string {
+	if (kind === "usd") return "USD";
+	if (kind === "percent") return "%";
+	if (kind === "hours") return "hours";
+	return "";
+}
+
 function fmtUsd(n: number | undefined | null, showSign = false): string {
 	if (n == null) return "—";
 	const s = Math.abs(n).toLocaleString("en-US", {
@@ -215,6 +386,11 @@ function SectionCard({
 export default function CopyTradeV2Page() {
 	const [bridgeStatus, setBridgeStatus] = useState<ControlStatus | null>(null);
 	const [commandState, setCommandState] = useState<CommandState | null>(null);
+	const [configState, setConfigState] = useState<CommandState | null>(null);
+	const [editableConfig, setEditableConfig] = useState<V2EditableConfig | null>(null);
+	const [configDraft, setConfigDraft] = useState<V2ConfigDraft | null>(null);
+	const [lockedConfig, setLockedConfig] = useState<Record<string, unknown>>({});
+	const [configBusy, setConfigBusy] = useState(false);
 	const [refreshNonce, setRefreshNonce] = useState(0);
 	const [resetCleared, setResetCleared] = useState(false);
 	const status = useConvexHttpQuery<V2Status>(
@@ -298,7 +474,40 @@ export default function CopyTradeV2Page() {
 		};
 	}, []);
 
+	useEffect(() => {
+		let cancelled = false;
+		const loadConfig = async () => {
+			try {
+				const response = await fetch(`${CONTROL_BASE_URL}/config`);
+				if (!response.ok) {
+					return;
+				}
+				const payload = (await response.json()) as V2ConfigResponse;
+				if (cancelled || !payload.editableConfig) {
+					return;
+				}
+				setEditableConfig(payload.editableConfig);
+				setConfigDraft(configToDraft(payload.editableConfig));
+				setLockedConfig(payload.lockedConfig ?? {});
+				if (payload.runtime) {
+					setBridgeStatus(payload.runtime);
+				}
+			} catch {
+				// Keep current draft if the bridge is transiently unavailable.
+			}
+		};
+		void loadConfig();
+		return () => {
+			cancelled = true;
+		};
+	}, [refreshNonce]);
+
 	const controlBusy = commandState?.stdout === "running...";
+	const busy = controlBusy || configBusy;
+	const configDirty =
+		editableConfig != null &&
+		configDraft != null &&
+		JSON.stringify(configDraft) !== JSON.stringify(configToDraft(editableConfig));
 
 	const runCommand = async (path: string, label: string) => {
 		if (path !== "/reset-run") {
@@ -349,18 +558,58 @@ export default function CopyTradeV2Page() {
 		}
 	};
 
-	const configSnapshot = [
-		["CTS Threshold", "80"],
-		["Bankroll", "$500"],
-		["Max Position", "$25"],
-		["Max Leaders", "30"],
-		["TP / SL", "10% / 10%"],
-		["Exit Mode", "MIRROR_TP_SL"],
-		["Latency", "30s"],
-		["Fees", "2.0%"],
-		["Slippage", "1.5x"],
-		["Time Limit", "48h"],
-	] as const;
+	const saveConfig = async () => {
+		if (!configDraft) return;
+		setConfigBusy(true);
+		setConfigState({
+			label: "save config",
+			ok: false,
+			at: Date.now(),
+			stdout: "running...",
+		});
+		try {
+			const response = await fetch(`${CONTROL_BASE_URL}/config`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ config: draftToPayload(configDraft) }),
+			});
+			const payload = (await response.json()) as V2ConfigResponse;
+			if (payload.runtime) {
+				setBridgeStatus(payload.runtime);
+			}
+			if (payload.editableConfig) {
+				setEditableConfig(payload.editableConfig);
+				setConfigDraft(configToDraft(payload.editableConfig));
+			}
+			if (payload.lockedConfig) {
+				setLockedConfig(payload.lockedConfig);
+			}
+			setConfigState({
+				label: "save config",
+				ok: response.ok && payload.ok !== false,
+				at: Date.now(),
+				message: payload.message,
+				stderr:
+					payload.bankrollSync?.reason === "open_positions_present"
+						? `Bankroll was not synced because ${payload.bankrollSync.openPositions ?? "some"} open position(s) remain. Use Reset Run to fully reset cash to the new bankroll.`
+						: undefined,
+			});
+			if (response.ok && payload.ok !== false) {
+				setResetCleared(false);
+				setRefreshNonce((value) => value + 1);
+			}
+		} catch (error) {
+			setConfigState({
+				label: "save config",
+				ok: false,
+				at: Date.now(),
+				stderr:
+					error instanceof Error ? error.message : "Unknown config save error",
+			});
+		} finally {
+			setConfigBusy(false);
+		}
+	};
 
 	return (
 		<div className="h-screen overflow-y-auto bg-[linear-gradient(180deg,#f8f9fa_0%,#f3f6fb_100%)]">
@@ -446,7 +695,7 @@ export default function CopyTradeV2Page() {
 						<div className="flex flex-wrap gap-2">
 							<button
 								type="button"
-								disabled={controlBusy}
+								disabled={busy}
 								onClick={() => void runCommand("/start", "start")}
 								className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
 							>
@@ -455,7 +704,7 @@ export default function CopyTradeV2Page() {
 							</button>
 							<button
 								type="button"
-								disabled={controlBusy}
+								disabled={busy}
 								onClick={() => void runCommand("/stop", "stop")}
 								className="inline-flex items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
 							>
@@ -464,7 +713,7 @@ export default function CopyTradeV2Page() {
 							</button>
 							<button
 								type="button"
-								disabled={controlBusy}
+								disabled={busy}
 								onClick={() => void runCommand("/restart", "restart")}
 								className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
 							>
@@ -473,7 +722,7 @@ export default function CopyTradeV2Page() {
 							</button>
 							<button
 								type="button"
-								disabled={controlBusy}
+								disabled={busy}
 								onClick={() =>
 									void runCommand("/refresh-roster", "refresh roster")
 								}
@@ -484,7 +733,7 @@ export default function CopyTradeV2Page() {
 							</button>
 							<button
 								type="button"
-								disabled={controlBusy}
+								disabled={busy}
 								onClick={() => {
 									const confirmed = window.confirm(
 										"Reset Copy V2 run? This will clear all tracked positions, execution history, and reset bankroll/PnL for a fresh run.",
@@ -550,24 +799,121 @@ export default function CopyTradeV2Page() {
 					</SectionCard>
 
 					<SectionCard
-						title="Config Snapshot"
-						subtitle="The V2 runtime is pinned to this formula until you deliberately revise it."
+						title="Strategy Config"
+						subtitle="Editable values write to the live V2 config file, refresh the roster when needed, and restart the daemon if it is running."
 					>
-						<div className="grid gap-2 sm:grid-cols-2">
-							{configSnapshot.map(([label, value]) => (
-								<div
-									key={label}
-									className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2"
-								>
-									<div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-										{label}
+						{configDraft == null ? (
+							<div className="py-8 text-sm text-muted-foreground">
+								Loading config...
+							</div>
+						) : (
+							<>
+								<div className="grid gap-3 sm:grid-cols-2">
+									{EDITABLE_CONFIG_FIELDS.map((field) => (
+										<label
+											key={field.key}
+											className="rounded-xl border border-slate-100 px-3 py-3"
+										>
+											<div className="flex items-center justify-between gap-3">
+												<div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+													{field.label}
+												</div>
+												<div className="text-[10px] text-muted-foreground">
+													{fieldSuffix(field.kind)}
+												</div>
+											</div>
+											<input
+												type={field.type}
+												step={field.step}
+												value={configDraft[field.key]}
+												onChange={(event) =>
+													setConfigDraft((current) =>
+														current
+															? {
+																	...current,
+																	[field.key]: event.target.value,
+																}
+															: current,
+													)
+												}
+												className="mt-2 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none transition focus:border-emerald-400"
+											/>
+											<div className="mt-2 text-[11px] text-muted-foreground">
+												{field.help}
+											</div>
+										</label>
+									))}
+								</div>
+								<div className="mt-4 flex flex-wrap items-center gap-2">
+									<button
+										type="button"
+										disabled={busy || !configDirty}
+										onClick={() => void saveConfig()}
+										className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+									>
+										Save Strategy
+									</button>
+									<button
+										type="button"
+										disabled={busy || editableConfig == null}
+										onClick={() =>
+											editableConfig && setConfigDraft(configToDraft(editableConfig))
+										}
+										className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-bold text-foreground shadow-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+									>
+										Discard Changes
+									</button>
+								</div>
+								<div className="mt-3 text-[11px] text-muted-foreground">
+									Changing CTS, max leaders, or min leader trade size refreshes the
+									ranked roster. Saving while the daemon is running restarts it so
+									the backend strategy actually uses the new settings.
+								</div>
+								<div className="mt-4 rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm">
+									<div className="font-semibold text-foreground">
+										Last config update: {configState?.label ?? "—"}
 									</div>
-									<div className="text-sm font-semibold text-foreground">
-										{value}
+									<div className="mt-1 text-[11px] text-muted-foreground">
+										{configState
+											? `${configState.ok ? "OK" : "ERR"} · ${fmtTs(configState.at)}${configState.message ? ` · ${configState.message}` : ""}${configState.stderr ? ` · ${configState.stderr}` : ""}`
+											: "No config changes saved yet."}
 									</div>
 								</div>
-							))}
-						</div>
+								<div className="mt-4 grid gap-2 sm:grid-cols-2">
+									<div className="rounded-xl border border-slate-100 px-3 py-3">
+										<div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+											Locked Runtime Inputs
+										</div>
+										<div className="mt-2 text-sm font-semibold text-foreground">
+											Latency {typeof lockedConfig.latency_seconds === "number" ? `${lockedConfig.latency_seconds}s` : "—"} · Fees{" "}
+											{fmtLockedPercent(lockedConfig.taker_fee_pct)} · Slippage{" "}
+											{typeof lockedConfig.slippage_multiplier === "number"
+												? `${lockedConfig.slippage_multiplier}x`
+												: "—"}
+										</div>
+										<div className="mt-1 text-[11px] text-muted-foreground">
+											Execution {String(lockedConfig.execution_mode ?? "—")} · Exit mode{" "}
+											{String(lockedConfig.exit_strategy ?? "—")}
+										</div>
+									</div>
+									<div className="rounded-xl border border-slate-100 px-3 py-3">
+										<div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+											Bankroll Sync
+										</div>
+										<div className="mt-2 text-sm font-semibold text-foreground">
+											{configState?.stderr?.includes("Bankroll was not synced")
+												? "Deferred until reset"
+												: "Immediate when flat"}
+										</div>
+										<div className="mt-1 text-[11px] text-muted-foreground">
+											If open positions exist, changing bankroll updates the config
+											file but does not rewrite current cash until the run is
+											cleared.
+										</div>
+									</div>
+								</div>
+							</>
+						)}
 					</SectionCard>
 				</div>
 
