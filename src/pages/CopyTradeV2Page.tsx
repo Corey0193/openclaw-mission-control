@@ -133,6 +133,34 @@ type V2ConfigResponse = {
 	};
 };
 
+type LocalStatusOverride = {
+	bankroll?: number;
+	openPositions?: number;
+	totalPaperPnl?: number;
+	activeLeaderCount?: number;
+	monitoredLeaderCount?: number;
+	skipReasons?: Array<{ reason: string; count: number }>;
+	leaderQuality?: Array<{
+		address: string;
+		label?: string;
+		leaderState: string;
+		cts: number;
+		copyableScore: number;
+		recentBuyCount: number;
+		recentBuyPassCount: number;
+		recentBuyPassRate: number;
+		recentBuyMedianUsd: number;
+		recentBuyAvgUsd: number;
+		lastRank?: number;
+		lastHealthReason?: string;
+		openPositions: number;
+	}>;
+	running?: boolean;
+	pid?: number | null;
+	mode?: string;
+	lastHeartbeatAt?: number;
+};
+
 const EDITABLE_CONFIG_FIELDS: Array<{
 	key: keyof V2EditableConfig;
 	label: string;
@@ -392,7 +420,11 @@ export default function CopyTradeV2Page() {
 	const [lockedConfig, setLockedConfig] = useState<Record<string, unknown>>({});
 	const [configBusy, setConfigBusy] = useState(false);
 	const [refreshNonce, setRefreshNonce] = useState(0);
-	const [resetCleared, setResetCleared] = useState(false);
+	const [localStatusOverride, setLocalStatusOverride] =
+		useState<LocalStatusOverride | null>(null);
+	const [localPositionsOverride, setLocalPositionsOverride] = useState<
+		V2Position[] | null
+	>(null);
 	const status = useConvexHttpQuery<V2Status>(
 		"copyTradeV2:getStatus",
 		{ tenantId: DEFAULT_TENANT_ID },
@@ -403,20 +435,25 @@ export default function CopyTradeV2Page() {
 		{ tenantId: DEFAULT_TENANT_ID },
 		{ pollMs: 15_000, refreshKey: refreshNonce },
 	);
-	const effectiveStatus = resetCleared
-		? status
-			? {
-					...status,
-					openPositions: 0,
-					totalPaperPnl: 0,
-					activeLeaderCount: 0,
-					monitoredLeaderCount: 0,
-					skipReasons: [],
-					leaderQuality: [],
-				}
-			: null
-		: status;
-	const effectivePositions = resetCleared ? [] : positions;
+	const effectiveStatus =
+		status == null && localStatusOverride == null
+			? null
+			: {
+					running: status?.running ?? false,
+					pid: status?.pid,
+					mode: status?.mode ?? "PAPER",
+					bankroll: status?.bankroll ?? 0,
+					openPositions: status?.openPositions ?? 0,
+					totalPaperPnl: status?.totalPaperPnl ?? 0,
+					activeLeaderCount: status?.activeLeaderCount ?? 0,
+					monitoredLeaderCount: status?.monitoredLeaderCount ?? 0,
+					skipReasons: status?.skipReasons ?? [],
+					leaderQuality: status?.leaderQuality ?? [],
+					status: status?.status ?? "unknown",
+					lastHeartbeatAt: status?.lastHeartbeatAt ?? Date.now(),
+					...localStatusOverride,
+				};
+	const effectivePositions = localPositionsOverride ?? positions;
 	const openPositions = useMemo(
 		() =>
 			(effectivePositions ?? []).filter(
@@ -511,7 +548,8 @@ export default function CopyTradeV2Page() {
 
 	const runCommand = async (path: string, label: string) => {
 		if (path !== "/reset-run") {
-			setResetCleared(false);
+			setLocalStatusOverride(null);
+			setLocalPositionsOverride(null);
 		}
 		setCommandState({ label, ok: false, at: Date.now(), stdout: "running..." });
 		try {
@@ -531,7 +569,24 @@ export default function CopyTradeV2Page() {
 			}
 			if (response.ok && payload.ok !== false) {
 				if (path === "/reset-run") {
-					setResetCleared(true);
+					setLocalStatusOverride({
+						bankroll:
+							editableConfig?.initial_bankroll_usd ?? status?.bankroll ?? 0,
+						openPositions: 0,
+						totalPaperPnl: 0,
+						activeLeaderCount: 0,
+						monitoredLeaderCount: 0,
+						skipReasons: [],
+						leaderQuality: [],
+						running: payload.runtime?.running ?? status?.running ?? false,
+						pid: payload.runtime?.pid ?? status?.pid ?? null,
+						mode: status?.mode ?? "PAPER",
+						lastHeartbeatAt: Date.now(),
+					});
+					setLocalPositionsOverride([]);
+				} else {
+					setLocalStatusOverride(null);
+					setLocalPositionsOverride(null);
 				}
 				setRefreshNonce((value) => value + 1);
 			}
@@ -580,6 +635,12 @@ export default function CopyTradeV2Page() {
 			if (payload.editableConfig) {
 				setEditableConfig(payload.editableConfig);
 				setConfigDraft(configToDraft(payload.editableConfig));
+				if (payload.bankrollSync?.updated) {
+					setLocalStatusOverride((current) => ({
+						...(current ?? {}),
+						bankroll: payload.editableConfig?.initial_bankroll_usd,
+					}));
+				}
 			}
 			if (payload.lockedConfig) {
 				setLockedConfig(payload.lockedConfig);
@@ -595,7 +656,7 @@ export default function CopyTradeV2Page() {
 						: undefined,
 			});
 			if (response.ok && payload.ok !== false) {
-				setResetCleared(false);
+				setLocalPositionsOverride(null);
 				setRefreshNonce((value) => value + 1);
 			}
 		} catch (error) {
