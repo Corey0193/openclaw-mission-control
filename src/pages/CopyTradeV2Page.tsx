@@ -30,23 +30,25 @@ type V2Status = {
 	activeLeaderCount?: number;
 	monitoredLeaderCount?: number;
 	skipReasons?: Array<{ reason: string; count: number }>;
-	leaderQuality?: Array<{
-		address: string;
-		label?: string;
-		leaderState: string;
-		cts: number;
-		copyableScore: number;
-		recentBuyCount: number;
-		recentBuyPassCount: number;
-		recentBuyPassRate: number;
-		recentBuyMedianUsd: number;
-		recentBuyAvgUsd: number;
-		lastRank?: number;
-		lastHealthReason?: string;
-		openPositions: number;
-	}>;
+	leaderQuality?: V2LeaderQualityRow[];
 	status: string;
 	lastHeartbeatAt: number;
+};
+
+type V2LeaderQualityRow = {
+	address: string;
+	label?: string;
+	leaderState: string;
+	cts: number;
+	copyableScore: number;
+	recentBuyCount: number;
+	recentBuyPassCount: number;
+	recentBuyPassRate: number;
+	recentBuyMedianUsd: number;
+	recentBuyAvgUsd: number;
+	lastRank?: number;
+	lastHealthReason?: string;
+	openPositions: number;
 };
 
 type V2Position = {
@@ -81,9 +83,12 @@ type ControlStatus = {
 	running: boolean;
 	enabled: boolean;
 	pid?: number | null;
+	bankroll?: number;
 	openPositions?: number;
+	totalPaperPnl?: number;
 	activeLeaders?: number;
 	exitOnlyLeaders?: number;
+	monitoredLeaders?: number;
 	roster?: Array<{
 		address: string;
 		label?: string;
@@ -140,21 +145,7 @@ type LocalStatusOverride = {
 	activeLeaderCount?: number;
 	monitoredLeaderCount?: number;
 	skipReasons?: Array<{ reason: string; count: number }>;
-	leaderQuality?: Array<{
-		address: string;
-		label?: string;
-		leaderState: string;
-		cts: number;
-		copyableScore: number;
-		recentBuyCount: number;
-		recentBuyPassCount: number;
-		recentBuyPassRate: number;
-		recentBuyMedianUsd: number;
-		recentBuyAvgUsd: number;
-		lastRank?: number;
-		lastHealthReason?: string;
-		openPositions: number;
-	}>;
+	leaderQuality?: V2LeaderQualityRow[];
 	running?: boolean;
 	pid?: number | null;
 	mode?: string;
@@ -435,24 +426,58 @@ export default function CopyTradeV2Page() {
 		{ tenantId: DEFAULT_TENANT_ID },
 		{ pollMs: 15_000, refreshKey: refreshNonce },
 	);
-	const effectiveStatus =
+	const bridgeLeaderRows = useMemo<V2LeaderQualityRow[]>(
+		() =>
+			(bridgeStatus?.roster ?? []).map((leader) => ({
+				address: leader.address,
+				label: leader.label,
+				leaderState: leader.leader_state,
+				cts: Math.round(leader.copyable_score),
+				copyableScore: leader.copyable_score,
+				recentBuyCount: 0,
+				recentBuyPassCount: 0,
+				recentBuyPassRate: 0,
+				recentBuyMedianUsd: 0,
+				recentBuyAvgUsd: 0,
+				lastRank: undefined,
+				lastHealthReason: undefined,
+				openPositions: 0,
+			})),
+		[bridgeStatus],
+	);
+	const bridgeMonitoredLeaders =
+		bridgeStatus?.monitoredLeaders ??
+		(bridgeStatus != null
+			? (bridgeStatus.activeLeaders ?? 0) + (bridgeStatus.exitOnlyLeaders ?? 0)
+			: undefined);
+	const effectiveStatusBase =
 		status == null && localStatusOverride == null
 			? null
 			: {
-					running: status?.running ?? false,
-					pid: status?.pid,
+					running: bridgeStatus?.running ?? status?.running ?? false,
+					pid: bridgeStatus?.pid ?? status?.pid,
 					mode: status?.mode ?? "PAPER",
-					bankroll: status?.bankroll ?? 0,
-					openPositions: status?.openPositions ?? 0,
-					totalPaperPnl: status?.totalPaperPnl ?? 0,
-					activeLeaderCount: status?.activeLeaderCount ?? 0,
-					monitoredLeaderCount: status?.monitoredLeaderCount ?? 0,
+					bankroll: bridgeStatus?.bankroll ?? status?.bankroll ?? 0,
+					openPositions:
+						bridgeStatus?.openPositions ?? status?.openPositions ?? 0,
+					totalPaperPnl:
+						bridgeStatus?.totalPaperPnl ?? status?.totalPaperPnl ?? 0,
+					activeLeaderCount:
+						bridgeStatus?.activeLeaders ?? status?.activeLeaderCount ?? 0,
+					monitoredLeaderCount:
+						bridgeMonitoredLeaders ?? status?.monitoredLeaderCount ?? 0,
 					skipReasons: status?.skipReasons ?? [],
-					leaderQuality: status?.leaderQuality ?? [],
+					leaderQuality:
+						bridgeStatus?.roster != null
+							? bridgeLeaderRows
+							: (status?.leaderQuality ?? []),
 					status: status?.status ?? "unknown",
 					lastHeartbeatAt: status?.lastHeartbeatAt ?? Date.now(),
-					...localStatusOverride,
 				};
+	const effectiveStatus =
+		effectiveStatusBase == null
+			? null
+			: { ...effectiveStatusBase, ...(localStatusOverride ?? {}) };
 	const effectivePositions = localPositionsOverride ?? positions;
 	const openPositions = useMemo(
 		() =>
@@ -482,9 +507,9 @@ export default function CopyTradeV2Page() {
 	const effectivePid = bridgeStatus?.pid ?? effectiveStatus?.pid ?? null;
 	const showWaitingForHeartbeat = daemonRunning && !heartbeatFresh;
 	const activeLeaders =
-		effectiveStatus?.activeLeaderCount ?? bridgeStatus?.activeLeaders ?? 0;
+		effectiveStatus?.activeLeaderCount ?? 0;
 	const monitoredLeaders =
-		effectiveStatus?.monitoredLeaderCount ?? bridgeStatus?.roster?.length ?? 0;
+		effectiveStatus?.monitoredLeaderCount ?? 0;
 
 	useEffect(() => {
 		let cancelled = false;
