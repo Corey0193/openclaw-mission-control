@@ -2,6 +2,8 @@
 
 export type PositionCategory = "tracked" | "manual" | "legacy";
 export type PortfolioSource = "polymarket-api" | "convex-fallback";
+export type TradeDirection = "BUY_YES" | "BUY_NO";
+
 export type AlertType =
   | "orphaned_trade"
   | "unclaimed_payout"
@@ -31,8 +33,7 @@ export interface PipelineMetadata {
   opportunityId: string | null;
   signalFamily: string | null;
   edgePct: number | null;
-  /** "BUY_YES" | "BUY_NO" */
-  direction: string;
+  direction: TradeDirection;
   entryPrice: number | null;
   positionSizeUsd: number;
   /** Shares as recorded at trade entry — may differ from on-chain if fills partial */
