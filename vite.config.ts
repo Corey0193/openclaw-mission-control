@@ -2027,7 +2027,9 @@ type PipelineLiveRecord = Record<string, unknown> & {
 	position_size_usd?: number;
 	shares?: number;
 	edge_pct?: number | null;
+	adjusted_edge_pct?: number | null;
 	executed_at?: string | null;
+	opened_at?: string | null;
 	order_id?: string | null;
 	status?: string;
 };
@@ -2075,12 +2077,12 @@ function _buildPortfolioResponse(
 				tradeId: String(pipelineRow.trade_id ?? ""),
 				opportunityId: (pipelineRow.opportunity_id as string) ?? null,
 				signalFamily: (pipelineRow.signal_family as string) ?? null,
-				edgePct: (pipelineRow.edge_pct as number) ?? null,
-				direction: (String(pipelineRow.direction ?? "BUY_YES")) as TradeDirection,
+				edgePct: (pipelineRow.adjusted_edge_pct as number) ?? (pipelineRow.edge_pct as number) ?? null,
+				direction: (String(pipelineRow.direction ?? "BUY_YES").startsWith("BUY_NO") ? "BUY_NO" : "BUY_YES") as TradeDirection,
 				entryPrice: (pipelineRow.entry_price as number) ?? null,
 				positionSizeUsd: Number(pipelineRow.position_size_usd ?? 0),
 				loggedShares: Number(pipelineRow.shares ?? 0),
-				entryTimestamp: (pipelineRow.executed_at as string) ?? null,
+				entryTimestamp: (pipelineRow.opened_at as string) ?? (pipelineRow.executed_at as string) ?? null,
 				orderId: (pipelineRow.order_id as string) ?? null,
 				paperOrLive: "live",
 			};
@@ -2106,7 +2108,7 @@ function _buildPortfolioResponse(
 		}
 
 		// Unclaimed payout alert
-		if (p.redeemable && p.initialValue > 0) {
+		if (p.redeemable && p.currentValue > 0) {
 			alerts.push({
 				type: "unclaimed_payout",
 				slug: p.slug,
