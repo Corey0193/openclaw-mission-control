@@ -2183,6 +2183,7 @@ function portfolioPlugin() {
 						} catch (err) {
 							console.error("[portfolio] handler error:", err);
 							res.statusCode = 500;
+							res.setHeader("Content-Type", "application/json");
 							res.end(JSON.stringify({ error: "portfolio fetch failed" }));
 						}
 					})();
