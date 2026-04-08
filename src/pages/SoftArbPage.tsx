@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DEFAULT_TENANT_ID } from "../lib/tenant";
-import { useConvexHttpQuery } from "../lib/useConvexHttpQuery";
+import { usePortfolio } from "../lib/usePortfolio";
 import Header from "../components/Header";
 import {
 	IconArrowsExchange,
@@ -642,46 +641,8 @@ function PipelineRunCard({ run }: { run: PipelineRun }) {
 
 export default function SoftArbPage() {
 	const { data: softArbData, refresh: refreshSoftArb } = useSoftArbTrades();
-	const convexSnapshot = useConvexHttpQuery<any>(
-		"polymarket:getPositions",
-		{ tenantId: DEFAULT_TENANT_ID },
-		{ pollMs: 30_000 },
-	);
+	const { data: portfolio, refresh: refreshPortfolio } = usePortfolio();
 	const { runs: pipelineRuns, refresh: refreshPipeline } = usePipelineRuns();
-	const polymarketData = useMemo(() => {
-		if (!softArbData) return null;
-		const positions = softArbData.trades
-				.filter((trade) => !isExpiredTrade(trade.resolves_by))
-				.map((trade) => ({
-					marketSlug: trade.polymarket_slug,
-					outcome: normalizeDirection(trade.direction),
-					shares: Number(trade.shares ?? 0),
-					entryPrice: trade.entry_price ?? 0,
-					unrealizedPnl:
-						trade.unrealized_pnl ??
-						(trade.current_price != null
-							? Number(
-									(
-										(trade.current_price - (trade.entry_price ?? 0)) *
-										trade.shares
-									).toFixed(2),
-								)
-							: null),
-				marketResolved: !isOpenSettlementStatus(trade.status),
-			}));
-		const openOrders = softArbData.trades
-			.filter(
-				(trade) =>
-					isOpenSettlementStatus(trade.status) &&
-					!isExpiredTrade(trade.resolves_by),
-			)
-			.map((trade) => ({
-				id: trade.order_id ?? trade.trade_id,
-				marketSlug: trade.polymarket_slug,
-				outcome: normalizeDirection(trade.direction),
-			}));
-		return { positions, openOrders };
-	}, [softArbData]);
 
 	const [sectionsOpen, setSectionsOpen] = useState({
 		positions: true,
@@ -696,134 +657,141 @@ export default function SoftArbPage() {
 		setSectionsOpen((prev) => ({ ...prev, [s]: !prev[s] }));
 	};
 
-	const matchesTradeSlug = (
-		candidateSlug?: string | null,
-		tradeSlug?: string | null,
-	) => {
-		if (!candidateSlug || !tradeSlug) return false;
-		return candidateSlug === tradeSlug || tradeSlug.startsWith(candidateSlug);
-	};
-
-	const matchesTradePosition = useCallback(
-		(position: any, trade: SoftArbTrade) => {
-			if (!matchesTradeSlug(position?.marketSlug, trade.polymarket_slug))
-				return false;
-			const tradeOutcome = normalizeDirection(trade.direction);
-			const positionOutcome = normalizeOutcomeLabel(position?.outcome);
-			if (!tradeOutcome || !positionOutcome) return true;
-			return tradeOutcome === positionOutcome;
-		},
-		[],
-	);
-
-	const matchesTradeOrder = useCallback((order: any, trade: SoftArbTrade) => {
-		if (trade.order_id && order?.id && trade.order_id === order.id) return true;
-		if (!matchesTradeSlug(order?.marketSlug, trade.polymarket_slug))
-			return false;
-		const tradeOutcome = normalizeDirection(trade.direction);
-		const orderOutcome = normalizeOutcomeLabel(order?.outcome);
-		if (!tradeOutcome || !orderOutcome) return true;
-		return tradeOutcome === orderOutcome;
-	}, []);
-
 	const activePositions = useMemo(() => {
-		const softTrades =
-			softArbData?.trades.filter((t) => isVisiblePositionStatus(t.status)) ||
-			[];
+		if (portfolio) {
+			return portfolio.positions
+				.filter((p) => p.category === "tracked" && !p.onChain.resolved)
+				.map((p) => ({
+					trade_id: p.pipeline?.tradeId ?? p.slug,
+					rowKey: p.pipeline?.tradeId ?? p.slug,
+					pair: p.title,
+					polymarket_slug: p.slug,
+					event_slug: p.slug,
+					signal_family: p.pipeline?.signalFamily ?? "",
+					signal_source: "",
+					direction: p.pipeline?.direction ?? "BUY_YES",
+					entry_price: p.pipeline?.entryPrice ?? p.onChain.avgPrice,
+					position_size_usd: p.pipeline?.positionSizeUsd ?? p.onChain.initialValue,
+					shares: p.onChain.shares,
+					gross_payout: null as number | null,
+					metaculus_id: 0,
+					edge_pct: null,
+					adjusted_edge_pct: p.pipeline?.edgePct ?? 0,
+					opened_at: p.pipeline?.entryTimestamp ?? "",
+					resolves_by: p.onChain.endDate ?? "",
+					status: "FILLED",
+					current_price: p.onChain.currentPrice,
+					unrealized_pnl: p.onChain.unrealizedPnl,
+					realized_pnl: null as number | null,
+					shadow_pnl: null as number | null,
+					ready_to_close: false,
+					fair_value: null as number | null,
+					exit_price: null as number | null,
+					resolved_outcome: null as string | null,
+					target_outcome: null as string | null,
+					is_real: true,
+					order_id: p.pipeline?.orderId ?? null,
+					shield_coin: null as string | null,
+					shield_state: null as string | null,
+					shield_reason: null as string | null,
+					shield_updated_at: null as string | null,
+					actual_shares: p.onChain.shares,
+					actual_pnl: p.onChain.unrealizedPnl,
+					display_pnl: p.onChain.unrealizedPnl,
+					expired: false,
+					tradeUrlSlug: p.slug,
+					actual_status: "POSITION" as const,
+					onChain: p.onChain,
+					pipeline: p.pipeline,
+				}))
+				.sort((a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime());
+		}
 
-		// Map soft trades to actual Convex positions if available
-			return softTrades
-				.map((t) => {
-					const tradeUrlSlug = t.event_slug ?? t.polymarket_slug;
-					const actualPos = polymarketData?.positions?.find((p: any) =>
-						matchesTradePosition(p, t),
-					);
-					const actualOrder = polymarketData?.openOrders?.find((o: any) =>
-						matchesTradeOrder(o, t),
-					);
-					const entryPrice = t.entry_price ?? 0;
-					const derivedPnl =
-						t.unrealized_pnl ??
-						(t.current_price != null
-							? Number(((t.current_price - entryPrice) * t.shares).toFixed(2))
-							: null);
-				const expired = isExpiredTrade(t.resolves_by);
-
-				return {
-					...t,
-					actual_shares: actualPos?.shares ?? 0,
-					actual_pnl: actualPos?.unrealizedPnl ?? null,
-					display_pnl: actualPos?.unrealizedPnl ?? derivedPnl,
-					expired,
-					tradeUrlSlug,
-					actual_status: actualPos
-						? "POSITION"
-						: actualOrder
-							? "ORDER"
-							: expired && String(t.status).toUpperCase() !== "PAYOUT_CLAIMABLE"
-								? "STALE"
-								: "LOG_ONLY",
-				};
-			})
-			.filter((t) => t.actual_status !== "STALE")
-			.sort(
-				(a, b) =>
-					new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
-			);
-	}, [matchesTradeOrder, matchesTradePosition, polymarketData, softArbData]);
+		return (softArbData?.trades ?? [])
+			.filter((t) => isVisiblePositionStatus(t.status))
+			.map((t) => ({
+				...t,
+				actual_shares: t.shares,
+				actual_pnl: t.unrealized_pnl,
+				display_pnl: t.unrealized_pnl,
+				expired: false,
+				tradeUrlSlug: t.event_slug ?? t.polymarket_slug,
+				actual_status: "LOG_ONLY" as const,
+				onChain: null,
+				pipeline: null,
+			}));
+	}, [portfolio, softArbData]);
 
 	const staleOpenTrades = useMemo(() => {
-		const softTrades =
-			softArbData?.trades.filter((t) => isVisiblePositionStatus(t.status)) ||
-			[];
-			return softTrades
+		if (portfolio) {
+			// When portfolio is available, stale trades are those in the log that are
+			// expired and not tracked as on-chain positions
+			const trackedSlugs = new Set(
+				portfolio.positions
+					.filter((p) => p.category === "tracked")
+					.map((p) => p.slug),
+			);
+			return (softArbData?.trades ?? [])
+				.filter(
+					(t) =>
+						isVisiblePositionStatus(t.status) &&
+						isExpiredTrade(t.resolves_by) &&
+						String(t.status).toUpperCase() !== "PAYOUT_CLAIMABLE" &&
+						!trackedSlugs.has(t.polymarket_slug) &&
+						!trackedSlugs.has(t.event_slug ?? ""),
+				)
 				.map((t) => {
-					const tradeUrlSlug = t.event_slug ?? t.polymarket_slug;
-					const actualPos = polymarketData?.positions?.find((p: any) =>
-						matchesTradePosition(p, t),
-					);
-					const actualOrder = polymarketData?.openOrders?.find((o: any) =>
-						matchesTradeOrder(o, t),
-					);
-					const expired = isExpiredTrade(t.resolves_by);
 					const entryPrice = t.entry_price ?? 0;
 					const derivedPnl =
 						t.unrealized_pnl ??
 						(t.current_price != null
 							? Number(((t.current_price - entryPrice) * t.shares).toFixed(2))
 							: null);
+					return {
+						...t,
+						expired: true,
+						tradeUrlSlug: t.event_slug ?? t.polymarket_slug,
+						display_pnl: derivedPnl,
+						actual_status: "STALE" as const,
+					};
+				})
+				.sort(
+					(a, b) =>
+						new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
+				);
+		}
+		return (softArbData?.trades ?? [])
+			.filter(
+				(t) =>
+					isVisiblePositionStatus(t.status) &&
+					isExpiredTrade(t.resolves_by) &&
+					String(t.status).toUpperCase() !== "PAYOUT_CLAIMABLE",
+			)
+			.map((t) => {
+				const entryPrice = t.entry_price ?? 0;
+				const derivedPnl =
+					t.unrealized_pnl ??
+					(t.current_price != null
+						? Number(((t.current_price - entryPrice) * t.shares).toFixed(2))
+						: null);
 				return {
 					...t,
-					expired,
-					tradeUrlSlug,
+					expired: true,
+					tradeUrlSlug: t.event_slug ?? t.polymarket_slug,
 					display_pnl: derivedPnl,
-					actual_status: actualPos
-						? "POSITION"
-						: actualOrder
-							? "ORDER"
-							: expired && String(t.status).toUpperCase() !== "PAYOUT_CLAIMABLE"
-								? "STALE"
-								: "LOG_ONLY",
+					actual_status: "STALE" as const,
 				};
 			})
-			.filter((t) => t.actual_status === "STALE")
 			.sort(
 				(a, b) =>
 					new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
 			);
-	}, [matchesTradeOrder, matchesTradePosition, polymarketData, softArbData]);
+	}, [portfolio, softArbData]);
 
 	const unmappedPositions = useMemo(() => {
-		if (!polymarketData?.positions) return [];
-		return polymarketData.positions.filter(
-			(p: any) =>
-				!p.marketResolved &&
-				p.shares > 0 &&
-				!softArbData?.trades.some((t) =>
-					matchesTradeSlug(p.marketSlug, t.polymarket_slug),
-				),
-		);
-	}, [polymarketData, softArbData]);
+		if (!portfolio) return [];
+		return portfolio.positions.filter((p) => p.category !== "tracked");
+	}, [portfolio]);
 
 	const resolvedTrades = useMemo(() => {
 		return (softArbData?.outcomes || []).sort(
@@ -877,14 +845,9 @@ export default function SoftArbPage() {
 					: summary.available_capital_usd != null
 						? Number(summary.available_capital_usd)
 						: null,
-			fullWalletValue:
-				convexSnapshot?.balanceUsdc != null ||
-				convexSnapshot?.totalCurrentValue != null
-					? Number(convexSnapshot.balanceUsdc ?? 0) +
-						Number(convexSnapshot.totalCurrentValue ?? 0)
-					: null,
+			fullWalletValue: null as number | null,
 		};
-	}, [softArbData, convexSnapshot]);
+	}, [softArbData]);
 
 	const calibrationFamilies = useMemo(() => {
 		const families =
@@ -893,6 +856,10 @@ export default function SoftArbPage() {
 		if (!families) return [];
 		return Object.entries(families) as [string, SoftArbCalibrationFamily][];
 	}, [softArbData]);
+
+	const handleRefresh = useCallback(async () => {
+		await Promise.all([refreshSoftArb(), refreshPortfolio()]);
+	}, [refreshSoftArb, refreshPortfolio]);
 
 	return (
 		<div className="h-screen overflow-y-auto bg-[#f8f9fa] text-slate-800">
@@ -914,7 +881,7 @@ export default function SoftArbPage() {
 						</div>
 					</div>
 					<button
-						onClick={refreshSoftArb}
+						onClick={handleRefresh}
 						className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-white text-xs font-semibold hover:bg-slate-50 transition-all shadow-sm"
 					>
 						<IconRefresh
@@ -1047,6 +1014,21 @@ export default function SoftArbPage() {
 								/arb/polymarket for the full wallet view, including positions
 								like Oscar Piatri.
 							</div>
+
+							{(portfolio?.alerts ?? []).filter((a) => a.type === "orphaned_trade").length > 0 && (
+								<div className="mb-4 rounded border border-red-700 bg-red-950 p-3">
+									<p className="mb-1 text-sm font-semibold text-red-400">
+										Orphaned Trades — Pipeline recorded but no on-chain position found
+									</p>
+									{portfolio!.alerts
+										.filter((a) => a.type === "orphaned_trade")
+										.map((a) => (
+											<p key={a.tradeId ?? a.slug} className="text-xs text-red-300">
+												{a.message}
+											</p>
+										))}
+								</div>
+							)}
 
 							{activePositions.length > 0 ? (
 								<div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
@@ -1354,30 +1336,30 @@ export default function SoftArbPage() {
 									</tr>
 								</thead>
 								<tbody>
-									{unmappedPositions.map((p: any, index: number) => (
+									{unmappedPositions.map((p, index) => (
 										<tr
-											key={`${p.marketSlug}-${p.outcome}-${index}`}
+											key={`${p.slug}-${p.outcome}-${index}`}
 											className="border-b border-border/50 last:border-0 hover:bg-muted/5"
 										>
 											<td className="px-4 py-3">
 												<div className="font-semibold text-foreground text-xs leading-snug">
 													<a
-														href={getPolymarketUrl(p.marketSlug)!}
+														href={getPolymarketUrl(p.slug)!}
 														target="_blank"
 														rel="noopener noreferrer"
 														className="text-blue-600 hover:underline"
 													>
-														{p.marketQuestion}
+														{p.title}
 													</a>
 												</div>
 												<div className="text-[9px] text-muted-foreground mt-0.5">
-													Manual or other strategy
+													{p.category === "manual" ? "Manual or other strategy" : "Legacy position"}
 												</div>
 											</td>
 											<td className="px-3 py-3">
 												<span
 													className={`text-[10px] font-bold px-1.5 rounded-full ${
-														p.outcome === "Yes"
+														p.outcome.toLowerCase() === "yes"
 															? "bg-emerald-100 text-emerald-700"
 															: "bg-red-100 text-red-700"
 													}`}
@@ -1386,13 +1368,13 @@ export default function SoftArbPage() {
 												</span>
 											</td>
 											<td className="px-3 py-3 text-right tabular-nums font-medium">
-												{p.shares?.toFixed(1) ?? "—"}
+												{p.onChain.shares?.toFixed(1) ?? "—"}
 											</td>
 											<td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
-												${p.currentPrice?.toFixed(2) ?? "—"}
+												${p.onChain.currentPrice?.toFixed(2) ?? "—"}
 											</td>
 											<td className="px-4 py-3 text-right tabular-nums">
-												<PnlBadge value={p.unrealizedPnl} />
+												<PnlBadge value={p.onChain.unrealizedPnl} />
 											</td>
 										</tr>
 									))}
