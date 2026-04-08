@@ -2044,7 +2044,7 @@ const OPEN_PIPELINE_STATUSES = new Set([
 function _readPipelineBySlug(): Map<string, PipelineLiveRecord> {
 	const now = Date.now();
 	if (_pipelineCache && _pipelineCache.expiresAt > now) {
-		return _pipelineCache.data;
+		return new Map(_pipelineCache.data);
 	}
 	const rawRows = readJsonlSafe(SOFT_ARB_LIVE_TRADES_PATH) as PipelineLiveRecord[];
 	const merged = buildMergedLedgerRows(rawRows, "live");
@@ -2054,7 +2054,7 @@ function _readPipelineBySlug(): Map<string, PipelineLiveRecord> {
 		if (slug) bySlug.set(slug, row as PipelineLiveRecord);
 	}
 	_pipelineCache = { data: bySlug, expiresAt: now + PORTFOLIO_CACHE_TTL_MS };
-	return bySlug;
+	return new Map(bySlug);
 }
 
 function _buildPortfolioResponse(
@@ -2110,8 +2110,8 @@ function _buildPortfolioResponse(
 			alerts.push({
 				type: "unclaimed_payout",
 				slug: p.slug,
-				message: `${p.title} — ${p.outcome} resolved. Claimable: $${p.initialValue.toFixed(2)}`,
-				amountUsd: p.initialValue,
+				message: `${p.title} — ${p.outcome} resolved. Claimable: $${p.currentValue.toFixed(2)}`,
+				amountUsd: p.currentValue,
 			});
 		}
 

@@ -845,7 +845,10 @@ export default function SoftArbPage() {
 					: summary.available_capital_usd != null
 						? Number(summary.available_capital_usd)
 						: null,
-			fullWalletValue: null as number | null,
+			fullWalletValue:
+				softArbData?.wallet?.total_wallet_value_usd != null
+					? softArbData.wallet.total_wallet_value_usd
+					: null,
 		};
 	}, [softArbData]);
 
