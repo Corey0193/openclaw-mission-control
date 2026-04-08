@@ -419,59 +419,57 @@ export default function PolymarketPage() {
 												</tr>
 											</thead>
 											<tbody>
-												{manualPositions.map(
-													(p: PortfolioPosition, i) => (
-														<tr
-															key={`${p.slug}-${p.outcome}`}
-															className={
-																i < manualPositions.length - 1
-																	? "border-b border-border/50"
-																	: ""
-															}
-														>
-															<td className="px-4 py-3 max-w-[260px]">
-																<a
-																	href={`https://polymarket.com/event/${p.slug}`}
-																	target="_blank"
-																	rel="noopener noreferrer"
-																	className="text-foreground hover:text-[var(--accent-orange)] transition-colors font-medium flex items-center gap-1"
-																>
-																	<span className="truncate">{p.title}</span>
-																	<IconExternalLink
-																		size={12}
-																		className="shrink-0 opacity-40"
-																	/>
-																</a>
-															</td>
-															<td className="px-3 py-3">
-																<span
-																	className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide ${
-																		p.outcome === "Yes"
-																			? "bg-emerald-100 text-emerald-700"
-																			: "bg-red-100 text-red-600"
-																	}`}
-																>
-																	{p.outcome.toUpperCase()}
-																</span>
-															</td>
-															<td className="text-right px-3 py-3 tabular-nums font-medium">
-																{p.onChain.shares.toFixed(1)}
-															</td>
-															<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
-																${p.onChain.avgPrice.toFixed(2)}
-															</td>
-															<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
-																${p.onChain.currentPrice.toFixed(2)}
-															</td>
-															<td className="text-right px-3 py-3 tabular-nums">
-																{formatUsd(p.onChain.currentValue)}
-															</td>
-															<td className="text-right px-4 py-3 tabular-nums">
-																<PnlBadge value={p.onChain.unrealizedPnl} />
-															</td>
-														</tr>
-													),
-												)}
+												{manualPositions.map((p: PortfolioPosition, i) => (
+													<tr
+														key={`${p.slug}-${p.outcome}`}
+														className={
+															i < manualPositions.length - 1
+																? "border-b border-border/50"
+																: ""
+														}
+													>
+														<td className="px-4 py-3 max-w-[260px]">
+															<a
+																href={`https://polymarket.com/event/${p.slug}`}
+																target="_blank"
+																rel="noopener noreferrer"
+																className="text-foreground hover:text-[var(--accent-orange)] transition-colors font-medium flex items-center gap-1"
+															>
+																<span className="truncate">{p.title}</span>
+																<IconExternalLink
+																	size={12}
+																	className="shrink-0 opacity-40"
+																/>
+															</a>
+														</td>
+														<td className="px-3 py-3">
+															<span
+																className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide ${
+																	p.outcome === "Yes"
+																		? "bg-emerald-100 text-emerald-700"
+																		: "bg-red-100 text-red-600"
+																}`}
+															>
+																{p.outcome.toUpperCase()}
+															</span>
+														</td>
+														<td className="text-right px-3 py-3 tabular-nums font-medium">
+															{p.onChain.shares.toFixed(1)}
+														</td>
+														<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
+															${p.onChain.avgPrice.toFixed(2)}
+														</td>
+														<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
+															${p.onChain.currentPrice.toFixed(2)}
+														</td>
+														<td className="text-right px-3 py-3 tabular-nums">
+															{formatUsd(p.onChain.currentValue)}
+														</td>
+														<td className="text-right px-4 py-3 tabular-nums">
+															<PnlBadge value={p.onChain.unrealizedPnl} />
+														</td>
+													</tr>
+												))}
 											</tbody>
 										</table>
 									</div>
@@ -479,8 +477,7 @@ export default function PolymarketPage() {
 							)}
 
 							{/* Legacy / resolved positions */}
-							{(resolvedPositions.length > 0 ||
-								legacyPositions.length > 0) && (
+							{(resolvedPositions.length > 0 || legacyPositions.length > 0) && (
 								<section>
 									<h3 className="text-sm font-bold text-foreground tracking-wide mb-3 uppercase">
 										Resolved / Legacy

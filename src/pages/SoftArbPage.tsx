@@ -227,7 +227,8 @@ interface SoftArbTrade {
 	event_slug: string | null;
 	is_real: boolean;
 	target_outcome?: string | null;
-	order_id?: string | null;	shield_coin: string | null;
+	order_id?: string | null;
+	shield_coin: string | null;
 	shield_state: string | null;
 	shield_reason: string | null;
 	shield_updated_at: string | null;
@@ -671,7 +672,8 @@ export default function SoftArbPage() {
 					signal_source: "",
 					direction: p.pipeline?.direction ?? "BUY_YES",
 					entry_price: p.pipeline?.entryPrice ?? p.onChain.avgPrice,
-					position_size_usd: p.pipeline?.positionSizeUsd ?? p.onChain.initialValue,
+					position_size_usd:
+						p.pipeline?.positionSizeUsd ?? p.onChain.initialValue,
 					shares: p.onChain.shares,
 					gross_payout: null as number | null,
 					metaculus_id: 0,
@@ -704,7 +706,10 @@ export default function SoftArbPage() {
 					onChain: p.onChain,
 					pipeline: p.pipeline,
 				}))
-				.sort((a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime());
+				.sort(
+					(a, b) =>
+						new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
+				);
 		}
 
 		return (softArbData?.trades ?? [])
@@ -810,14 +815,14 @@ export default function SoftArbPage() {
 		return stats;
 	}, [softArbData]);
 
-		const walletStats = useMemo(() => {
-			const summary = (softArbData?.summary ?? {}) as any;
-			const positionEquity = (softArbData?.trades ?? []).reduce((sum, trade) => {
-				if (!isVisiblePositionStatus(trade.status)) return sum;
-				const status = String(trade.status ?? "").toUpperCase();
-				if (status === "PAYOUT_CLAIMABLE") {
-					return sum + Number(trade.gross_payout ?? 0);
-				}
+	const walletStats = useMemo(() => {
+		const summary = (softArbData?.summary ?? {}) as any;
+		const positionEquity = (softArbData?.trades ?? []).reduce((sum, trade) => {
+			if (!isVisiblePositionStatus(trade.status)) return sum;
+			const status = String(trade.status ?? "").toUpperCase();
+			if (status === "PAYOUT_CLAIMABLE") {
+				return sum + Number(trade.gross_payout ?? 0);
+			}
 			const currentPrice =
 				trade.current_price != null
 					? Number(trade.current_price)
@@ -935,7 +940,12 @@ export default function SoftArbPage() {
 					{sectionsOpen.positions && (
 						<div className="space-y-6">
 							{/* Summary stats */}
-							<div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))' }}>
+							<div
+								className="grid gap-3"
+								style={{
+									gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))",
+								}}
+							>
 								<SummaryCard
 									label="Tracked Trades"
 									value={softArbData?.trades.length ?? 0}
@@ -1018,15 +1028,21 @@ export default function SoftArbPage() {
 								like Oscar Piatri.
 							</div>
 
-							{(portfolio?.alerts ?? []).filter((a) => a.type === "orphaned_trade").length > 0 && (
+							{(portfolio?.alerts ?? []).filter(
+								(a) => a.type === "orphaned_trade",
+							).length > 0 && (
 								<div className="mb-4 rounded border border-red-700 bg-red-950 p-3">
 									<p className="mb-1 text-sm font-semibold text-red-400">
-										Orphaned Trades — Pipeline recorded but no on-chain position found
+										Orphaned Trades — Pipeline recorded but no on-chain position
+										found
 									</p>
 									{portfolio!.alerts
 										.filter((a) => a.type === "orphaned_trade")
 										.map((a) => (
-											<p key={a.tradeId ?? a.slug} className="text-xs text-red-300">
+											<p
+												key={a.tradeId ?? a.slug}
+												className="text-xs text-red-300"
+											>
 												{a.message}
 											</p>
 										))}
@@ -1046,7 +1062,8 @@ export default function SoftArbPage() {
 												<th className="text-right px-3 py-2.5">Edge</th>
 												<th className="text-right px-4 py-2.5">Actual P&L</th>
 											</tr>
-										</thead>										<tbody>
+										</thead>{" "}
+										<tbody>
 											{activePositions.map((t) => (
 												<tr
 													key={t.rowKey || t.trade_id}
@@ -1097,15 +1114,16 @@ export default function SoftArbPage() {
 														</div>
 													</td>
 													<td className="px-3 py-3 text-xs font-medium text-emerald-700">
-													       <div className="font-bold whitespace-nowrap">
-													               {normalizeDirection(t.direction)}
-													       </div>
-													       {t.target_outcome && (
-													               <div className="text-[10px] text-slate-500 font-normal truncate max-w-[120px]">
-													                       {t.target_outcome}
-													               </div>
-													       )}
-													</td>													<td className="px-3 py-3 text-right tabular-nums font-medium">
+														<div className="font-bold whitespace-nowrap">
+															{normalizeDirection(t.direction)}
+														</div>
+														{t.target_outcome && (
+															<div className="text-[10px] text-slate-500 font-normal truncate max-w-[120px]">
+																{t.target_outcome}
+															</div>
+														)}
+													</td>{" "}
+													<td className="px-3 py-3 text-right tabular-nums font-medium">
 														{t.entry_price?.toFixed(3) ?? "—"}
 													</td>
 													<td className="px-3 py-3 text-right tabular-nums">
@@ -1164,7 +1182,8 @@ export default function SoftArbPage() {
 										<tbody>
 											{staleOpenTrades.map((t) => (
 												<tr
-													key={t.rowKey || t.trade_id}													className="border-b border-amber-200/60 last:border-0"
+													key={t.rowKey || t.trade_id}
+													className="border-b border-amber-200/60 last:border-0"
 												>
 													<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
 														{timeAgo(t.opened_at)}
@@ -1243,7 +1262,9 @@ export default function SoftArbPage() {
 											<tr
 												key={`${t.trade_id}-${t.timestamp}-${t.sample_key || ""}`}
 												className="border-b border-border/50 last:border-0 hover:bg-muted/5"
-											>												<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+											>
+												{" "}
+												<td className="px-4 py-3 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
 													{timeAgo(t.timestamp)}
 												</td>
 												<td className="px-3 py-3">
@@ -1279,15 +1300,16 @@ export default function SoftArbPage() {
 													</div>
 												</td>
 												<td className="px-3 py-3 text-xs font-medium text-slate-600">
-												        <div className="font-bold whitespace-nowrap">
-												                {normalizeDirection(t.direction)}
-												        </div>
-												        {t.target_outcome && (
-												                <div className="text-[10px] text-slate-400 font-normal truncate max-w-[120px]">
-												                        {t.target_outcome}
-												                </div>
-												        )}
-												</td>												<td className="px-3 py-3 text-right">
+													<div className="font-bold whitespace-nowrap">
+														{normalizeDirection(t.direction)}
+													</div>
+													{t.target_outcome && (
+														<div className="text-[10px] text-slate-400 font-normal truncate max-w-[120px]">
+															{t.target_outcome}
+														</div>
+													)}
+												</td>{" "}
+												<td className="px-3 py-3 text-right">
 													<span
 														className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${
 															t.actual_outcome === "WIN"
@@ -1356,7 +1378,9 @@ export default function SoftArbPage() {
 													</a>
 												</div>
 												<div className="text-[9px] text-muted-foreground mt-0.5">
-													{p.category === "manual" ? "Manual or other strategy" : "Legacy position"}
+													{p.category === "manual"
+														? "Manual or other strategy"
+														: "Legacy position"}
 												</div>
 											</td>
 											<td className="px-3 py-3">
