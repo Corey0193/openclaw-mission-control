@@ -100,6 +100,13 @@ type ControlStatus = {
 	runtimeDb?: string;
 };
 
+type V2PositionsResponse = {
+	ok?: boolean;
+	positions?: V2Position[];
+	runtimeDb?: string;
+	checkedAt?: string;
+};
+
 type CommandState = {
 	label: string;
 	ok: boolean;
@@ -404,6 +411,7 @@ function SectionCard({
 
 export default function CopyTradeV2Page() {
 	const [bridgeStatus, setBridgeStatus] = useState<ControlStatus | null>(null);
+	const [bridgePositions, setBridgePositions] = useState<V2Position[] | null>(null);
 	const [commandState, setCommandState] = useState<CommandState | null>(null);
 	const [configState, setConfigState] = useState<CommandState | null>(null);
 	const [editableConfig, setEditableConfig] = useState<V2EditableConfig | null>(null);
@@ -478,7 +486,8 @@ export default function CopyTradeV2Page() {
 		effectiveStatusBase == null
 			? null
 			: { ...effectiveStatusBase, ...(localStatusOverride ?? {}) };
-	const effectivePositions = localPositionsOverride ?? positions;
+	const effectivePositions =
+		localPositionsOverride ?? bridgePositions ?? positions;
 	const openPositions = useMemo(
 		() =>
 			(effectivePositions ?? []).filter(
@@ -530,6 +539,31 @@ export default function CopyTradeV2Page() {
 		};
 		void loadBridgeStatus();
 		const id = window.setInterval(loadBridgeStatus, 15_000);
+		return () => {
+			cancelled = true;
+			window.clearInterval(id);
+		};
+	}, []);
+
+	useEffect(() => {
+		let cancelled = false;
+		const loadBridgePositions = async () => {
+			try {
+				const response = await fetch(`${CONTROL_BASE_URL}/positions`);
+				if (!response.ok) {
+					if (!cancelled) setBridgePositions(null);
+					return;
+				}
+				const payload = (await response.json()) as V2PositionsResponse;
+				if (!cancelled) {
+					setBridgePositions(payload.positions ?? []);
+				}
+			} catch {
+				if (!cancelled) setBridgePositions(null);
+			}
+		};
+		void loadBridgePositions();
+		const id = window.setInterval(loadBridgePositions, 15_000);
 		return () => {
 			cancelled = true;
 			window.clearInterval(id);
