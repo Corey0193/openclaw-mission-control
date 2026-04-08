@@ -1918,6 +1918,11 @@ let _portfolioCache: {
 	expiresAt: number;
 } | null = null;
 
+let _pipelineCache: {
+	data: Map<string, PipelineLiveRecord>;
+	expiresAt: number;
+} | null = null;
+
 function _readWalletAddress(): string {
 	const raw = fs.readFileSync(WALLET_PATH, "utf-8");
 	const wallet = JSON.parse(raw) as { address: string };
@@ -2037,6 +2042,10 @@ const OPEN_PIPELINE_STATUSES = new Set([
 ]);
 
 function _readPipelineBySlug(): Map<string, PipelineLiveRecord> {
+	const now = Date.now();
+	if (_pipelineCache && _pipelineCache.expiresAt > now) {
+		return _pipelineCache.data;
+	}
 	const rawRows = readJsonlSafe(SOFT_ARB_LIVE_TRADES_PATH) as PipelineLiveRecord[];
 	const merged = buildMergedLedgerRows(rawRows, "live");
 	const bySlug = new Map<string, PipelineLiveRecord>();
@@ -2044,6 +2053,7 @@ function _readPipelineBySlug(): Map<string, PipelineLiveRecord> {
 		const slug = (row as PipelineLiveRecord).polymarket_slug as string | undefined;
 		if (slug) bySlug.set(slug, row as PipelineLiveRecord);
 	}
+	_pipelineCache = { data: bySlug, expiresAt: now + PORTFOLIO_CACHE_TTL_MS };
 	return bySlug;
 }
 
@@ -2086,8 +2096,11 @@ function _buildPortfolioResponse(
 				});
 			}
 
-			pipeline.delete(p.slug);
-			pipeline.delete(p.eventSlug);
+			if (pipeline.has(p.slug)) {
+				pipeline.delete(p.slug);
+			} else {
+				pipeline.delete(p.eventSlug);
+			}
 		} else if (p.redeemable) {
 			category = "legacy";
 		}
@@ -2174,6 +2187,7 @@ function portfolioPlugin() {
 							} catch (apiErr) {
 								console.warn("[portfolio] Polymarket API failed, falling back to Convex:", apiErr);
 								const convexUrl = (server.config.env as Record<string, string>)["VITE_CONVEX_URL"] ?? "";
+								if (!convexUrl) throw new Error("[portfolio] VITE_CONVEX_URL not configured — cannot fall back to Convex");
 								rawPositions = await _fetchConvexPositions(convexUrl);
 								source = "convex-fallback";
 							}
