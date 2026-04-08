@@ -5,6 +5,14 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { execSync } from "child_process";
+import type {
+	PortfolioResponse,
+	PortfolioPosition,
+	PortfolioAlert,
+	PipelineMetadata,
+	PositionCategory,
+	TradeDirection,
+} from "./src/types/portfolio";
 
 interface Todo {
 	blockId: string;
@@ -1871,6 +1879,319 @@ function einsteinTodosPlugin() {
 	};
 }
 
+// ─── Portfolio Plugin ─────────────────────────────────────────────────────────
+
+interface PolymarketApiRawPosition {
+	conditionId: string;
+	slug: string;
+	eventSlug: string;
+	title: string;
+	outcome: string;
+	outcomeIndex: number;
+	size: number;
+	avgPrice: number;
+	curPrice: number;
+	currentValue: number;
+	initialValue: number;
+	cashPnl: number;
+	redeemable: boolean;
+	endDate: string | null;
+}
+
+interface PolymarketApiRawTrade {
+	transactionHash: string;
+	timestamp: number;
+	side: string;
+	title: string;
+	slug: string;
+	outcome: string;
+	size: number;
+	price: number;
+}
+
+const WALLET_PATH = path.join(os.homedir(), ".polymarket/wallet.json");
+const PORTFOLIO_CACHE_TTL_MS = 30_000;
+const POLYMARKET_API_TIMEOUT_MS = 10_000;
+
+let _portfolioCache: {
+	data: { positions: PolymarketApiRawPosition[]; trades: PolymarketApiRawTrade[] };
+	expiresAt: number;
+} | null = null;
+
+function _readWalletAddress(): string {
+	const raw = fs.readFileSync(WALLET_PATH, "utf-8");
+	const wallet = JSON.parse(raw) as { address: string };
+	return wallet.address;
+}
+
+async function _fetchPolymarketApi(): Promise<{
+	positions: PolymarketApiRawPosition[];
+	trades: PolymarketApiRawTrade[];
+}> {
+	const now = Date.now();
+	if (_portfolioCache && _portfolioCache.expiresAt > now) {
+		return _portfolioCache.data;
+	}
+	const walletAddress = _readWalletAddress();
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), POLYMARKET_API_TIMEOUT_MS);
+	try {
+		const [posRes, tradesRes] = await Promise.all([
+			fetch(
+				`https://data-api.polymarket.com/positions?user=${walletAddress}&sizeThreshold=0&limit=500`,
+				{ signal: controller.signal },
+			),
+			fetch(
+				`https://data-api.polymarket.com/trades?user=${walletAddress}&limit=500`,
+				{ signal: controller.signal },
+			),
+		]);
+		clearTimeout(timeout);
+		if (!posRes.ok || !tradesRes.ok) {
+			throw new Error(
+				`Polymarket API error: positions=${posRes.status} trades=${tradesRes.status}`,
+			);
+		}
+		const positions = (await posRes.json()) as PolymarketApiRawPosition[];
+		const trades = (await tradesRes.json()) as PolymarketApiRawTrade[];
+		const data = { positions, trades };
+		_portfolioCache = { data, expiresAt: now + PORTFOLIO_CACHE_TTL_MS };
+		return data;
+	} catch (err) {
+		clearTimeout(timeout);
+		throw err;
+	}
+}
+
+interface ConvexPositionRecord {
+	market: string;
+	marketQuestion: string;
+	marketSlug: string;
+	outcome: string;
+	shares: number;
+	entryPrice: number;
+	currentPrice: number;
+	costBasis: number;
+	currentValue: number;
+	unrealizedPnl: number;
+	marketResolved: boolean;
+}
+
+async function _fetchConvexPositions(
+	convexUrl: string,
+): Promise<PolymarketApiRawPosition[]> {
+	const res = await fetch(`${convexUrl}/api/query`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({
+			path: "polymarket:getPositions",
+			args: { tenantId: "default" },
+		}),
+	});
+	if (!res.ok) throw new Error(`Convex query failed: ${res.status}`);
+	const payload = (await res.json()) as {
+		status: string;
+		value: { positions: ConvexPositionRecord[] };
+	};
+	if (payload.status !== "success") throw new Error("Convex query error status");
+	return payload.value.positions.map((p) => ({
+		conditionId: p.market,
+		slug: p.marketSlug,
+		eventSlug: p.marketSlug,
+		title: p.marketQuestion,
+		outcome: p.outcome,
+		outcomeIndex: 0,
+		size: p.shares,
+		avgPrice: p.entryPrice,
+		curPrice: p.currentPrice,
+		currentValue: p.currentValue,
+		initialValue: p.costBasis,
+		cashPnl: p.unrealizedPnl,
+		redeemable: p.marketResolved && p.currentPrice === 0,
+		endDate: null,
+	}));
+}
+
+type PipelineLiveRecord = Record<string, unknown> & {
+	trade_id?: string;
+	opportunity_id?: string;
+	signal_family?: string;
+	polymarket_slug?: string;
+	direction?: string;
+	entry_price?: number | null;
+	position_size_usd?: number;
+	shares?: number;
+	edge_pct?: number | null;
+	executed_at?: string | null;
+	order_id?: string | null;
+	status?: string;
+};
+
+const OPEN_PIPELINE_STATUSES = new Set([
+	"OPEN",
+	"POSTED",
+	"PARTIAL_FILL",
+	"FILLED",
+	"PAYOUT_CLAIMABLE",
+	"ORDER_PENDING",
+]);
+
+function _readPipelineBySlug(): Map<string, PipelineLiveRecord> {
+	const rawRows = readJsonlSafe(SOFT_ARB_LIVE_TRADES_PATH) as PipelineLiveRecord[];
+	const merged = buildMergedLedgerRows(rawRows, "live");
+	const bySlug = new Map<string, PipelineLiveRecord>();
+	for (const [, row] of merged) {
+		const slug = (row as PipelineLiveRecord).polymarket_slug as string | undefined;
+		if (slug) bySlug.set(slug, row as PipelineLiveRecord);
+	}
+	return bySlug;
+}
+
+function _buildPortfolioResponse(
+	onChainPositions: PolymarketApiRawPosition[],
+	source: "polymarket-api" | "convex-fallback",
+): PortfolioResponse {
+	const pipeline = _readPipelineBySlug();
+	const alerts: PortfolioAlert[] = [];
+
+	const positions: PortfolioPosition[] = onChainPositions.map((p) => {
+		const pipelineRow = pipeline.get(p.slug) ?? pipeline.get(p.eventSlug);
+		let category: PositionCategory = "manual";
+		let pipelineMeta: PipelineMetadata | null = null;
+
+		if (pipelineRow) {
+			category = p.redeemable ? "legacy" : "tracked";
+			pipelineMeta = {
+				tradeId: String(pipelineRow.trade_id ?? ""),
+				opportunityId: (pipelineRow.opportunity_id as string) ?? null,
+				signalFamily: (pipelineRow.signal_family as string) ?? null,
+				edgePct: (pipelineRow.edge_pct as number) ?? null,
+				direction: (String(pipelineRow.direction ?? "BUY_YES")) as TradeDirection,
+				entryPrice: (pipelineRow.entry_price as number) ?? null,
+				positionSizeUsd: Number(pipelineRow.position_size_usd ?? 0),
+				loggedShares: Number(pipelineRow.shares ?? 0),
+				entryTimestamp: (pipelineRow.executed_at as string) ?? null,
+				orderId: (pipelineRow.order_id as string) ?? null,
+				paperOrLive: "live",
+			};
+
+			// Share mismatch alert (>5% difference)
+			const loggedShares = Number(pipelineRow.shares ?? 0);
+			if (loggedShares > 0 && Math.abs(p.size - loggedShares) / loggedShares > 0.05) {
+				alerts.push({
+					type: "share_mismatch",
+					slug: p.slug,
+					message: `Pipeline logged ${loggedShares.toFixed(2)} shares, on-chain has ${p.size.toFixed(2)}`,
+					shareMismatch: { pipeline: loggedShares, onChain: p.size },
+				});
+			}
+
+			pipeline.delete(p.slug);
+			pipeline.delete(p.eventSlug);
+		} else if (p.redeemable) {
+			category = "legacy";
+		}
+
+		// Unclaimed payout alert
+		if (p.redeemable && p.initialValue > 0) {
+			alerts.push({
+				type: "unclaimed_payout",
+				slug: p.slug,
+				message: `${p.title} — ${p.outcome} resolved. Claimable: $${p.initialValue.toFixed(2)}`,
+				amountUsd: p.initialValue,
+			});
+		}
+
+		return {
+			slug: p.slug,
+			title: p.title,
+			outcome: p.outcome,
+			category,
+			onChain: {
+				conditionId: p.conditionId,
+				slug: p.slug,
+				eventSlug: p.eventSlug,
+				title: p.title,
+				outcome: p.outcome,
+				shares: p.size,
+				avgPrice: p.avgPrice,
+				currentPrice: p.curPrice,
+				currentValue: p.currentValue,
+				initialValue: p.initialValue,
+				unrealizedPnl: p.cashPnl,
+				resolved: p.redeemable,
+				redeemable: p.redeemable,
+				endDate: p.endDate,
+			},
+			pipeline: pipelineMeta,
+		};
+	});
+
+	// Orphaned pipeline records (still in map = no on-chain match)
+	for (const [slug, row] of pipeline) {
+		const status = String(row.status ?? "").toUpperCase();
+		if (OPEN_PIPELINE_STATUSES.has(status)) {
+			alerts.push({
+				type: "orphaned_trade",
+				tradeId: String(row.trade_id ?? ""),
+				slug,
+				message: `Pipeline trade ${String(row.trade_id ?? slug)} is ${status} but no on-chain position found`,
+			});
+		}
+	}
+
+	return {
+		source,
+		fetchedAt: new Date().toISOString(),
+		positions,
+		alerts,
+	};
+}
+
+function portfolioPlugin() {
+	return {
+		name: "portfolio",
+		configureServer(server: import("vite").ViteDevServer) {
+			server.middlewares.use(
+				(
+					req: import("http").IncomingMessage,
+					res: import("http").ServerResponse,
+					next: () => void,
+				) => {
+					const url = (req.url ?? "/").split("?")[0];
+					if (req.method !== "GET" || url !== "/api/portfolio") {
+						next();
+						return;
+					}
+					void (async () => {
+						try {
+							let rawPositions: PolymarketApiRawPosition[];
+							let source: "polymarket-api" | "convex-fallback";
+							try {
+								const apiData = await _fetchPolymarketApi();
+								rawPositions = apiData.positions;
+								source = "polymarket-api";
+							} catch (apiErr) {
+								console.warn("[portfolio] Polymarket API failed, falling back to Convex:", apiErr);
+								const convexUrl = (server.config.env as Record<string, string>)["VITE_CONVEX_URL"] ?? "";
+								rawPositions = await _fetchConvexPositions(convexUrl);
+								source = "convex-fallback";
+							}
+							const body = _buildPortfolioResponse(rawPositions, source);
+							res.setHeader("Content-Type", "application/json");
+							res.end(JSON.stringify(body));
+						} catch (err) {
+							console.error("[portfolio] handler error:", err);
+							res.statusCode = 500;
+							res.end(JSON.stringify({ error: "portfolio fetch failed" }));
+						}
+					})();
+				},
+			);
+		},
+	};
+}
+
 // https://vite.dev/config/
 export default defineConfig({
 	plugins: [
@@ -1879,6 +2200,7 @@ export default defineConfig({
 		einsteinTodosPlugin(),
 		arbPipelinePlugin(),
 		softArbTradesPlugin(),
+		portfolioPlugin(),
 		{
 			name: "local-file-server",
 			configureServer(server) {
