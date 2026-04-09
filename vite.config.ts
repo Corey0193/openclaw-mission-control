@@ -2059,7 +2059,7 @@ async function _fetchConvexPositions(
 		currentValue: p.currentValue,
 		initialValue: p.costBasis,
 		cashPnl: p.unrealizedPnl,
-		redeemable: p.marketResolved && p.currentPrice === 0,
+		redeemable: p.marketResolved,
 		endDate: null,
 	}));
 }
