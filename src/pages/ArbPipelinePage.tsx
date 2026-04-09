@@ -29,6 +29,7 @@ import {
 	IconDatabase,
 	IconShieldCheck,
 	IconLock,
+	IconRoute,
 } from "@tabler/icons-react";
 
 const SourceNode = ({ data }: any) => {
@@ -298,6 +299,23 @@ const initialNodes = [
 		},
 	),
 
+	// DISPATCHER (Col 1.5: x=280)
+	nodeOpts(
+		"hustle-router",
+		"system",
+		{ x: 280, y: 325 },
+		{
+			step: "0.5. Dispatcher",
+			label: "Cron Router",
+			agent: "Hustle-Router",
+			agentColor: "text-slate-600",
+			desc: "Receives cron scan triggers and dispatches Raymond, Thorp, and Thorp-Sports. Forwards verdicts to Hustle.",
+			icon: <IconRoute size={24} stroke={2.5} className="text-slate-600" />,
+			iconClass: "bg-slate-100/50",
+			glowClass: "ring-1 ring-slate-500/10 shadow-slate-500/5",
+		},
+	),
+
 	// ANALYSIS & RADAR (Col 2: x=450)
 	nodeOpts(
 		"stage-radar",
@@ -480,11 +498,11 @@ const initialEdges = [
 		style: { stroke: "#cbd5e1", ...strokeParams, strokeDasharray: "2,2" },
 	},
 
-	// To Scanner
+	// To Dispatcher (hustle-router)
 	{
 		id: "e-met",
 		source: "src-metaculus",
-		target: "stage-scan",
+		target: "hustle-router",
 		type: "smoothstep",
 		style: { stroke: "#0ea5e9", ...animatedParams },
 		animated: true,
@@ -492,7 +510,7 @@ const initialEdges = [
 	{
 		id: "e-pre",
 		source: "src-predictit",
-		target: "stage-scan",
+		target: "hustle-router",
 		type: "smoothstep",
 		style: { stroke: "#6366f1", ...animatedParams },
 		animated: true,
@@ -500,7 +518,7 @@ const initialEdges = [
 	{
 		id: "e-kal",
 		source: "src-kalshi",
-		target: "stage-scan",
+		target: "hustle-router",
 		type: "smoothstep",
 		style: { stroke: "#3b82f6", ...animatedParams },
 		animated: true,
@@ -508,7 +526,7 @@ const initialEdges = [
 	{
 		id: "e-fun",
 		source: "src-predictfun",
-		target: "stage-scan",
+		target: "hustle-router",
 		type: "smoothstep",
 		style: { stroke: "#8b5cf6", ...animatedParams },
 		animated: true,
@@ -516,7 +534,7 @@ const initialEdges = [
 	{
 		id: "e-azu",
 		source: "src-azuro",
-		target: "stage-scan",
+		target: "hustle-router",
 		type: "smoothstep",
 		style: { stroke: "#f59e0b", ...animatedParams },
 		animated: true,
@@ -524,10 +542,28 @@ const initialEdges = [
 	{
 		id: "e-spo",
 		source: "src-sports",
-		target: "stage-scan",
+		target: "hustle-router",
 		type: "smoothstep",
 		style: { stroke: "#10b981", ...animatedParams },
 		animated: true,
+	},
+
+	// Dispatcher to Scanner
+	{
+		id: "e-router-scan",
+		source: "hustle-router",
+		target: "stage-scan",
+		type: "smoothstep",
+		label: "Dispatch",
+		labelStyle: {
+			fill: "#475569",
+			fontWeight: 700,
+			fontSize: 10,
+			letterSpacing: "0.05em",
+		},
+		labelBgStyle: { fill: "transparent" },
+		style: { stroke: "#94a3b8", strokeWidth: 2, strokeOpacity: 0.8 },
+		markerEnd: { type: MarkerType.ArrowClosed, color: "#94a3b8" },
 	},
 
 	// Radar to Verifier
