@@ -1113,6 +1113,52 @@ function getSoftArbDiscoverySummary(): SoftArbDiscoverySummary {
 	};
 }
 
+/**
+ * Extract the base trade ID for deduplication.
+ * Handles formats like:
+ *   "live-030" → "live-030"
+ *   "live-live-030-scan-azuro-2026-04-08-0343" → "live-030"
+ *   "paper-paper-016-scan-azuro-..." → "paper-016"
+ */
+function extractBaseTradeId(tradeId: string): string {
+	// Match patterns like "live-live-NNN-..." or "paper-paper-NNN-..."
+	const compoundMatch = tradeId.match(
+		/^(?:live|paper)-((?:live|paper)-\d+)/,
+	);
+	if (compoundMatch) return compoundMatch[1];
+	return tradeId;
+}
+
+/**
+ * Deduplicate outcomes, preferring truth entries over raw entries.
+ * Groups by base trade_id and keeps truth (first in array) when duplicates exist.
+ */
+function deduplicateOutcomes(
+	truthOutcomes: SoftArbOutcome[],
+	rawOutcomes: SoftArbOutcome[],
+): SoftArbOutcome[] {
+	const seen = new Map<string, SoftArbOutcome>();
+
+	// Truth entries take priority — add them first
+	for (const outcome of truthOutcomes) {
+		const baseId = extractBaseTradeId(outcome.trade_id);
+		if (!seen.has(baseId)) {
+			seen.set(baseId, outcome);
+		}
+		// Skip duplicates within truth itself (e.g., live-4 appears twice)
+	}
+
+	// Raw entries only added if no truth entry exists for that base ID
+	for (const outcome of rawOutcomes) {
+		const baseId = extractBaseTradeId(outcome.trade_id);
+		if (!seen.has(baseId)) {
+			seen.set(baseId, outcome);
+		}
+	}
+
+	return Array.from(seen.values());
+}
+
 async function getSoftArbTrades(): Promise<{
 	trades: SoftArbTrade[];
 	summary: Record<string, unknown>;
@@ -1538,11 +1584,12 @@ async function getSoftArbTrades(): Promise<{
 		is_real: !!row.real_trade,
 		notes: String(row.notes ?? ""),
 	}));
-	const outcomes: SoftArbOutcome[] = [
-		...truthOutcomes,
-		...rawOutcomeEntries,
-	].sort(
-		(a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+	const outcomes: SoftArbOutcome[] = deduplicateOutcomes(
+		truthOutcomes,
+		rawOutcomeEntries,
+	).sort(
+		(a, b) =>
+			new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
 	);
 
 	// Summary: use MTM summary if available, else compute basic stats
