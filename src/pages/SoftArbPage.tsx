@@ -14,7 +14,6 @@ import {
 	IconRefresh,
 	IconBrain,
 	IconCircleCheck,
-	IconClock,
 	IconAlertTriangle,
 	IconWallet,
 	IconCurrencyDollar,
@@ -100,31 +99,10 @@ function normalizeDirection(
 	return null;
 }
 
-function normalizeOutcomeLabel(
-	outcome: string | null | undefined,
-): "YES" | "NO" | null {
-	const normalized = String(outcome ?? "")
-		.trim()
-		.toUpperCase();
-	if (normalized === "YES") return "YES";
-	if (normalized === "NO") return "NO";
-	return null;
-}
-
 function isExpiredTrade(resolvesBy: string | null | undefined): boolean {
 	if (!resolvesBy) return false;
 	const ts = Date.parse(resolvesBy);
 	return Number.isFinite(ts) && ts <= Date.now();
-}
-
-function isOpenSettlementStatus(status: string | null | undefined): boolean {
-	const normalized = String(status ?? "").toUpperCase();
-	return (
-		normalized === "OPEN" ||
-		normalized === "POSTED" ||
-		normalized === "PARTIAL_FILL" ||
-		normalized === "FILLED"
-	);
 }
 
 function isVisiblePositionStatus(status: string | null | undefined): boolean {
@@ -268,6 +246,7 @@ interface SoftArbOutcome {
 	signal_family: string;
 	signal_source: string;
 	direction: string;
+	target_outcome?: string | null;
 	sample_key: string;
 	adjusted_edge_pct: number | null;
 	pnl_usd: number;
@@ -1132,10 +1111,6 @@ export default function SoftArbPage() {
 																<span className="text-[9px] font-bold px-1.5 rounded bg-violet-100 text-violet-700 flex items-center gap-0.5">
 																	<IconCircleCheck size={8} /> CLAIMABLE
 																</span>
-															) : t.actual_status === "ORDER" ? (
-																<span className="text-[9px] font-bold px-1.5 rounded bg-blue-100 text-blue-700 flex items-center gap-0.5">
-																	<IconClock size={8} /> ORDER
-																</span>
 															) : t.actual_status === "LOG_ONLY" ? (
 																<span className="text-[9px] font-bold px-1.5 rounded bg-slate-100 text-slate-700">
 																	LOG ONLY
@@ -1273,14 +1248,11 @@ export default function SoftArbPage() {
 						<span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
 							{resolvedTrades.length} TOTAL
 						</span>
-						{(() => {
-							const mismatchCount = resolvedTrades.filter((t) => t.onChainMismatch).length;
-							return mismatchCount > 0 ? (
-								<span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-									{mismatchCount} MISMATCH
-								</span>
-							) : null;
-						})()}
+						{resolvedTrades.filter((t) => t.onChainMismatch).length > 0 && (
+							<span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+								{resolvedTrades.filter((t) => t.onChainMismatch).length} MISMATCH
+							</span>
+						)}
 					</button>
 
 					{sectionsOpen.resolved && (
