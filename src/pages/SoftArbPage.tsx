@@ -799,11 +799,42 @@ export default function SoftArbPage() {
 	}, [portfolio]);
 
 	const resolvedTrades = useMemo(() => {
-		return (softArbData?.outcomes || []).sort(
-			(a, b) =>
-				new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-		);
-	}, [softArbData]);
+		const onChainBySlug = new Map<
+			string,
+			{ pnl: number; resolved: boolean; curPrice: number }
+		>();
+		if (portfolio) {
+			for (const p of portfolio.positions) {
+				onChainBySlug.set(p.slug, {
+					pnl: p.onChain.unrealizedPnl,
+					resolved: p.onChain.resolved,
+					curPrice: p.onChain.currentPrice,
+				});
+			}
+		}
+
+		return (softArbData?.outcomes || [])
+			.map((t) => {
+				const slug = t.event_slug ?? t.polymarket_slug ?? "";
+				const onChain = onChainBySlug.get(slug) ?? null;
+				let mismatch: string | null = null;
+
+				if (onChain && onChain.resolved) {
+					const softArbWin = t.actual_outcome === "WIN";
+					const onChainWin = onChain.curPrice > 0;
+					if (softArbWin !== onChainWin) {
+						mismatch = `On-chain: ${onChainWin ? "WIN" : "LOSS"} (${onChain.pnl >= 0 ? "+" : ""}$${onChain.pnl.toFixed(2)}), Soft Arb: ${t.actual_outcome} (${t.pnl_usd >= 0 ? "+" : ""}$${t.pnl_usd.toFixed(2)})`;
+					}
+				}
+
+				return { ...t, onChainMismatch: mismatch };
+			})
+			.sort(
+				(a, b) =>
+					new Date(b.timestamp).getTime() -
+					new Date(a.timestamp).getTime(),
+			);
+	}, [softArbData, portfolio]);
 
 	const dailyStats = useMemo(() => {
 		const stats = { today: 0, yesterday: 0, avg: 0 };
@@ -1242,6 +1273,11 @@ export default function SoftArbPage() {
 						<span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
 							{resolvedTrades.length} TOTAL
 						</span>
+						{resolvedTrades.filter((t) => t.onChainMismatch).length > 0 && (
+							<span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+								{resolvedTrades.filter((t) => t.onChainMismatch).length} MISMATCH
+							</span>
+						)}
 					</button>
 
 					{sectionsOpen.resolved && (
@@ -1324,6 +1360,14 @@ export default function SoftArbPage() {
 												</td>
 												<td className="px-4 py-3 text-right tabular-nums">
 													<PnlBadge value={t.pnl_usd} />
+													{t.onChainMismatch && (
+														<div
+															className="mt-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5"
+															title={t.onChainMismatch}
+														>
+															ON-CHAIN MISMATCH
+														</div>
+													)}
 												</td>
 											</tr>
 										))}
