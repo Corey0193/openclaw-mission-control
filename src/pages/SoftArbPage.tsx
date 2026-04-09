@@ -1273,11 +1273,14 @@ export default function SoftArbPage() {
 						<span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
 							{resolvedTrades.length} TOTAL
 						</span>
-						{resolvedTrades.filter((t) => t.onChainMismatch).length > 0 && (
-							<span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-								{resolvedTrades.filter((t) => t.onChainMismatch).length} MISMATCH
-							</span>
-						)}
+						{(() => {
+							const mismatchCount = resolvedTrades.filter((t) => t.onChainMismatch).length;
+							return mismatchCount > 0 ? (
+								<span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+									{mismatchCount} MISMATCH
+								</span>
+							) : null;
+						})()}
 					</button>
 
 					{sectionsOpen.resolved && (
