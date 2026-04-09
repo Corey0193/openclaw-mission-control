@@ -1911,7 +1911,7 @@ interface PolymarketApiRawTrade {
 
 const WALLET_PATH = path.join(os.homedir(), ".polymarket/wallet.json");
 const PORTFOLIO_CACHE_TTL_MS = 30_000;
-const POLYMARKET_API_TIMEOUT_MS = 10_000;
+const POLYMARKET_API_TIMEOUT_MS = 30_000;
 
 let _portfolioCache: {
 	data: { positions: PolymarketApiRawPosition[]; trades: PolymarketApiRawTrade[] };
