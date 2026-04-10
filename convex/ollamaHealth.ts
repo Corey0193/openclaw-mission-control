@@ -3,8 +3,15 @@
 import { action } from "./_generated/server";
 
 const OLLAMA_HEALTH_URL =
-	process.env.OLLAMA_HEALTH_URL ?? "http://127.0.0.1:11434/api/generate";
-const OLLAMA_HEALTH_MODEL = process.env.OLLAMA_HEALTH_MODEL ?? "llama3.2:3b";
+	process.env.OLLAMA_HEALTH_URL ??
+	"https://ai.cb-server.ca/v1/responses";
+const OLLAMA_HEALTH_MODEL =
+	process.env.OLLAMA_HEALTH_MODEL ?? "qwen2.5-coder:14b";
+const OLLAMA_HEALTH_API_KEY = process.env.OLLAMA_HEALTH_API_KEY ?? "ollama";
+const OLLAMA_HEALTH_CLIENT_ID =
+	process.env.OLLAMA_HEALTH_ACCESS_CLIENT_ID ?? "";
+const OLLAMA_HEALTH_CLIENT_SECRET =
+	process.env.OLLAMA_HEALTH_ACCESS_CLIENT_SECRET ?? "";
 
 type HealthStatus = "healthy" | "degraded" | "down" | "unconfigured";
 
@@ -21,10 +28,6 @@ type HealthResponse = {
 };
 
 function extractResponseText(payload: any): string {
-	if (typeof payload?.response === "string" && payload.response.trim()) {
-		return payload.response.trim();
-	}
-
 	const output = Array.isArray(payload?.output) ? payload.output : [];
 	for (const item of output) {
 		const content = Array.isArray(item?.content) ? item.content : [];
@@ -44,7 +47,9 @@ export const checkOllamaHealth = action({
 		const checkedAt = Date.now();
 		const missingConfig = [
 			!OLLAMA_HEALTH_URL && "OLLAMA_HEALTH_URL",
-			!OLLAMA_HEALTH_MODEL && "OLLAMA_HEALTH_MODEL",
+			!OLLAMA_HEALTH_CLIENT_ID && "OLLAMA_HEALTH_ACCESS_CLIENT_ID",
+			!OLLAMA_HEALTH_CLIENT_SECRET && "OLLAMA_HEALTH_ACCESS_CLIENT_SECRET",
+			!OLLAMA_HEALTH_API_KEY && "OLLAMA_HEALTH_API_KEY",
 		].filter(Boolean) as string[];
 
 		if (missingConfig.length > 0) {
@@ -65,15 +70,15 @@ export const checkOllamaHealth = action({
 			const response = await fetch(OLLAMA_HEALTH_URL, {
 				method: "POST",
 				headers: {
+					Authorization: `Bearer ${OLLAMA_HEALTH_API_KEY}`,
+					"CF-Access-Client-Id": OLLAMA_HEALTH_CLIENT_ID,
+					"CF-Access-Client-Secret": OLLAMA_HEALTH_CLIENT_SECRET,
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
 					model: OLLAMA_HEALTH_MODEL,
-					prompt: "Reply with exactly: pong",
-					stream: false,
-					options: {
-						num_predict: 10,
-					},
+					input: "Reply with exactly: pong",
+					max_output_tokens: 10,
 				}),
 				signal: controller.signal,
 			});
@@ -82,18 +87,13 @@ export const checkOllamaHealth = action({
 
 			if (!response.ok) {
 				const bodyText = (await response.text()).slice(0, 240);
-				const missingModel =
-					response.status === 404 &&
-					bodyText.toLowerCase().includes("not found");
 				return {
 					ok: false,
-					status: missingModel ? "unconfigured" : "down",
+					status: "down",
 					checkedAt,
 					latencyMs,
 					model: OLLAMA_HEALTH_MODEL,
-					message: missingModel
-						? `Model not installed: ${OLLAMA_HEALTH_MODEL}`
-						: `HTTP ${response.status}`,
+					message: `HTTP ${response.status}`,
 					body: bodyText || undefined,
 				};
 			}
