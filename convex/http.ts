@@ -8,15 +8,8 @@ const http = httpRouter();
 auth.addHttpRoutes(http);
 
 const OLLAMA_HEALTH_URL =
-	process.env.OLLAMA_HEALTH_URL ??
-	"https://ai.cb-server.ca/v1/responses";
-const OLLAMA_HEALTH_MODEL =
-	process.env.OLLAMA_HEALTH_MODEL ?? "qwen2.5-coder:14b";
-const OLLAMA_HEALTH_API_KEY = process.env.OLLAMA_HEALTH_API_KEY ?? "ollama";
-const OLLAMA_HEALTH_CLIENT_ID =
-	process.env.OLLAMA_HEALTH_ACCESS_CLIENT_ID ?? "";
-const OLLAMA_HEALTH_CLIENT_SECRET =
-	process.env.OLLAMA_HEALTH_ACCESS_CLIENT_SECRET ?? "";
+	process.env.OLLAMA_HEALTH_URL ?? "http://127.0.0.1:11434/api/generate";
+const OLLAMA_HEALTH_MODEL = process.env.OLLAMA_HEALTH_MODEL ?? "llama3.2:3b";
 
 function jsonResponse(body: unknown, status = 200) {
 	return new Response(JSON.stringify(body), {
@@ -37,6 +30,10 @@ function optionalNumber(value: unknown): number | undefined {
 }
 
 function extractResponseText(payload: any): string {
+	if (typeof payload?.response === "string" && payload.response.trim()) {
+		return payload.response.trim();
+	}
+
 	const output = Array.isArray(payload?.output) ? payload.output : [];
 	for (const item of output) {
 		const content = Array.isArray(item?.content) ? item.content : [];
@@ -56,9 +53,7 @@ http.route({
 		const checkedAt = Date.now();
 		const missingConfig = [
 			!OLLAMA_HEALTH_URL && "OLLAMA_HEALTH_URL",
-			!OLLAMA_HEALTH_CLIENT_ID && "OLLAMA_HEALTH_ACCESS_CLIENT_ID",
-			!OLLAMA_HEALTH_CLIENT_SECRET && "OLLAMA_HEALTH_ACCESS_CLIENT_SECRET",
-			!OLLAMA_HEALTH_API_KEY && "OLLAMA_HEALTH_API_KEY",
+			!OLLAMA_HEALTH_MODEL && "OLLAMA_HEALTH_MODEL",
 		].filter(Boolean) as string[];
 
 		if (missingConfig.length > 0) {
@@ -82,15 +77,15 @@ http.route({
 			const response = await fetch(OLLAMA_HEALTH_URL, {
 				method: "POST",
 				headers: {
-					Authorization: `Bearer ${OLLAMA_HEALTH_API_KEY}`,
-					"CF-Access-Client-Id": OLLAMA_HEALTH_CLIENT_ID,
-					"CF-Access-Client-Secret": OLLAMA_HEALTH_CLIENT_SECRET,
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
 					model: OLLAMA_HEALTH_MODEL,
-					input: "Reply with exactly: pong",
-					max_output_tokens: 10,
+					prompt: "Reply with exactly: pong",
+					stream: false,
+					options: {
+						num_predict: 10,
+					},
 				}),
 				signal: controller.signal,
 			});
@@ -99,13 +94,18 @@ http.route({
 
 			if (!response.ok) {
 				const bodyText = (await response.text()).slice(0, 240);
+				const missingModel =
+					response.status === 404 &&
+					bodyText.toLowerCase().includes("not found");
 				return jsonResponse({
 					ok: false,
-					status: "down",
+					status: missingModel ? "unconfigured" : "down",
 					checkedAt,
 					latencyMs,
 					model: OLLAMA_HEALTH_MODEL,
-					message: `HTTP ${response.status}`,
+					message: missingModel
+						? `Model not installed: ${OLLAMA_HEALTH_MODEL}`
+						: `HTTP ${response.status}`,
 					body: bodyText || undefined,
 				});
 			}
