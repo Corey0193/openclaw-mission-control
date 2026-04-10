@@ -248,7 +248,6 @@ export const ORG_MEMBERS: OrgMember[] = [
 			skills: [
 				{ name: "Conway" },
 				{ name: "Polymarket" },
-				{ name: "Arb Engine" },
 			],
 			personality:
 				"Focused, pragmatic, fast. Every action either earns or enables earning. No bureaucracy, no excuses — just results.",

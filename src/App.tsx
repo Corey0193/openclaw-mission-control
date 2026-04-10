@@ -12,7 +12,6 @@ import WalletsPage from "./pages/WalletsPage";
 import ArbExperimentsPage from "./pages/ArbExperimentsPage";
 
 const SoftArbPage = lazy(() => import("./pages/SoftArbPage"));
-const HardArbPage = lazy(() => import("./pages/HardArbPage"));
 const CopyTradePage = lazy(() => import("./pages/CopyTradePage"));
 const CopyTradeV2Page = lazy(() => import("./pages/CopyTradeV2Page"));
 
@@ -25,7 +24,7 @@ export default function App() {
 			<Route path="/token-usage" element={<TokenUsagePage />} />
 
 			{/* Arbitrage routes */}
-			<Route path="/arb" element={<Navigate to="/arb/hard" replace />} />
+			<Route path="/arb" element={<Navigate to="/arb/soft" replace />} />
 			<Route
 				path="/polymarket"
 				element={<Navigate to="/arb/polymarket" replace />}
@@ -47,14 +46,7 @@ export default function App() {
 					</Suspense>
 				}
 			/>
-			<Route
-				path="/arb/hard"
-				element={
-					<Suspense fallback={<div className="min-h-screen bg-[#f8f9fa]" />}>
-						<HardArbPage />
-					</Suspense>
-				}
-			/>
+			<Route path="/arb/hard" element={<Navigate to="/arb/soft" replace />} />
 			<Route
 				path="/copy-trade"
 				element={

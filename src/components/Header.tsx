@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import SignOutButton from "./Signout";
-import ArbDaemonBadge from "./ArbDaemonBadge";
 import WalletIngestorBadge from "./WalletIngestorBadge";
 import CopyTradeBadge from "./CopyTradeBadge";
 import CopyTradeV2Badge from "./CopyTradeV2Badge";
@@ -181,16 +180,6 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed, title }) 
 									Soft Arb
 								</Link>
 								<Link
-									to="/arb/hard"
-									onClick={() => setIsArbDropdownOpen(false)}
-									className={`
-								                block px-4 py-2 text-[12px] font-semibold hover:bg-muted transition-colors
-								                ${location.pathname === "/arb/hard" ? "text-[var(--accent-orange)]" : "text-muted-foreground"}
-								        `}
-								>
-									Hard Arb
-								</Link>
-								<Link
 									to="/arb/wallets"
 									onClick={() => setIsArbDropdownOpen(false)}
 									className={`
@@ -247,7 +236,6 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed, title }) 
 						{formatDate(time)}
 					</div>
 				</div>
-				<ArbDaemonBadge />
 				<WalletIngestorBadge />
 				<OllamaHealthBadge />
 				<CopyTradeBadge />{" "}
