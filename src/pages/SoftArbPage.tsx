@@ -10,7 +10,6 @@ import {
 	IconChartBar,
 	IconPercentage,
 	IconTrendingUp,
-	IconTrendingDown,
 	IconShieldCheck,
 	IconScan,
 	IconChevronDown,
@@ -18,7 +17,6 @@ import {
 	IconRefresh,
 	IconBrain,
 	IconCircleCheck,
-	IconAlertTriangle,
 } from "@tabler/icons-react";
 
 function familyLabel(family: string): string {
@@ -722,27 +720,41 @@ export default function SoftArbPage() {
 	}, [softArbData, portfolio]);
 
 	const dailyStats = useMemo(() => {
-		const stats = { today: 0, yesterday: 0, avg: 0 };
+		const stats = { today: 0, yesterday: 0 };
 		if (!softArbData) return stats;
 		const summary = softArbData.summary as any;
 		stats.today = Number(summary?.daily_pnl ?? 0);
 		stats.yesterday = Number(summary?.yesterday_pnl ?? 0);
-		stats.avg = Number(summary?.avg_daily_pnl ?? 0);
 		return stats;
 	}, [softArbData]);
 
 	const walletSnapshot: WalletSnapshot | null = useMemo(() => {
 		const w = softArbData?.wallet;
-		if (!w || w.total_wallet_value_usd == null) return null;
-		return {
-			total_wallet_value_usd: Number(w.total_wallet_value_usd),
-			deployable_bankroll_usd: Number(w.deployable_bankroll_usd ?? 0),
-			magic_usdc: Number(w.magic_usdc ?? 0),
-			phantom_usdc: Number(w.phantom_usdc ?? 0),
-			phantom_pol: Number(w.phantom_pol ?? 0),
-			phantom_pol_usd_value: Number(w.phantom_pol_usd_value ?? 0),
-			updated_at: w.updated_at,
-		};
+		const summary = (softArbData?.summary ?? {}) as any;
+		if (w?.total_wallet_value_usd != null) {
+			return {
+				total_wallet_value_usd: Number(w.total_wallet_value_usd),
+				deployable_bankroll_usd: Number(w.deployable_bankroll_usd ?? 0),
+				magic_usdc: Number(w.magic_usdc ?? 0),
+				phantom_usdc: Number(w.phantom_usdc ?? 0),
+				phantom_pol: Number(w.phantom_pol ?? 0),
+				phantom_pol_usd_value: Number(w.phantom_pol_usd_value ?? 0),
+				updated_at: w.updated_at,
+			};
+		}
+		// Fallback to summary fields when wallet snapshot is unavailable
+		if (summary.wallet_total_value_usd != null) {
+			return {
+				total_wallet_value_usd: Number(summary.wallet_total_value_usd),
+				deployable_bankroll_usd: Number(summary.available_capital_usd ?? 0),
+				magic_usdc: 0,
+				phantom_usdc: 0,
+				phantom_pol: 0,
+				phantom_pol_usd_value: 0,
+				updated_at: new Date().toISOString(),
+			};
+		}
+		return null;
 	}, [softArbData]);
 
 	const positionsValue = useMemo(() => {
