@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { usePortfolio } from "../lib/usePortfolio";
+import { useWalletSnapshot } from "../lib/useWalletSnapshot";
 import type { PortfolioPosition, PortfolioAlert } from "../types/portfolio";
-import type { WalletSnapshot } from "../types/portfolio";
 import Header from "../components/Header";
 import { WalletSummary } from "../components/WalletSummary";
 import { SummaryCard } from "../components/SummaryCard";
@@ -18,34 +18,8 @@ import {
 export default function PolymarketPage() {
 	const { data: portfolio, loading, refresh } = usePortfolio();
 	const [isRefreshing, setIsRefreshing] = useState(false);
-	const [walletSnapshot, setWalletSnapshot] = useState<WalletSnapshot | null>(null);
+	const walletSnapshot = useWalletSnapshot();
 	const [statusFilter, setStatusFilter] = useState<"all" | "soft-arb" | "manual" | "resolved">("all");
-
-	// Fetch wallet data from soft-arb API (same source as SoftArbPage)
-	useEffect(() => {
-		let cancelled = false;
-		async function fetchWallet() {
-			try {
-				const res = await fetch("/api/soft-arb/trades");
-				if (!res.ok) return;
-				const json = await res.json();
-				if (!cancelled && json?.wallet) {
-					setWalletSnapshot({
-						total_wallet_value_usd: Number(json.wallet.total_wallet_value_usd ?? 0),
-						deployable_bankroll_usd: Number(json.wallet.deployable_bankroll_usd ?? 0),
-						magic_usdc: Number(json.wallet.magic_usdc ?? 0),
-						phantom_usdc: Number(json.wallet.phantom_usdc ?? 0),
-						phantom_pol: Number(json.wallet.phantom_pol ?? 0),
-						phantom_pol_usd_value: Number(json.wallet.phantom_pol_usd_value ?? 0),
-						updated_at: json.wallet.updated_at,
-					});
-				}
-			} catch { /* wallet is optional enhancement */ }
-		}
-		fetchWallet();
-		const interval = setInterval(fetchWallet, 30_000);
-		return () => { cancelled = true; clearInterval(interval); };
-	}, []);
 
 	const handleRefresh = () => {
 		if (isRefreshing) return;
@@ -78,6 +52,8 @@ export default function PolymarketPage() {
 		[portfolio],
 	);
 
+	// positionsValue: only ACTIVE open positions (not resolved), feeds WalletSummary "In Positions" card
+	// totalCurrentValue: ALL positions including resolved, feeds portfolio summary card
 	const totalCurrentValue = useMemo(
 		() =>
 			Math.round(
@@ -100,15 +76,14 @@ export default function PolymarketPage() {
 		[portfolio],
 	);
 
-	const positionsValue = useMemo(
-		() =>
-			Math.round(
-				(portfolio?.positions ?? [])
-					.filter((p) => !p.onChain.resolved && p.onChain.shares > 0)
-					.reduce((sum, p) => sum + p.onChain.currentValue, 0) * 100,
-			) / 100,
-		[portfolio],
-	);
+	const positionsValue = useMemo(() => {
+		if (!portfolio) return null;   // early return null — wallet summary shows nothing while loading
+		return Math.round(
+			(portfolio.positions ?? [])
+				.filter((p) => !p.onChain.resolved && p.onChain.shares > 0)
+				.reduce((sum, p) => sum + p.onChain.currentValue, 0) * 100,
+		) / 100;
+	}, [portfolio]);
 
 	const allPositions = useMemo(() => {
 		const positions = portfolio?.positions ?? [];
@@ -119,10 +94,20 @@ export default function PolymarketPage() {
 			return positions.filter((p) => p.category === "manual");
 		if (statusFilter === "resolved")
 			return positions.filter(
-				(p) => p.onChain.resolved || p.onChain.redeemable || p.category === "legacy",
+				(p) => p.onChain.resolved || p.onChain.redeemable,
 			);
 		return positions;
 	}, [portfolio, statusFilter]);
+
+	const filterCounts = useMemo(() => {
+		const positions = portfolio?.positions ?? [];
+		return {
+			all: positions.length,
+			"soft-arb": positions.filter((p) => p.category === "tracked").length,
+			manual: positions.filter((p) => p.category === "manual").length,
+			resolved: positions.filter((p) => p.onChain.resolved || p.onChain.redeemable).length,
+		};
+	}, [portfolio]);
 
 	const isLoaded = !loading && portfolio !== null;
 
@@ -212,8 +197,8 @@ export default function PolymarketPage() {
 								<p className="mb-1 text-sm font-semibold text-red-700">
 									Pipeline Tracking Errors ({highAlerts.length})
 								</p>
-								{highAlerts.map((a: PortfolioAlert) => (
-									<p key={a.tradeId ?? a.slug} className="text-xs text-red-600">
+								{highAlerts.map((a: PortfolioAlert, idx) => (
+									<p key={a.tradeId ?? a.slug ?? idx} className="text-xs text-red-600">
 										{a.message}
 									</p>
 								))}
@@ -225,9 +210,9 @@ export default function PolymarketPage() {
 								<p className="mb-1 text-sm font-semibold text-blue-700">
 									Unclaimed Payouts ({claimableAlerts.length})
 								</p>
-								{claimableAlerts.map((a: PortfolioAlert) => (
+								{claimableAlerts.map((a: PortfolioAlert, idx) => (
 									<p
-										key={a.tradeId ?? a.slug}
+										key={a.tradeId ?? a.slug ?? idx}
 										className="text-xs text-blue-600"
 									>
 										{a.message}
@@ -250,11 +235,7 @@ export default function PolymarketPage() {
 										}`}
 									>
 										{filter === "soft-arb" ? "Soft Arb" : filter === "all" ? "All" : filter === "manual" ? "Manual" : "Resolved"}
-										{filter === "all" && (
-											<span className="ml-1 opacity-60">
-												({(portfolio?.positions ?? []).length})
-											</span>
-										)}
+										<span className="ml-1 opacity-60">({filterCounts[filter]})</span>
 									</button>
 								),
 							)}
@@ -311,20 +292,22 @@ export default function PolymarketPage() {
 															className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide ${
 																p.outcome === "Yes"
 																	? "bg-emerald-100 text-emerald-700"
-																	: "bg-red-100 text-red-600"
+																	: p.outcome === "No"
+																		? "bg-red-100 text-red-600"
+																		: "bg-slate-100 text-slate-600"
 															}`}
 														>
 															{p.outcome.toUpperCase()}
 														</span>
 													</td>
 													<td className="text-right px-3 py-3 tabular-nums font-medium">
-														{p.onChain.shares.toFixed(1)}
+														{(p.onChain.shares ?? 0).toFixed(1)}
 													</td>
 													<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
-														${p.onChain.avgPrice.toFixed(2)}
+														${(p.onChain.avgPrice ?? 0).toFixed(2)}
 													</td>
 													<td className="text-right px-3 py-3 tabular-nums text-muted-foreground">
-														${p.onChain.currentPrice.toFixed(2)}
+														${(p.onChain.currentPrice ?? 0).toFixed(2)}
 													</td>
 													<td className="text-right px-3 py-3 tabular-nums">
 														{formatUsd(p.onChain.currentValue)}
