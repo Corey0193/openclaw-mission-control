@@ -68,3 +68,14 @@ export interface PortfolioResponse {
 	positions: PortfolioPosition[];
 	alerts: PortfolioAlert[];
 }
+
+/** Wallet balance snapshot from soft_arb_live_risk.get_wallet_snapshot() */
+export interface WalletSnapshot {
+  total_wallet_value_usd: number;
+  deployable_bankroll_usd: number;
+  magic_usdc: number;
+  phantom_usdc: number;
+  phantom_pol: number;
+  phantom_pol_usd_value: number;
+  updated_at: string;
+}
