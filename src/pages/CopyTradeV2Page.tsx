@@ -14,6 +14,7 @@ import {
 	IconShieldCheck,
 	IconTargetArrow,
 	IconTrash,
+	IconInfoCircle,
 } from "@tabler/icons-react";
 
 const CONTROL_BASE_URL =
@@ -378,20 +379,20 @@ function MetricCard({
 				? "text-red-500"
 				: "text-foreground";
 	return (
-		<div className="flex items-center gap-3 rounded-xl border border-border bg-white px-4 py-4 shadow-sm">
-			<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+		<div className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 shadow-sm">
+			<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
 				{icon}
 			</div>
 			<div className="min-w-0">
-				<div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+				<div
+					title={sub}
+					className="cursor-help text-[9px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+				>
 					{label}
 				</div>
-				<div className={`text-lg font-bold leading-tight ${valueClass}`}>
+				<div className={`text-sm font-bold leading-tight ${valueClass}`}>
 					{value}
 				</div>
-				{sub && (
-					<div className="mt-0.5 text-[10px] text-muted-foreground">{sub}</div>
-				)}
 			</div>
 		</div>
 	);
@@ -407,16 +408,23 @@ function SectionCard({
 	children: React.ReactNode;
 }) {
 	return (
-		<section className="rounded-2xl border border-border bg-white shadow-sm">
-			<div className="border-b border-border px-5 py-4">
-				<div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-					{title}
+		<section className="rounded-xl border border-border bg-white shadow-sm flex flex-col">
+			<div className="flex items-center justify-between border-b border-border bg-slate-50/50 px-3 py-2">
+				<div className="flex items-center gap-2">
+					<div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+						{title}
+					</div>
+					{subtitle && (
+						<div
+							title={subtitle}
+							className="cursor-help text-muted-foreground transition-colors hover:text-foreground"
+						>
+							<IconInfoCircle size={14} />
+						</div>
+					)}
 				</div>
-				{subtitle && (
-					<div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>
-				)}
 			</div>
-			<div className="px-5 py-4">{children}</div>
+			<div className="px-3 py-3 flex-1">{children}</div>
 		</section>
 	);
 }
@@ -940,20 +948,29 @@ export default function CopyTradeV2Page() {
 							</div>
 						) : (
 							<>
-								<div className="grid gap-3 sm:grid-cols-2">
+								<div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
 									{EDITABLE_CONFIG_FIELDS.map((field) => (
 										<label
 											key={field.key}
-											className="rounded-xl border border-slate-100 px-3 py-3"
+											className="rounded-lg border border-slate-100 px-2 py-2 flex flex-col"
 										>
 											<div className="flex items-center justify-between gap-3">
-												<div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-													{field.label}
+												<div className="flex items-center gap-1.5">
+													<div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+														{field.label}
+													</div>
+													<div
+														title={field.help}
+														className="cursor-help text-muted-foreground transition-colors hover:text-foreground"
+													>
+														<IconInfoCircle size={12} />
+													</div>
 												</div>
 												<div className="text-[10px] text-muted-foreground">
 												        {fieldSuffix(field.kind)}
-												        </div>
 												</div>
+											</div>
+											<div className="mt-1 flex-1 flex flex-col justify-end">
 												{field.type === "select" ? (
 												        <select
 												                value={configDraft[field.key]}
@@ -967,7 +984,7 @@ export default function CopyTradeV2Page() {
 												                : current,
 												                )
 												                }
-												                className="mt-2 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none transition focus:border-emerald-400"
+												                className="w-full rounded-md border border-border bg-white px-2 py-1.5 text-xs font-semibold text-foreground outline-none transition focus:border-emerald-400"
 												        >
 												                {(field.options || []).map((opt) => (
 												                        <option key={opt} value={opt}>
@@ -990,13 +1007,10 @@ export default function CopyTradeV2Page() {
 												                : current,
 												                )
 												                }
-												                className="mt-2 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none transition focus:border-emerald-400"
+												                className="w-full rounded-md border border-border bg-white px-2 py-1.5 text-xs font-semibold text-foreground outline-none transition focus:border-emerald-400"
 												        />
 												)}
-												<div className="mt-2 text-[11px] text-muted-foreground">
-												        {field.help}
-												</div>
-
+											</div>
 										</label>
 									))}
 								</div>
@@ -1073,73 +1087,6 @@ export default function CopyTradeV2Page() {
 					</SectionCard>
 				</div>
 
-				<div className="grid gap-4 xl:grid-cols-2">
-					<SectionCard
-						title="Leader Roster"
-						subtitle="CTS-snapshot ranked roster loaded by the daily refresh job."
-					>
-						{leaderRows.length === 0 ? (
-							<div className="py-8 text-sm text-muted-foreground">
-								No leader data yet.
-							</div>
-						) : (
-							<div className="space-y-2">
-								{leaderRows.map((leader) => (
-									<div
-										key={leader.address}
-										className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 px-3 py-2"
-									>
-										<div className="min-w-0">
-											<div className="truncate text-sm font-semibold text-foreground">
-												{leader.label ?? shortAddr(leader.address)}
-											</div>
-											<div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-												{leader.leaderState} · {leader.recentBuyCount} buys ·{" "}
-												{Math.round(leader.recentBuyPassRate * 100)}% pass
-											</div>
-										</div>
-										<div className="text-right">
-											<div className="text-sm font-bold text-foreground">
-												{Math.round(leader.copyableScore)}
-											</div>
-											<div className="text-[10px] text-muted-foreground">
-												{leader.lastHealthReason ?? "ranked_active"}
-											</div>
-										</div>
-									</div>
-								))}
-							</div>
-						)}
-					</SectionCard>
-
-					<SectionCard
-						title="Recent Skip Reasons"
-						subtitle="Last processed daemon cycle."
-					>
-						{skipReasons.length === 0 ? (
-							<div className="py-8 text-sm text-muted-foreground">
-								No recent skips.
-							</div>
-						) : (
-							<div className="space-y-2">
-								{skipReasons.map((skip) => (
-									<div
-										key={skip.reason}
-										className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2"
-									>
-										<div className="text-sm font-semibold text-foreground">
-											{skip.reason}
-										</div>
-										<div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-											{skip.count}
-										</div>
-									</div>
-								))}
-							</div>
-						)}
-					</SectionCard>
-				</div>
-
 				<SectionCard
 					title="Open Positions"
 					subtitle="Open paper positions from the isolated V2 ledger."
@@ -1187,10 +1134,10 @@ export default function CopyTradeV2Page() {
 												key={position.positionId}
 												className="hover:bg-slate-50/60"
 											>
-												<td className="px-4 py-2.5 text-[11px] font-mono text-slate-500">
+												<td className="px-3 py-1.5 text-[11px] font-mono text-slate-500">
 													{shortAddr(position.leaderAddress)}
 												</td>
-												<td className="px-4 py-2.5 text-[11px] text-slate-500">
+												<td className="px-3 py-1.5 text-[11px] text-slate-500">
 													{marketUrl ? (
 														<a
 															href={marketUrl}
@@ -1204,10 +1151,10 @@ export default function CopyTradeV2Page() {
 														marketName
 													)}
 												</td>
-												<td className="px-4 py-2.5 tabular-nums">
+												<td className="px-3 py-1.5 tabular-nums">
 													{fmtUsd(position.entryUsd)}
 												</td>
-												<td className="px-4 py-2.5 tabular-nums">
+												<td className="px-3 py-1.5 tabular-nums">
 													{currentPrice.toFixed(3)}
 												</td>
 												<td
@@ -1219,7 +1166,7 @@ export default function CopyTradeV2Page() {
 												>
 													{fmtUsd(unrealized, true)}
 												</td>
-												<td className="px-4 py-2.5 text-[11px] text-slate-500">
+												<td className="px-3 py-1.5 text-[11px] text-slate-500">
 													<div className="flex flex-wrap gap-1">
 														{position.exitStrategy && (
 															<span className="rounded bg-violet-50 px-1.5 py-0.5 font-bold uppercase text-violet-700">
@@ -1250,7 +1197,7 @@ export default function CopyTradeV2Page() {
 														)}
 													</div>
 												</td>
-												<td className="px-4 py-2.5 text-muted-foreground">
+												<td className="px-3 py-1.5 text-muted-foreground">
 													{holdTime(position.entryTimestamp)}
 												</td>
 											</tr>
@@ -1306,10 +1253,10 @@ export default function CopyTradeV2Page() {
 												key={position.positionId}
 												className="hover:bg-slate-50/60"
 											>
-												<td className="px-4 py-2.5 text-[11px] font-mono text-slate-500">
+												<td className="px-3 py-1.5 text-[11px] font-mono text-slate-500">
 													{shortAddr(position.leaderAddress)}
 												</td>
-												<td className="px-4 py-2.5 text-[11px] text-slate-500">
+												<td className="px-3 py-1.5 text-[11px] text-slate-500">
 													{marketUrl ? (
 														<a
 															href={marketUrl}
@@ -1323,7 +1270,7 @@ export default function CopyTradeV2Page() {
 														marketName
 													)}
 												</td>
-												<td className="px-4 py-2.5 tabular-nums">
+												<td className="px-3 py-1.5 tabular-nums">
 													<div className="font-medium text-slate-700">
 														{fmtPrice(position.entryPrice)}
 													</div>
@@ -1331,20 +1278,20 @@ export default function CopyTradeV2Page() {
 														Cost {fmtUsd(position.entryUsd)}
 													</div>
 												</td>
-												<td className="px-4 py-2.5 tabular-nums">
+												<td className="px-3 py-1.5 tabular-nums">
 													{fmtPrice(position.exitPrice)}
 												</td>
 												<td
-													className={`px-4 py-2.5 tabular-nums font-bold ${
+													className={`px-3 py-1.5 tabular-nums font-bold ${
 														pnl >= 0 ? "text-emerald-600" : "text-red-500"
 													}`}
 												>
 													{fmtUsd(pnl, true)}
 												</td>
-												<td className="px-4 py-2.5 text-[11px] text-slate-500">
+												<td className="px-3 py-1.5 text-[11px] text-slate-500">
 													{position.exitReason ?? "—"}
 												</td>
-												<td className="px-4 py-2.5 text-muted-foreground">
+												<td className="px-3 py-1.5 text-muted-foreground">
 													{holdTime(
 														position.entryTimestamp,
 														position.exitTimestamp,
@@ -1361,53 +1308,125 @@ export default function CopyTradeV2Page() {
 
 				<div className="grid gap-4 xl:grid-cols-2">
 					<SectionCard
+						title="Leader Roster"
+						subtitle="CTS-snapshot ranked roster loaded by the daily refresh job."
+					>
+						{leaderRows.length === 0 ? (
+							<div className="py-8 text-sm text-muted-foreground">
+								No leader data yet.
+							</div>
+						) : (
+							<div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+								{leaderRows.map((leader) => (
+									<div
+										key={leader.address}
+										className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-2 py-1.5"
+									>
+										<div className="min-w-0 flex-1">
+											<div className="truncate text-xs font-semibold text-foreground flex items-center gap-2">
+												{leader.label ?? shortAddr(leader.address)}
+												<span className="text-[9px] font-normal uppercase tracking-wide text-muted-foreground px-1.5 py-0.5 bg-slate-100 rounded">
+													{leader.leaderState}
+												</span>
+											</div>
+											<div className="text-[10px] text-muted-foreground mt-0.5 flex gap-2">
+												<span><strong className="text-foreground">{leader.recentBuyCount}</strong> buys</span>
+												<span><strong className="text-foreground">{Math.round(leader.recentBuyPassRate * 100)}%</strong> pass</span>
+											</div>
+										</div>
+										<div className="text-right">
+											<div className="text-sm font-bold text-foreground leading-none">
+												{Math.round(leader.copyableScore)}
+											</div>
+											{leader.lastHealthReason && leader.lastHealthReason !== "ranked_active" && (
+												<div className="text-[9px] text-muted-foreground mt-0.5">
+													{leader.lastHealthReason}
+												</div>
+											)}
+										</div>
+									</div>
+								))}
+							</div>
+						)}
+					</SectionCard>
+
+					<SectionCard
+						title="Recent Skip Reasons"
+						subtitle="Last processed daemon cycle."
+					>
+						{skipReasons.length === 0 ? (
+							<div className="py-8 text-sm text-muted-foreground">
+								No recent skips.
+							</div>
+						) : (
+							<div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+								{skipReasons.map((skip) => (
+									<div
+										key={skip.reason}
+										className="flex items-center justify-between rounded-lg border border-slate-100 px-2 py-1"
+									>
+										<div className="text-xs font-semibold text-foreground">
+											{skip.reason}
+										</div>
+										<div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+											{skip.count}
+										</div>
+									</div>
+								))}
+							</div>
+						)}
+					</SectionCard>
+				</div>
+
+				<div className="grid gap-4 xl:grid-cols-2">
+					<SectionCard
 						title="Bridge Snapshot"
 						subtitle="Raw control bridge state."
 					>
 						{bridgeStatus ? (
 							<div className="space-y-3 text-sm">
 								<div className="grid gap-2 sm:grid-cols-2">
-									<div className="rounded-xl border border-border bg-slate-50 px-4 py-3">
+									<div className="rounded-lg border border-border bg-slate-50 px-2 py-2">
 										<div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
 											Open Positions
 										</div>
-										<div className="mt-1 text-lg font-bold text-foreground">
+										<div className="text-sm font-bold text-foreground">
 											{bridgeStatus.openPositions ?? 0}
 										</div>
 									</div>
-									<div className="rounded-xl border border-border bg-slate-50 px-4 py-3">
+									<div className="rounded-lg border border-border bg-slate-50 px-2 py-2">
 										<div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
 											Active Leaders
 										</div>
-										<div className="mt-1 text-lg font-bold text-foreground">
+										<div className="text-sm font-bold text-foreground">
 											{bridgeStatus.activeLeaders ?? 0}
 										</div>
 									</div>
 								</div>
-								<div className="text-[11px] text-muted-foreground">
+								<div className="text-[10px] text-muted-foreground">
 									Runtime DB: {bridgeStatus.runtimeDb ?? "—"} · PID{" "}
 									{bridgeStatus.pid ?? "—"} · Checked{" "}
 									{bridgeStatus.checkedAt ?? "—"}
 								</div>
-								<div className="rounded-xl border border-slate-100 bg-white p-3">
+								<div className="rounded-lg border border-slate-100 bg-white p-2">
 									<div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
 										Top Roster
 									</div>
-									<div className="mt-2 space-y-2">
-										{(bridgeStatus.roster ?? []).slice(0, 6).map((leader) => (
+									<div className="mt-1.5 space-y-1">
+										{(bridgeStatus.roster ?? []).slice(0, 4).map((leader) => (
 											<div
 												key={leader.address}
-												className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2"
+												className="flex items-center justify-between rounded border border-slate-100 px-2 py-1"
 											>
 												<div className="min-w-0">
-													<div className="truncate text-sm font-semibold text-foreground">
+													<div className="truncate text-xs font-semibold text-foreground">
 														{leader.label ?? shortAddr(leader.address)}
 													</div>
-													<div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+													<div className="text-[9px] uppercase tracking-wide text-muted-foreground">
 														{leader.leader_state}
 													</div>
 												</div>
-												<div className="text-sm font-bold text-foreground">
+												<div className="text-xs font-bold text-foreground">
 													{Math.round(leader.copyable_score)}
 												</div>
 											</div>
@@ -1415,7 +1434,7 @@ export default function CopyTradeV2Page() {
 									</div>
 								</div>
 								{bridgeStatus.lastRefresh && (
-									<div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-muted-foreground">
+									<div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-2 text-[10px] text-muted-foreground">
 										Last refresh target:{" "}
 										{String(bridgeStatus.lastRefresh.target_active ?? "—")} ·
 										actual active{" "}
@@ -1436,38 +1455,43 @@ export default function CopyTradeV2Page() {
 						title="Operational Notes"
 						subtitle="What this page is actually doing."
 					>
-						<ul className="space-y-3 text-sm text-muted-foreground">
-							<li className="flex items-start gap-2">
-								<IconClock
-									size={16}
-									className="mt-0.5 shrink-0 text-emerald-600"
-								/>
-								<span>
-									Convex status and positions are polled every 15 seconds from
-									the V2 namespace.
-								</span>
-							</li>
-							<li className="flex items-start gap-2">
-								<IconRefresh
-									size={16}
-									className="mt-0.5 shrink-0 text-emerald-600"
-								/>
-								<span>
-									The local control bridge can start, stop, restart, or refresh
-									the daily roster without touching V1.
-								</span>
-							</li>
-							<li className="flex items-start gap-2">
-								<IconTargetArrow
-									size={16}
-									className="mt-0.5 shrink-0 text-emerald-600"
-								/>
-								<span>
-									V2 uses the MIRROR_TP_SL exit chain and a separate runtime DB
-									so its paper ledger stays isolated.
-								</span>
-							</li>
-						</ul>
+						<details className="group">
+							<summary className="text-xs font-bold text-muted-foreground cursor-pointer hover:text-foreground outline-none marker:text-emerald-600">
+								View architecture notes
+							</summary>
+							<ul className="mt-3 space-y-2 text-xs text-muted-foreground pl-4">
+								<li className="flex items-start gap-2">
+									<IconClock
+										size={14}
+										className="mt-0.5 shrink-0 text-emerald-600"
+									/>
+									<span>
+										Convex status and positions are polled every 15 seconds from
+										the V2 namespace.
+									</span>
+								</li>
+								<li className="flex items-start gap-2">
+									<IconRefresh
+										size={14}
+										className="mt-0.5 shrink-0 text-emerald-600"
+									/>
+									<span>
+										The local control bridge can start, stop, restart, or refresh
+										the daily roster without touching V1.
+									</span>
+								</li>
+								<li className="flex items-start gap-2">
+									<IconTargetArrow
+										size={14}
+										className="mt-0.5 shrink-0 text-emerald-600"
+									/>
+									<span>
+										V2 uses the MIRROR_TP_SL exit chain and a separate runtime DB
+										so its paper ledger stays isolated.
+									</span>
+								</li>
+							</ul>
+						</details>
 					</SectionCard>
 				</div>
 			</main>
