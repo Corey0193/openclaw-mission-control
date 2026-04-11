@@ -14,6 +14,8 @@ interface WalletSummaryProps {
 }
 
 export function WalletSummary({ wallet, positionsValue, crossLink }: WalletSummaryProps) {
+  // total_wallet_value_usd = cash balances only (USDC + POL converted to USD).
+  // It does NOT include open position equity, so adding positionsValue is correct.
   const totalValue =
     wallet != null && positionsValue != null
       ? wallet.total_wallet_value_usd + positionsValue
@@ -28,7 +30,7 @@ export function WalletSummary({ wallet, positionsValue, crossLink }: WalletSumma
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <SummaryCard
           label="Total Value"
           value={totalValue}
