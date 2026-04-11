@@ -128,6 +128,7 @@ type V2EditableConfig = {
 	take_profit_pct: number;
 	time_limit_hours: number;
 	initial_bankroll_usd: number;
+	exit_strategy: string;
 };
 
 type V2ConfigDraft = Record<keyof V2EditableConfig, string>;
@@ -162,8 +163,9 @@ type LocalStatusOverride = {
 const EDITABLE_CONFIG_FIELDS: Array<{
 	key: keyof V2EditableConfig;
 	label: string;
-	type: "number";
-	step: string;
+	type: "number" | "select";
+	step?: string;
+	options?: string[];
 	kind: "plain" | "usd" | "percent" | "hours";
 	help: string;
 }> = [
@@ -190,6 +192,14 @@ const EDITABLE_CONFIG_FIELDS: Array<{
 		step: "1",
 		kind: "usd",
 		help: "Base bankroll used for the paper strategy.",
+	},
+	{
+		key: "exit_strategy",
+		label: "Exit Strategy",
+		type: "select",
+		options: ["MIRROR", "TP_SL", "MIRROR_TP_SL", "TRAILING", "TIME_LIMIT", "MIRROR_WITH_SL", "HOLD_TO_RESOLUTION"],
+		kind: "plain",
+		help: "Determines close conditions. Use MIRROR to only copy wallet exits.",
 	},
 	{
 		key: "max_position_usd",
@@ -270,6 +280,7 @@ function configToDraft(config: V2EditableConfig): V2ConfigDraft {
 		take_profit_pct: String(config.take_profit_pct * 100),
 		time_limit_hours: String(config.time_limit_hours),
 		initial_bankroll_usd: String(config.initial_bankroll_usd),
+		exit_strategy: config.exit_strategy,
 	};
 }
 
@@ -286,6 +297,7 @@ function draftToPayload(draft: V2ConfigDraft): V2EditableConfig {
 		take_profit_pct: Number(draft.take_profit_pct) / 100,
 		time_limit_hours: Number(draft.time_limit_hours),
 		initial_bankroll_usd: Number(draft.initial_bankroll_usd),
+		exit_strategy: draft.exit_strategy,
 	};
 }
 
@@ -939,28 +951,52 @@ export default function CopyTradeV2Page() {
 													{field.label}
 												</div>
 												<div className="text-[10px] text-muted-foreground">
-													{fieldSuffix(field.kind)}
+												        {fieldSuffix(field.kind)}
+												        </div>
 												</div>
-											</div>
-											<input
-												type={field.type}
-												step={field.step}
-												value={configDraft[field.key]}
-												onChange={(event) =>
-													setConfigDraft((current) =>
-														current
-															? {
-																	...current,
-																	[field.key]: event.target.value,
-																}
-															: current,
-													)
-												}
-												className="mt-2 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none transition focus:border-emerald-400"
-											/>
-											<div className="mt-2 text-[11px] text-muted-foreground">
-												{field.help}
-											</div>
+												{field.type === "select" ? (
+												        <select
+												                value={configDraft[field.key]}
+												                onChange={(event) =>
+												                setConfigDraft((current) =>
+												                current
+												                ? {
+												                ...current,
+												                [field.key]: event.target.value,
+												                }
+												                : current,
+												                )
+												                }
+												                className="mt-2 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none transition focus:border-emerald-400"
+												        >
+												                {(field.options || []).map((opt) => (
+												                        <option key={opt} value={opt}>
+												                                {opt}
+												                        </option>
+												                ))}
+												        </select>
+												) : (
+												        <input
+												                type={field.type}
+												                step={field.step}
+												                value={configDraft[field.key]}
+												                onChange={(event) =>
+												                setConfigDraft((current) =>
+												                current
+												                ? {
+												                ...current,
+												                [field.key]: event.target.value,
+												                }
+												                : current,
+												                )
+												                }
+												                className="mt-2 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none transition focus:border-emerald-400"
+												        />
+												)}
+												<div className="mt-2 text-[11px] text-muted-foreground">
+												        {field.help}
+												</div>
+
 										</label>
 									))}
 								</div>
