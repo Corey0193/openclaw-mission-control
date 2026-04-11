@@ -71,6 +71,7 @@ const SOFT_ARB_VENV_PYTHON = path.join(
 	os.homedir(),
 	".openclaw/workspace-hustle/skills/arb-engine/.venv/bin/python3",
 );
+const SOFT_ARB_NETWORK_TIMEOUT_MS = 2_500;
 
 interface PipelineRun {
 	runId: string;
@@ -147,6 +148,22 @@ function firstNonEmptyString(...values: unknown[]): string {
 		}
 	}
 	return "";
+}
+
+function getIsoMtime(filePath: string): string | null {
+	if (!fs.existsSync(filePath)) return null;
+	return new Date(fs.statSync(filePath).mtimeMs).toISOString();
+}
+
+function latestIsoTimestamp(...values: Array<string | null | undefined>): string | null {
+	let latest: number | null = null;
+	for (const value of values) {
+		if (!value) continue;
+		const parsed = Date.parse(value);
+		if (!Number.isFinite(parsed)) continue;
+		if (latest == null || parsed > latest) latest = parsed;
+	}
+	return latest == null ? null : new Date(latest).toISOString();
 }
 
 function getDossierDisplayName(
@@ -381,6 +398,21 @@ function normalizeRun(run: PipelineRun): PipelineRun {
 	}
 }
 
+function getPipelineRunSortKey(runId: string, fallbackMtime: number): number {
+	const match = runId.match(/(\d{4})-(\d{2})-(\d{2})-(\d{4})$/);
+	if (!match) return fallbackMtime;
+	const [, year, month, day, hhmm] = match;
+	const hours = Number(hhmm.slice(0, 2));
+	const minutes = Number(hhmm.slice(2, 4));
+	return Date.UTC(
+		Number(year),
+		Number(month) - 1,
+		Number(day),
+		hours,
+		minutes,
+	);
+}
+
 function getPipelineRuns(): PipelineRun[] {
 	if (!fs.existsSync(ARB_PIPELINE_DIR)) return [];
 
@@ -390,6 +422,7 @@ function getPipelineRuns(): PipelineRun[] {
 
 	const idSet = new Set<string>();
 	const fileMap = new Map<string, string>();
+	const latestMtimeById = new Map<string, number>();
 	const archivedIds = new Set<string>();
 
 	for (const dir of dirs) {
@@ -401,14 +434,26 @@ function getPipelineRuns(): PipelineRun[] {
 			);
 			if (m) {
 				idSet.add(m[1]);
-				fileMap.set(`${m[1]}.${m[2]}`, path.join(dir, f));
+				const filePath = path.join(dir, f);
+				fileMap.set(`${m[1]}.${m[2]}`, filePath);
+				const stat = fs.statSync(filePath);
+				const currentLatest = latestMtimeById.get(m[1]) ?? 0;
+				if (stat.mtimeMs > currentLatest) latestMtimeById.set(m[1], stat.mtimeMs);
 				if (isArchive) archivedIds.add(m[1]);
 			}
 		}
 	}
 
 	const runs: PipelineRun[] = [];
-	for (const id of [...idSet].sort().reverse()) {
+	const recentIds = [...idSet]
+		.sort(
+			(a, b) =>
+				getPipelineRunSortKey(b, latestMtimeById.get(b) ?? 0) -
+				getPipelineRunSortKey(a, latestMtimeById.get(a) ?? 0),
+		)
+		.slice(0, 50);
+
+	for (const id of recentIds) {
 		const dossier = readJsonSafe(fileMap.get(`${id}.dossier`) ?? "");
 		const verdict = readJsonSafe(fileMap.get(`${id}.verdict`) ?? "");
 		const decision = readJsonSafe(fileMap.get(`${id}.decision`) ?? "");
@@ -691,6 +736,9 @@ async function getPolUsdPrice(): Promise<number> {
 	}
 	const res = await fetch(
 		"https://api.coingecko.com/api/v3/simple/price?ids=polygon-ecosystem-token&vs_currencies=usd",
+		{
+			signal: AbortSignal.timeout(SOFT_ARB_NETWORK_TIMEOUT_MS),
+		},
 	);
 	if (!res.ok) {
 		throw new Error(`coin price request failed (${res.status})`);
@@ -785,6 +833,7 @@ async function fetchSoftArbGammaQuote(slug: string): Promise<{
 				headers: {
 					Accept: "application/json",
 				},
+				signal: AbortSignal.timeout(SOFT_ARB_NETWORK_TIMEOUT_MS),
 			},
 		);
 		if (!resp.ok) return null;
@@ -1717,7 +1766,13 @@ async function getSoftArbTrades(): Promise<{
 		shield,
 		discovery: getSoftArbDiscoverySummary(),
 		wallet,
-		lastUpdated: truth?.generated_at ?? mtm?.last_updated ?? null,
+		lastUpdated: latestIsoTimestamp(
+			truth?.generated_at,
+			mtm?.last_updated,
+			getIsoMtime(SOFT_ARB_TRADES_PATH),
+			getIsoMtime(SOFT_ARB_LIVE_TRADES_PATH),
+			getIsoMtime(SOFT_ARB_LIVE_TRADES_LEGACY_PATH),
+		),
 	};
 }
 
