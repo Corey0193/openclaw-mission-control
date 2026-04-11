@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePortfolio } from "../lib/usePortfolio";
 import Header from "../components/Header";
+import { WalletSummary } from "../components/WalletSummary";
+import { SummaryCard } from "../components/SummaryCard";
+import { PnlBadge } from "../components/PnlBadge";
+import { formatPnl, timeAgo, formatPct } from "../lib/formatters";
+import type { WalletSnapshot } from "../types/portfolio";
 import {
-	IconArrowsExchange,
 	IconChartBar,
 	IconPercentage,
 	IconTrendingUp,
@@ -15,39 +19,7 @@ import {
 	IconBrain,
 	IconCircleCheck,
 	IconAlertTriangle,
-	IconWallet,
-	IconCurrencyDollar,
 } from "@tabler/icons-react";
-function formatUsd(n: number): string {
-	return n.toLocaleString("en-US", {
-		style: "currency",
-		currency: "USD",
-		minimumFractionDigits: 2,
-	});
-}
-
-function formatPnl(n: number): string {
-	const sign = n >= 0 ? "+" : "";
-	return sign + formatUsd(n);
-}
-
-function timeAgo(isoOrMs: string | number): string {
-	const ts =
-		typeof isoOrMs === "string" ? new Date(isoOrMs).getTime() : isoOrMs;
-	const diffMs = Date.now() - ts;
-	const mins = Math.floor(diffMs / 60000);
-	if (mins < 1) return "just now";
-	if (mins < 60) return `${mins}m ago`;
-	const hrs = Math.floor(mins / 60);
-	if (hrs < 24) return `${hrs}h ago`;
-	const days = Math.floor(hrs / 24);
-	return `${days}d ago`;
-}
-
-function formatPct(n: number | null | undefined, digits = 1): string {
-	if (n == null || Number.isNaN(n)) return "---";
-	return `${n.toFixed(digits)}%`;
-}
 
 function familyLabel(family: string): string {
 	return family === "metaculus"
@@ -113,67 +85,6 @@ function isVisiblePositionStatus(status: string | null | undefined): boolean {
 		normalized === "PARTIAL_FILL" ||
 		normalized === "FILLED" ||
 		normalized === "PAYOUT_CLAIMABLE"
-	);
-}
-
-function PnlBadge({ value }: { value: number | null }) {
-	if (value === null) return <span className="text-muted-foreground">---</span>;
-	const isPositive = value >= 0;
-	return (
-		<span
-			className={`inline-flex items-center gap-1 font-semibold ${
-				isPositive ? "text-emerald-600" : "text-red-500"
-			}`}
-		>
-			{isPositive ? (
-				<IconTrendingUp size={14} />
-			) : (
-				<IconTrendingDown size={14} />
-			)}
-			{formatPnl(value)}
-		</span>
-	);
-}
-
-function SummaryCard({
-	label,
-	value,
-	icon,
-	isPnl,
-	isPercent,
-	isCurrency,
-}: {
-	label: string;
-	value: number | null;
-	icon: React.ReactNode;
-	isPnl?: boolean;
-	isPercent?: boolean;
-	isCurrency?: boolean;
-}) {
-	return (
-		<div className="flex items-center gap-2.5 bg-white border border-border rounded-xl px-3 py-3 shadow-sm min-w-0">
-			<div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-muted text-muted-foreground">
-				{icon}
-			</div>
-			<div className="min-w-0 flex-1">
-				<div className="text-[9px] font-semibold text-muted-foreground tracking-wide uppercase truncate">
-					{label}
-				</div>
-				<div className="text-sm font-bold text-foreground truncate">
-					{value == null ? (
-						"---"
-					) : isPnl ? (
-						<PnlBadge value={value} />
-					) : isPercent ? (
-						`${value.toFixed(1)}%`
-					) : isCurrency ? (
-						formatUsd(value)
-					) : (
-						value
-					)}
-				</div>
-			</div>
-		</div>
 	);
 }
 
@@ -772,11 +683,6 @@ export default function SoftArbPage() {
 			);
 	}, [portfolio, softArbData]);
 
-	const unmappedPositions = useMemo(() => {
-		if (!portfolio) return [];
-		return portfolio.positions.filter((p) => p.category !== "tracked");
-	}, [portfolio]);
-
 	const resolvedTrades = useMemo(() => {
 		const onChainBySlug = new Map<
 			string,
@@ -825,47 +731,29 @@ export default function SoftArbPage() {
 		return stats;
 	}, [softArbData]);
 
-	const walletStats = useMemo(() => {
-		const summary = (softArbData?.summary ?? {}) as any;
-		const positionEquity = (softArbData?.trades ?? []).reduce((sum, trade) => {
-			if (!isVisiblePositionStatus(trade.status)) return sum;
-			const status = String(trade.status ?? "").toUpperCase();
-			if (status === "PAYOUT_CLAIMABLE") {
-				return sum + Number(trade.gross_payout ?? 0);
-			}
-			const currentPrice =
-				trade.current_price != null
-					? Number(trade.current_price)
-					: trade.entry_price != null
-						? Number(trade.entry_price)
-						: 0;
-			return sum + currentPrice * Number(trade.shares ?? 0);
-		}, 0);
+	const walletSnapshot: WalletSnapshot | null = useMemo(() => {
+		const w = softArbData?.wallet;
+		if (!w || w.total_wallet_value_usd == null) return null;
 		return {
-			totalWalletValue:
-				softArbData?.wallet?.total_wallet_value_usd != null
-					? Number(softArbData.wallet.total_wallet_value_usd)
-					: summary.wallet_total_value_usd != null
-						? Number(summary.wallet_total_value_usd)
-						: null,
-			portfolioValue:
-				softArbData?.wallet?.total_wallet_value_usd != null
-					? Number(softArbData.wallet.total_wallet_value_usd) + positionEquity
-					: summary.wallet_total_value_usd != null
-						? Number(summary.wallet_total_value_usd) + positionEquity
-						: null,
-			availableCapital:
-				softArbData?.wallet?.deployable_bankroll_usd != null
-					? Number(softArbData.wallet.deployable_bankroll_usd)
-					: summary.available_capital_usd != null
-						? Number(summary.available_capital_usd)
-						: null,
-			fullWalletValue:
-				softArbData?.wallet?.total_wallet_value_usd != null
-					? softArbData.wallet.total_wallet_value_usd
-					: null,
+			total_wallet_value_usd: Number(w.total_wallet_value_usd),
+			deployable_bankroll_usd: Number(w.deployable_bankroll_usd ?? 0),
+			magic_usdc: Number(w.magic_usdc ?? 0),
+			phantom_usdc: Number(w.phantom_usdc ?? 0),
+			phantom_pol: Number(w.phantom_pol ?? 0),
+			phantom_pol_usd_value: Number(w.phantom_pol_usd_value ?? 0),
+			updated_at: w.updated_at,
 		};
 	}, [softArbData]);
+
+	const positionsValue = useMemo(() => {
+		if (!portfolio) return null;
+		const openPositions = (portfolio.positions ?? []).filter(
+			(p) => !p.onChain.resolved && p.onChain.shares > 0,
+		);
+		return Math.round(
+			openPositions.reduce((sum, p) => sum + p.onChain.currentValue, 0) * 100,
+		) / 100;
+	}, [portfolio]);
 
 	const calibrationFamilies = useMemo(() => {
 		const families =
@@ -949,42 +837,20 @@ export default function SoftArbPage() {
 
 					{sectionsOpen.positions && (
 						<div className="space-y-6">
-							{/* Summary stats */}
+							{/* Wallet header */}
+							<WalletSummary
+								wallet={walletSnapshot}
+								positionsValue={positionsValue}
+								crossLink={{ to: "/arb/polymarket", label: "Full portfolio view" }}
+							/>
+
+							{/* Strategy performance cards */}
 							<div
 								className="grid gap-3"
 								style={{
 									gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))",
 								}}
 							>
-								<SummaryCard
-									label="Tracked Trades"
-									value={softArbData?.trades.length ?? 0}
-									icon={<IconArrowsExchange size={20} />}
-								/>
-								<SummaryCard
-									label="Soft Arb Wallet"
-									value={walletStats.totalWalletValue}
-									icon={<IconWallet size={20} />}
-									isCurrency
-								/>
-								<SummaryCard
-									label="Soft Arb Capital"
-									value={walletStats.availableCapital}
-									icon={<IconCurrencyDollar size={20} />}
-									isCurrency
-								/>
-								<SummaryCard
-									label="Soft Arb Portfolio"
-									value={walletStats.portfolioValue}
-									icon={<IconChartBar size={20} />}
-									isCurrency
-								/>
-								<SummaryCard
-									label="Full Wallet Value"
-									value={walletStats.fullWalletValue}
-									icon={<IconWallet size={20} />}
-									isCurrency
-								/>
 								<SummaryCard
 									label="Unrealized P&L"
 									value={Number(softArbData?.summary.total_unrealized_pnl ?? 0)}
@@ -1002,40 +868,15 @@ export default function SoftArbPage() {
 									value={dailyStats.today}
 									icon={<IconChartBar size={20} />}
 									isPnl
-								/>
-								<SummaryCard
-									label="Yesterday P&L"
-									value={dailyStats.yesterday}
-									icon={<IconRefresh size={20} />}
-									isPnl
-								/>
-								<SummaryCard
-									label="Avg Daily P&L"
-									value={dailyStats.avg}
-									icon={<IconTarget size={20} />}
-									isPnl
+									subtitle={`Yesterday: ${formatPnl(dailyStats.yesterday)}`}
 								/>
 								<SummaryCard
 									label="Win Rate"
 									value={Number(softArbData?.summary.win_rate ?? 0)}
 									icon={<IconTarget size={20} />}
 									isPercent
+									subtitle={`${softArbData?.trades.length ?? 0} trades`}
 								/>
-							</div>
-
-							{softArbData?.wallet && (
-								<div className="text-xs text-muted-foreground">
-									Wallet snapshot {timeAgo(softArbData.wallet.updated_at)} ·
-									Magic {formatUsd(softArbData.wallet.magic_usdc)} · Phantom
-									USDC {formatUsd(softArbData.wallet.phantom_usdc)} · Phantom
-									POL {softArbData.wallet.phantom_pol?.toFixed(4) ?? "0"} (
-									{formatUsd(softArbData.wallet.phantom_pol_usd_value)})
-								</div>
-							)}
-							<div className="text-xs text-muted-foreground">
-								This section only covers Hustle-tracked soft-arb positions. Use
-								/arb/polymarket for the full wallet view, including positions
-								like Oscar Piatri.
 							</div>
 
 							{(portfolio?.alerts ?? []).filter(
@@ -1356,80 +1197,6 @@ export default function SoftArbPage() {
 						</div>
 					)}
 				</section>
-				{/* 1.7 Unmapped Wallet Positions */}
-				{unmappedPositions.length > 0 && (
-					<section className="space-y-4">
-						<div className="flex items-center gap-2">
-							<IconAlertTriangle size={16} className="text-amber-500" />
-							<h3 className="text-sm font-bold text-amber-900 tracking-widest uppercase">
-								Other Wallet Positions
-							</h3>
-							<span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-								{unmappedPositions.length} UNMAPPED
-							</span>
-						</div>
-						<div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
-							<table className="w-full text-sm">
-								<thead>
-									<tr className="border-b border-border bg-muted/30 text-[10px] font-bold text-muted-foreground tracking-wide uppercase">
-										<th className="text-left px-4 py-2.5">Market</th>
-										<th className="text-left px-3 py-2.5">Outcome</th>
-										<th className="text-right px-3 py-2.5">Shares</th>
-										<th className="text-right px-3 py-2.5">Price</th>
-										<th className="text-right px-4 py-2.5">P&L</th>
-									</tr>
-								</thead>
-								<tbody>
-									{unmappedPositions.map((p, index) => (
-										<tr
-											key={`${p.slug}-${p.outcome}-${index}`}
-											className="border-b border-border/50 last:border-0 hover:bg-muted/5"
-										>
-											<td className="px-4 py-3">
-												<div className="font-semibold text-foreground text-xs leading-snug">
-													<a
-														href={getPolymarketUrl(p.slug)!}
-														target="_blank"
-														rel="noopener noreferrer"
-														className="text-blue-600 hover:underline"
-													>
-														{p.title}
-													</a>
-												</div>
-												<div className="text-[9px] text-muted-foreground mt-0.5">
-													{p.category === "manual"
-														? "Manual or other strategy"
-														: "Legacy position"}
-												</div>
-											</td>
-											<td className="px-3 py-3">
-												<span
-													className={`text-[10px] font-bold px-1.5 rounded-full ${
-														p.outcome.toLowerCase() === "yes"
-															? "bg-emerald-100 text-emerald-700"
-															: "bg-red-100 text-red-700"
-													}`}
-												>
-													{p.outcome.toUpperCase()}
-												</span>
-											</td>
-											<td className="px-3 py-3 text-right tabular-nums font-medium">
-												{p.onChain.shares?.toFixed(1) ?? "—"}
-											</td>
-											<td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
-												${p.onChain.currentPrice?.toFixed(2) ?? "—"}
-											</td>
-											<td className="px-4 py-3 text-right tabular-nums">
-												<PnlBadge value={p.onChain.unrealizedPnl} />
-											</td>
-										</tr>
-									))}
-								</tbody>
-							</table>
-						</div>
-					</section>
-				)}
-
 				{/* 2. Scan History & Verification Audit (MIDDLE) */}
 				<section className="space-y-4">
 					<div className="flex items-center justify-between">
