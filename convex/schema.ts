@@ -476,7 +476,8 @@ export default defineSchema({
 		),
 		error: v.optional(v.union(v.string(), v.null())),
 		lastSyncedAt: v.number(),
-	})
+		})
 		.index("by_tenant", ["tenantId"])
-		.index("by_tenant_status", ["tenantId", "status"]),
-});
+		.index("by_tenant_status", ["tenantId", "status"])
+		.index("by_tenant_experiment", ["tenantId", "experimentId"]),
+		});

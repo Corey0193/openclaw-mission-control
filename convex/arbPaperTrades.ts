@@ -69,21 +69,22 @@ export const listPaperTrades = query({
 	handler: async (ctx, args) => {
 		return await ctx.db
 			.query("arbPaperTrades")
-			.withIndex("by_tenant_epochMs", (q) => q.eq("tenantId", args.tenantId))
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
 			.order("desc")
-			.collect();
-	},
-});
+			.take(200); // Only return recent trades to the frontend
+			},
+			});
 
-export const getPaperTradeSummary = query({
-	args: {
-		tenantId: v.string(),
-	},
-	handler: async (ctx, args) => {
-		const trades = await ctx.db
+			export const getPaperTradeSummary = query({
+			args: {
+			tenantId: v.string(),
+			},
+			handler: async (ctx, args) => {
+			const trades = await ctx.db
 			.query("arbPaperTrades")
 			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
-			.collect();
+			.order("desc")
+			.take(5000); // Prevent OOM by only summarizing recent trades
 
 		let totalTrades = 0;
 		let projectedPnl = 0;
@@ -168,20 +169,20 @@ export const listUnresolvedInternal = internalQuery({
 });
 
 export const clearAllPaperTrades = mutation({
-	args: {
-		tenantId: v.string(),
-	},
-	returns: v.number(),
-	handler: async (ctx, args) => {
-		const trades = await ctx.db
-			.query("arbPaperTrades")
-			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
-			.collect();
-		for (const t of trades) {
-			await ctx.db.delete("arbPaperTrades", t._id);
-		}
-		return trades.length;
-	},
+        args: {
+                tenantId: v.string(),
+        },
+        returns: v.number(),
+        handler: async (ctx, args) => {
+                const trades = await ctx.db
+                        .query("arbPaperTrades")
+                        .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+                        .take(1000);
+                for (const t of trades) {
+                        await ctx.db.delete(t._id);
+                }
+                return trades.length;
+        },
 });
 
 export const resolvePaperTrade = internalMutation({

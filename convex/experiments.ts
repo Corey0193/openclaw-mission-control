@@ -6,8 +6,9 @@ export const deleteExperiment = mutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("experiments")
-      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
-      .filter((q) => q.eq(q.field("experimentId"), args.experimentId))
+      .withIndex("by_tenant_experiment", (q) =>
+        q.eq("tenantId", args.tenantId).eq("experimentId", args.experimentId)
+      )
       .first();
     if (existing) {
       await ctx.db.delete(existing._id);
@@ -74,8 +75,9 @@ export const syncExperiment = mutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("experiments")
-      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
-      .filter((q) => q.eq(q.field("experimentId"), args.experimentId))
+      .withIndex("by_tenant_experiment", (q) =>
+        q.eq("tenantId", args.tenantId).eq("experimentId", args.experimentId)
+      )
       .first();
 
     const data = {

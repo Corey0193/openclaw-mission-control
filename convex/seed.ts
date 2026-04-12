@@ -5,20 +5,28 @@ const DEFAULT_TENANT_ID = "default";
 export const run = mutation({
 	args: {},
 	handler: async (ctx) => {
-		// Clear existing data
-		const existingAgents = await ctx.db.query("agents").collect();
-		for (const agent of existingAgents) {
-			await ctx.db.delete("agents", agent._id);
-		}
-		const existingTasks = await ctx.db.query("tasks").collect();
-		for (const task of existingTasks) {
-			await ctx.db.delete("tasks", task._id);
-		}
-		const existingActivities = await ctx.db.query("activities").collect();
-		for (const activity of existingActivities) {
-			await ctx.db.delete("activities", activity._id);
-		}
-
+	        // Clear existing data in batches to avoid OOM
+	        while (true) {
+	                const existingAgents = await ctx.db.query("agents").take(500);
+	                if (existingAgents.length === 0) break;
+	                for (const agent of existingAgents) {
+	                        await ctx.db.delete("agents", agent._id);
+	                }
+	        }
+	        while (true) {
+	                const existingTasks = await ctx.db.query("tasks").take(500);
+	                if (existingTasks.length === 0) break;
+	                for (const task of existingTasks) {
+	                        await ctx.db.delete("tasks", task._id);
+	                }
+	        }
+	        while (true) {
+	                const existingActivities = await ctx.db.query("activities").take(500);
+	                if (existingActivities.length === 0) break;
+	                for (const activity of existingActivities) {
+	                        await ctx.db.delete("activities", activity._id);
+	                }
+	        }
 		// CB Holdings Agents
 		const agents = [
 			{
