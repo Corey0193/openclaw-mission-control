@@ -444,6 +444,7 @@ export default function CopyTradeV2Page() {
 	const [localPositionsOverride, setLocalPositionsOverride] = useState<
 		V2Position[] | null
 	>(null);
+	const [pendingBackendResync, setPendingBackendResync] = useState(false);
 	const status = useConvexHttpQuery<V2Status>(
 		"copyTradeV2:getStatus",
 		{ tenantId: DEFAULT_TENANT_ID },
@@ -550,7 +551,12 @@ export default function CopyTradeV2Page() {
 					return null;
 				}
 				const payload = (await response.json()) as ControlStatus;
-				if (!cancelled) setBridgeStatus(payload);
+				if (!cancelled) {
+					setBridgeStatus(payload);
+					if (pendingBackendResync) {
+						setLocalStatusOverride(null);
+					}
+				}
 				return payload;
 			} catch {
 				if (!cancelled) setBridgeStatus(null);
@@ -563,7 +569,7 @@ export default function CopyTradeV2Page() {
 			cancelled = true;
 			window.clearInterval(id);
 		};
-	}, []);
+	}, [pendingBackendResync]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -577,6 +583,10 @@ export default function CopyTradeV2Page() {
 				const payload = (await response.json()) as V2PositionsResponse;
 				if (!cancelled) {
 					setBridgePositions(payload.positions ?? []);
+					if (pendingBackendResync) {
+						setLocalPositionsOverride(null);
+						setPendingBackendResync(false);
+					}
 				}
 			} catch {
 				if (!cancelled) setBridgePositions(null);
@@ -588,7 +598,7 @@ export default function CopyTradeV2Page() {
 			cancelled = true;
 			window.clearInterval(id);
 		};
-	}, []);
+	}, [pendingBackendResync]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -607,6 +617,9 @@ export default function CopyTradeV2Page() {
 				setLockedConfig(payload.lockedConfig ?? {});
 				if (payload.runtime) {
 					setBridgeStatus(payload.runtime);
+					if (pendingBackendResync) {
+						setLocalStatusOverride(null);
+					}
 				}
 			} catch {
 				// Keep current draft if the bridge is transiently unavailable.
@@ -616,7 +629,7 @@ export default function CopyTradeV2Page() {
 		return () => {
 			cancelled = true;
 		};
-	}, [refreshNonce]);
+	}, [pendingBackendResync, refreshNonce]);
 
 	const controlBusy = commandState?.stdout === "running...";
 	const busy = controlBusy || configBusy;
@@ -629,6 +642,7 @@ export default function CopyTradeV2Page() {
 		if (path !== "/reset-run") {
 			setLocalStatusOverride(null);
 			setLocalPositionsOverride(null);
+			setPendingBackendResync(false);
 		}
 		setCommandState({ label, ok: false, at: Date.now(), stdout: "running..." });
 		try {
@@ -663,9 +677,11 @@ export default function CopyTradeV2Page() {
 						lastHeartbeatAt: Date.now(),
 					});
 					setLocalPositionsOverride([]);
+					setPendingBackendResync(true);
 				} else {
 					setLocalStatusOverride(null);
 					setLocalPositionsOverride(null);
+					setPendingBackendResync(false);
 				}
 				setRefreshNonce((value) => value + 1);
 			}
