@@ -601,7 +601,7 @@ export default function SoftArbPage() {
 		}
 
 		return (softArbData?.trades ?? [])
-			.filter((t) => isVisiblePositionStatus(t.status))
+			.filter((t) => t.is_real && isVisiblePositionStatus(t.status))
 			.map((t) => ({
 				...t,
 				actual_shares: t.shares,
@@ -627,6 +627,7 @@ export default function SoftArbPage() {
 			return (softArbData?.trades ?? [])
 				.filter(
 					(t) =>
+						t.is_real &&
 						isVisiblePositionStatus(t.status) &&
 						isExpiredTrade(t.resolves_by) &&
 						String(t.status).toUpperCase() !== "PAYOUT_CLAIMABLE" &&
@@ -656,6 +657,7 @@ export default function SoftArbPage() {
 		return (softArbData?.trades ?? [])
 			.filter(
 				(t) =>
+					t.is_real &&
 					isVisiblePositionStatus(t.status) &&
 					isExpiredTrade(t.resolves_by) &&
 					String(t.status).toUpperCase() !== "PAYOUT_CLAIMABLE",
