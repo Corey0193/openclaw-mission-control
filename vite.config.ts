@@ -2247,6 +2247,10 @@ function _buildPortfolioResponse(
 	// Orphaned pipeline records (still in map = no on-chain match)
 	for (const [slug, row] of pipeline) {
 		const status = String(row.status ?? "").toUpperCase();
+		const orderStatus = String(row.order_status ?? "").toUpperCase();
+		// Resting (posted) limit orders have order_status "LIVE" and won't appear in
+		// on-chain positions until matched — skip them to avoid false-positive orphan alerts.
+		if (orderStatus === "LIVE" || orderStatus === "POSTED") continue;
 		if (OPEN_PIPELINE_STATUSES.has(status)) {
 			alerts.push({
 				type: "orphaned_trade",

@@ -1325,7 +1325,7 @@ export default function CopyTradeV2Page() {
 				<div className="grid gap-4 xl:grid-cols-2">
 					<SectionCard
 						title="Leader Roster"
-						subtitle="CTS-snapshot ranked roster loaded by the daily refresh job."
+						subtitle="Ranked by blended score (50% sim P&L + 50% CTS). Higher is better."
 					>
 						{leaderRows.length === 0 ? (
 							<div className="py-8 text-sm text-muted-foreground">
@@ -1351,6 +1351,9 @@ export default function CopyTradeV2Page() {
 											</div>
 										</div>
 										<div className="text-right">
+											<div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground leading-none mb-0.5">
+												Score
+											</div>
 											<div className="text-sm font-bold text-foreground leading-none">
 												{Math.round(leader.copyableScore)}
 											</div>
@@ -1442,7 +1445,7 @@ export default function CopyTradeV2Page() {
 														{leader.leader_state}
 													</div>
 												</div>
-												<div className="text-xs font-bold text-foreground">
+												<div className="text-xs font-bold text-foreground" title="Blended score (sim P&L + CTS)">
 													{Math.round(leader.copyable_score)}
 												</div>
 											</div>
