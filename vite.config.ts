@@ -2152,10 +2152,45 @@ function _readPipelineBySlug(): Map<string, PipelineLiveRecord> {
 	}
 	const rawRows = readJsonlSafe(SOFT_ARB_LIVE_TRADES_PATH) as PipelineLiveRecord[];
 	const merged = buildMergedLedgerRows(rawRows, "live");
+	// Aggregate across multiple OPEN ledger rows per slug. Two scenarios produce
+	// multiple OPEN rows for the same (slug, direction):
+	//   (a) Scaling into a position via two trade_ids
+	//   (b) Recovery from a partial logger run (e.g. order_id captured on second attempt)
+	// In both cases, on-chain has the SUM of pipeline shares — so Mission Control must
+	// also sum, not pick one. The previous last-write-wins behavior caused share_mismatch
+	// alerts whenever both rows were legitimately OPEN.
 	const bySlug = new Map<string, PipelineLiveRecord>();
 	for (const [, row] of merged) {
 		const slug = (row as PipelineLiveRecord).polymarket_slug as string | undefined;
-		if (slug) bySlug.set(slug, row as PipelineLiveRecord);
+		if (!slug) continue;
+		const status = String(row.status ?? "").toUpperCase();
+		const isOpen = OPEN_PIPELINE_STATUSES.has(status);
+		const existing = bySlug.get(slug);
+		if (!existing) {
+			bySlug.set(slug, row as PipelineLiveRecord);
+			continue;
+		}
+		// If the new row is OPEN and existing is OPEN, aggregate shares + size.
+		// Otherwise prefer the OPEN one (terminal rows shouldn't shadow active positions).
+		const existingStatus = String(existing.status ?? "").toUpperCase();
+		const existingIsOpen = OPEN_PIPELINE_STATUSES.has(existingStatus);
+		if (isOpen && existingIsOpen) {
+			const newRow: PipelineLiveRecord = {
+				...existing,
+				shares: Number(existing.shares ?? 0) + Number(row.shares ?? 0),
+				position_size_usd:
+					Number(existing.position_size_usd ?? 0) + Number(row.position_size_usd ?? 0),
+				// Pick the row with an order_id for downstream lookups; fall back to existing
+				order_id: (existing.order_id as string | null) ?? (row.order_id as string | null) ?? null,
+				// Keep the latest trade_id (last in iteration) for display
+				trade_id: row.trade_id ?? existing.trade_id,
+			};
+			bySlug.set(slug, newRow);
+		} else if (isOpen && !existingIsOpen) {
+			// New row is OPEN but existing is terminal — replace
+			bySlug.set(slug, row as PipelineLiveRecord);
+		}
+		// else: new row is terminal, existing is OPEN — keep existing (do nothing)
 	}
 	_pipelineCache = { data: bySlug, expiresAt: now + PORTFOLIO_CACHE_TTL_MS };
 	return new Map(bySlug);
